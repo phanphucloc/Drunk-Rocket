@@ -1,4 +1,4 @@
-import { PhysicsEngine } from '../core/physics.js';
+import { PhysicsEngine, PHYSICS_CONFIG } from '../core/physics.js';
 
 export class Rocket {
   constructor(startX = 100, startY = 320) {
@@ -11,26 +11,47 @@ export class Rocket {
     this.reset();
   }
 
-  reset() {
-    this.x = this.startX;
-    this.y = this.startY;
+  get rotation() {
+    return this.angle;
+  }
+
+  set rotation(val) {
+    this.angle = val;
+  }
+
+  reset(x = this.startX, y = this.startY) {
+    this.x = x;
+    this.y = y;
     this.vx = 0;
     this.vy = 0;
     this.angle = 0;
     this.isDead = false;
     this.isThrusting = false;
     this.thrustTimer = 0;
+    this.thrustPending = false;
 
     // Drunk eyes pupil wobble offsets
     this.pupilX = 0;
     this.pupilY = 0;
   }
 
-  update(dt, hasThrust, totalTime) {
+  thrust() {
+    this.thrustPending = true;
+    this.vy = PHYSICS_CONFIG.THRUST_VY;
+    this.vx = Math.min(this.vx + PHYSICS_CONFIG.THRUST_VX, 180);
+    this.angle = PHYSICS_CONFIG.THRUST_ANGLE;
+    this.isThrusting = true;
+    this.thrustTimer = 0.14;
+  }
+
+  update(dt, hasThrust = false, totalTime = 0) {
     if (this.isDead) return;
 
+    const thrustActive = hasThrust || this.thrustPending;
+    this.thrustPending = false;
+
     // Run physics integration
-    PhysicsEngine.updateRocket(this, dt, hasThrust, totalTime);
+    PhysicsEngine.updateRocket(this, dt, thrustActive, totalTime);
 
     // Animate goofy drunk pupils
     this.pupilX = Math.sin(totalTime * 8) * 2.2;

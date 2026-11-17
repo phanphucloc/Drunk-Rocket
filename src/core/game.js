@@ -1,4 +1,4 @@
-﻿import { InputManager } from './input.js';
+import { InputManager } from './input.js';
 import { Rocket } from '../entities/rocket.js';
 import { LaserPillarManager } from '../entities/laserPillar.js';
 import { Starfield } from '../graphics/starfield.js';
@@ -60,7 +60,7 @@ export class Game {
     this._onNearMiss = this._onNearMiss.bind(this);
     this.loop = this.loop.bind(this);
 
-        this.canvas.addEventListener('pointerdown', (e) => {
+    this.canvas.addEventListener('pointerdown', (e) => {
       if (this.perks && this.perks.isDrafting) {
         const rect = this.canvas.getBoundingClientRect();
         const clientY = (e.clientY - rect.top) * (this.height / rect.height);
@@ -69,6 +69,7 @@ export class Game {
         else if (clientY >= 430 && clientY <= 505) this.perks.selectCard(2);
       }
     });
+
     this.resize();
     window.addEventListener('resize', () => this.resize());
     window.addEventListener('keydown', (e) => {
@@ -131,11 +132,11 @@ export class Game {
   }
 
   _onNearMiss(pillar) {
-    this.score += (2 * this.nearMissMultiplier);
-    this.drunkMeter = Math.min(100, this.drunkMeter + (35 * this.nearMissMultiplier)); // Bonus +2 points on Near-Miss
-    this.drunkMeter = Math.min(100, this.drunkMeter + 35); // +35% Overdrive charge!
+    const bonus = 2 * this.nearMissMultiplier;
+    this.score += bonus;
+    this.drunkMeter = Math.min(100, this.drunkMeter + (35 * this.nearMissMultiplier));
     this.audio.playNearMiss();
-    this.hud.showNearMiss(2);
+    this.hud.showNearMiss(bonus);
     this.particles.emitNearMiss(this.rocket.x, this.rocket.y);
 
     if (this.perks) this.perks.checkMilestone(this.score);
@@ -162,16 +163,12 @@ export class Game {
       if (smashed) {
         this.score += 3;
         this.particles.emitPillarSmash(smashed.x + smashed.width / 2, smashed.gapY);
-      }
-    }
-    if (smashed) {
-      this.score += 3; // +3 bonus points for smashing
-      this.particles.emitPillarSmash(smashed.x + smashed.width / 2, smashed.gapY);
-      if (this.perks) this.perks.checkMilestone(this.score);
-    if (this.ghosts && pillar) this.ghosts.spawnForPillar(pillar, this.score);
-    if (this.score > this.bestScore) {
-        this.bestScore = this.score;
-        localStorage.setItem('drunk_rocket_best', this.bestScore.toString());
+        if (this.perks) this.perks.checkMilestone(this.score);
+        if (this.ghosts) this.ghosts.spawnForPillar(smashed, this.score);
+        if (this.score > this.bestScore) {
+          this.bestScore = this.score;
+          localStorage.setItem('drunk_rocket_best', this.bestScore.toString());
+        }
       }
     }
   }
@@ -187,7 +184,7 @@ export class Game {
     this.particles.emitExplosion(this.rocket.x, this.rocket.y);
 
     const runDuration = performance.now() - this.runStartTime;
-    if (this.ghosts) this.ghosts.submitGhost(localStorage.getItem('drunk_rocket_name') || 'PILOT', this.score, this.rocket.y);
+    if (this.ghosts) this.ghosts.submitGhost(localStorage.getItem('drunk_player_name') || 'ACE', this.score, this.rocket.y);
     if (this.leaderboard) {
       this.leaderboard.show(this.score, runDuration);
     }
@@ -199,7 +196,13 @@ export class Game {
     this.particles.update(dt);
     this.starfield.update(dt, this.state === 'PLAYING' ? 1 : 0.2);
 
-        if (this.perks && this.perks.isDrafting) {
+    if (this.leaderboard && this.leaderboard.isOpen) {
+      this.input.consumeTap();
+      this.input.consumeDoubleTap();
+      return;
+    }
+
+    if (this.perks && this.perks.isDrafting) {
       this.perks.update(dt);
       return; // Freeze main action while drafting in Bullet Time
     }
@@ -251,7 +254,7 @@ export class Game {
         if (this.hasQuantumDrift) this.quantumTimer = 0.3;
       }
 
-      this.rocket.update(dt);
+      this.rocket.update(dt, false, this.totalTime);
       this.pillars.update(dt, this.rocket, this._onScore, this._onNearMiss);
       if (this.ghosts) this.ghosts.update(dt, this.pillars.speed);
 
@@ -261,8 +264,8 @@ export class Game {
         return;
       }
 
-      // Pillar collision check (ignored if Smash is active)
-            if (!this.isSmashActive && this.quantumTimer <= 0) {
+      // Pillar collision check (ignored if Smash is active or Quantum invulnerable)
+      if (!this.isSmashActive && this.quantumTimer <= 0) {
         const collided = this.pillars.checkCollision(this.rocket);
         if (collided) {
           if (this.shieldActive) {
