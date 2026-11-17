@@ -114,10 +114,15 @@ export class HUD {
       ctx.fillText(`${score}`, cx, 85);
 
       // 3. Drunk-Meter Energy Bar (Overdrive)
-      const barW = 160;
-      const barH = 12;
+      const barW = 200;
+      const barH = 15;
       const barX = cx - barW / 2;
-      const barY = 110;
+      const barY = 102;
+
+      // Energy Label
+      ctx.fillStyle = "#7d8aa8";
+      ctx.font = "bold 11px monospace";
+      ctx.fillText("OVERDRIVE: " + Math.floor(drunkMeter) + "%", cx, barY - 4);
 
       // Background
       ctx.fillStyle = 'rgba(11, 14, 20, 0.8)';
