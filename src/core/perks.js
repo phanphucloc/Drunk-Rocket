@@ -163,15 +163,13 @@ export class PerkDraftManager {
     if (!this.isDrafting || index < 0 || index >= this.draftCards.length) return;
     const perk = this.draftCards[index];
     this.activePerks.add(perk.id);
-    perk.apply(this.game);
 
     this.selectedCard = perk;
     this.isDrafting = false;
     this.hoveredIndex = -1;
 
-    // UPGRADE: 1.0s post-draft freeze pause so player can get ready
-    this.isPostDraft = true;
-    this.postDraftTimer = 1.0;
+    // Apply perk modifiers
+    perk.apply(this.game);
 
     // Consume all inputs immediately
     if (this.game && this.game.input) {
@@ -181,6 +179,19 @@ export class PerkDraftManager {
     }
     if (this.game && this.game.audio) {
       this.game.audio.playMedal();
+    }
+
+    if (perk.id === 'chain_reaction') {
+      // Khi chon the pha vo 2 cot: Khong can pause 1.0s ma ngay lap tuc kick hoat cu luot pha 2 cot than toc!
+      this.isPostDraft = false;
+      this.selectedCard = null;
+      this.draftCards = [];
+      this.game.drunkMeter = 100;
+      this.game._triggerSupernovaSmash(true);
+    } else {
+      // Cac the khac: 1.0s post-draft freeze pause de nguoi choi san sang
+      this.isPostDraft = true;
+      this.postDraftTimer = 1.0;
     }
   }
 

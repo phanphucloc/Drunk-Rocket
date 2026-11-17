@@ -156,14 +156,44 @@ export class LaserPillarManager {
 
   destroyFrontPillars(rocketX, count = 1) {
     const destroyed = [];
-    const candidates = this.pillars
-      .filter(p => !p.isDestroyed && p.x + p.width > rocketX - 30)
+    let candidates = this.pillars
+      .filter(p => !p.isDestroyed && p.x + p.width > rocketX - 25)
       .sort((a, b) => a.x - b.x);
 
-    for (let i = 0; i < Math.min(count, candidates.length); i++) {
-      candidates[i].isDestroyed = true;
-      destroyed.push(candidates[i]);
+    // Neu so luong cot hien co truoc mat it hon count (vi du can pha 2 cot):
+    // Tu dong spawn them cot de dam bao co du cot de nguoi choi nhin thay va pha huy
+    while (candidates.length < count) {
+      let nextX;
+      let nextGapY;
+
+      if (candidates.length === 0) {
+        nextX = Math.max(rocketX + 110, 200);
+        nextGapY = this.minGapY + Math.random() * (this.maxGapY - this.minGapY);
+      } else {
+        const prevPillar = candidates[candidates.length - 1];
+        // Neu cot truoc o gan (< 220), dat cot 2 o khoang 320px
+        // Neu cot truoc o xa, dat cot 2 cach cot 1 khoang 140px
+        nextX = Math.max(prevPillar.x + 120, prevPillar.x < 220 ? 320 : prevPillar.x + 140);
+        nextGapY = Math.min(this.maxGapY, Math.max(this.minGapY, prevPillar.gapY + (Math.random() - 0.5) * 60));
+      }
+
+      const newPillar = new LaserPillar(nextX, nextGapY, this.gapHeight);
+      this.pillars.push(newPillar);
+      candidates.push(newPillar);
+      candidates.sort((a, b) => a.x - b.x);
     }
+
+    // Pha huy chinh xac count cot theo thu tu tu gan den xa
+    for (let i = 0; i < count; i++) {
+      const p = candidates[i];
+      p.isDestroyed = true;
+      p.passed = true;
+      destroyed.push(p);
+    }
+
+    // Gian cach thoi gian xuat hien cua cot ke tiep de nguoi choi an toan sau khi smash
+    this.spawnTimer = this.spawnInterval + (count >= 2 ? 0.9 : 0.4);
+
     return destroyed;
   }
 }

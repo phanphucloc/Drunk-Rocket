@@ -67,7 +67,7 @@ export class HUD {
     return { x: 0, y: 0 };
   }
 
-  draw(ctx, state, score, bestScore, time, timeSinceDeath, drunkMeter = 0, isSmashActive = false) {
+  draw(ctx, state, score, bestScore, time, timeSinceDeath, drunkMeter = 0, isSmashActive = false, smashChainCount = 1) {
     const cx = this.gameWidth / 2;
 
     // Draw Screen Flash
@@ -268,15 +268,24 @@ export class HUD {
       if (isSmashActive) {
         ctx.fillStyle = '#ff3b5c';
         ctx.font = '900 13px monospace';
-        ctx.fillText('💥 SUPERNOVA SMASH! 💥', cx, orbY + orbR + 18);
+        if (smashChainCount >= 2) {
+          ctx.fillText('⚡ CHAIN REACTION (2 CỘT)! ⚡', cx, orbY + orbR + 18);
+        } else {
+          ctx.fillText('💥 SUPERNOVA SMASH! 💥', cx, orbY + orbR + 18);
+        }
       } else if (isFull) {
         ctx.fillStyle = '#ffd13b';
         ctx.font = 'bold 12px monospace';
-        ctx.fillText('⚡ DOUBLE TAP: SMASH READY! ⚡', cx, orbY + orbR + 18);
+        if (smashChainCount >= 2) {
+          ctx.fillText('⚡ DOUBLE TAP: CHAIN SMASH (2 CỘT)! ⚡', cx, orbY + orbR + 18);
+        } else {
+          ctx.fillText('⚡ DOUBLE TAP: SMASH READY! ⚡', cx, orbY + orbR + 18);
+        }
       } else {
         ctx.fillStyle = '#7d8aa8';
         ctx.font = 'bold 11px monospace';
-        ctx.fillText('OVERDRIVE: ' + Math.floor(drunkMeter) + '%', cx, orbY + orbR + 16);
+        const chainTag = smashChainCount >= 2 ? ' [2 CỘT]' : '';
+        ctx.fillText('OVERDRIVE: ' + Math.floor(drunkMeter) + '%' + chainTag, cx, orbY + orbR + 16);
       }
 
       // 4. Near-Miss Floating Notification

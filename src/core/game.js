@@ -92,6 +92,17 @@ export class Game {
 
     // Pointer down listener for card selection
     this.canvas.addEventListener('pointerdown', (e) => {
+      // Direct click on Overdrive Orb when full (center: cx = width/2, cy = 126, radius = 35)
+      const rect = this.canvas.getBoundingClientRect();
+      const clickX = (e.clientX - rect.left) * (this.width / rect.width);
+      const clickY = (e.clientY - rect.top) * (this.height / rect.height);
+      const distToOrb = Math.hypot(clickX - this.width / 2, clickY - 126);
+      if (this.state === 'PLAYING' && this.drunkMeter >= 100 && distToOrb <= 36) {
+        e.preventDefault();
+        e.stopPropagation();
+        this._triggerSupernovaSmash();
+        return;
+      }
       if (this.perks && this.perks.isDrafting) {
         const rect = this.canvas.getBoundingClientRect();
         const clientY = (e.clientY - rect.top) * (this.height / rect.height);
@@ -235,49 +246,47 @@ export class Game {
     this.particles.emitEnergySiphon(cell.x, cell.y, this.width / 2, 126, 6);
   }
 
-  _triggerSupernovaSmash() {
-    if (this.drunkMeter < 100 || this.isSmashActive) return;
+  _triggerSupernovaSmash(forcedChain = false) {
+    if (this.isSmashActive) return;
+    if (!forcedChain && this.drunkMeter < 100) return;
 
     this.isSmashActive = true;
     this.drunkMeter = 0;
     this.originalRocketX = this.rocket.x;
-    const isChain = this.smashChainCount >= 2;
+    const isChain = forcedChain || (this.smashChainCount >= 2);
 
     this.audio.playSmash();
     this.hud.triggerSmashEffects();
 
-    // 1. Phá hủy cột: Nếu có Chain Reaction thì phá 2 cột, còn Smash thường thì phá 1 cột
+    // 1. Pha huy cot: Neu co Chain Reaction thi pha 2 cot, con Smash thuong thi pha 1 cot
     const targetCount = isChain ? 2 : 1;
     const smashedList = this.pillars.destroyFrontPillars(this.rocket.x, targetCount);
 
-    // Xác định đích đến (Destination X) dựa vào vị trí cột bị phá
+    // Xac dinh dich den (Destination X) dua vao vi tri cot xa nhat bi pha
     let targetX = this.rocket.x + 160;
     if (smashedList.length > 0) {
-      // Vị trí cột xa nhất bị phá hủy
       const lastPillar = smashedList[smashedList.length - 1];
       targetX = lastPillar.x + (lastPillar.width || 52) / 2;
     } else {
-      // Nếu không có cột trước mặt, lướt 1 quãng xa về phía trước
-      targetX = isChain ? this.width - 50 : this.width / 2 + 50;
+      targetX = isChain ? this.width - 45 : this.width / 2 + 50;
     }
 
-    // Giới hạn đích đến trong màn hình an toàn
-    this.smashTargetX = Math.min(this.width - 55, Math.max(this.rocket.x + 80, targetX));
+    // Gioi han dich den trong man hinh an toan
+    this.smashTargetX = Math.min(this.width - 45, Math.max(this.rocket.x + 90, targetX));
     this.smashStartX = this.rocket.x;
-    this.smashProgress = 0;
-    // Thời gian lướt: 0.85s cho 2 cột, 0.65s cho 1 cột
-    this.smashTotalDuration = isChain ? 0.85 : 0.65;
+    // Thoi gian luot: 0.95s cho 2 cot, 0.70s cho 1 cot
+    this.smashTotalDuration = isChain ? 0.95 : 0.70;
     this.smashDuration = this.smashTotalDuration;
 
-    // Kích hoạt hiệu ứng nổ tung cho từng cột bị phá
+    // Kich hoat hieu ung no tung va cong diem (+3 moi cot)
     for (const smashed of smashedList) {
       this.score += 3;
       this.particles.emitPillarSmash(smashed.x + (smashed.width || 52) / 2, smashed.gapY || 350);
       if (this.ghosts) this.ghosts.spawnForPillar(smashed, this.score);
-      if (this.score > this.bestScore) {
-        this.bestScore = this.score;
-        localStorage.setItem('drunk_rocket_best', this.bestScore.toString());
-      }
+    }
+    if (this.score > this.bestScore) {
+      this.bestScore = this.score;
+      localStorage.setItem('drunk_rocket_best', this.bestScore.toString());
     }
   }
 
@@ -443,7 +452,7 @@ export class Game {
       if (this.ghosts) this.ghosts.update(dt, this.pillars.speed);
 
       // Boundary collision check (ceiling or floor)
-      if (this.rocket.y - this.rocket.radius <= 0 || this.rocket.y + this.rocket.radius >= this.height) {
+      if (!this.isSmashActive && (this.rocket.y - this.rocket.radius <= 0 || this.rocket.y + this.rocket.radius >= this.height)) {
         this._die();
         return;
       }
@@ -617,7 +626,8 @@ export class Game {
       this.totalTime,
       this.timeSinceDeath,
       this.drunkMeter,
-      this.isSmashActive
+      this.isSmashActive,
+      this.smashChainCount || 1
     );
 
     this.ctx.restore();
