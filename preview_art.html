@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Drunk Rocket - Art & Audio Showcase</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+    body {
+      background: #0b0e14;
+      color: #fff;
+      font-family: 'Courier New', monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      overflow-x: hidden;
+      padding: 10px;
+    }
+    h1 {
+      color: #ffd13b;
+      font-size: 20px;
+      margin-bottom: 8px;
+      text-shadow: 0 0 10px rgba(255, 209, 59, 0.5);
+    }
+    #gameCanvas {
+      background: #0b0e14;
+      border: 2px solid #2e3856;
+      border-radius: 6px;
+      box-shadow: 0 0 20px rgba(0, 240, 255, 0.2);
+      max-width: 100%;
+      image-rendering: pixelated;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+      max-width: 480px;
+      justify-content: center;
+    }
+    button {
+      background: #1a2033;
+      color: #00f0ff;
+      border: 1px solid #00f0ff;
+      padding: 8px 12px;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: bold;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    button:hover {
+      background: #00f0ff;
+      color: #0b0e14;
+      box-shadow: 0 0 12px #00f0ff;
+    }
+    button.danger {
+      color: #ff3b5c;
+      border-color: #ff3b5c;
+    }
+    button.danger:hover {
+      background: #ff3b5c;
+      color: #0b0e14;
+      box-shadow: 0 0 12px #ff3b5c;
+    }
+    button.score {
+      color: #05ffa1;
+      border-color: #05ffa1;
+    }
+    button.score:hover {
+      background: #05ffa1;
+      color: #0b0e14;
+      box-shadow: 0 0 12px #05ffa1;
+    }
+    .info {
+      font-size: 12px;
+      color: #8b9bb4;
+      margin-top: 8px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <h1>🚀 DRUNK ROCKET - ART & AUDIO TESTBED</h1>
+  <canvas id="gameCanvas" width="400" height="560"></canvas>
+
+  <div class="controls">
+    <button id="btnThrust">🔥 Thrust Sound & Jet</button>
+    <button id="btnCrash" class="danger">💥 Crash & Explosion VFX</button>
+    <button id="btnScore" class="score">🔔 Score Chime</button>
+    <button id="btnToggleMode">🎨 Mode: Pixel Art</button>
+    <button id="btnLaserToggle">⚡ Toggle Hazard Beam</button>
+  </div>
+
+  <div class="info">
+    Chạm Canvas hoặc bấm Phím SPACE để bay & kích hoạt âm thanh Web Audio API (0 bytes asset).
+  </div>
+
+  <script type="module">
+    import { drawRocket, drawLaserHazard, drawHUD, PALETTE } from './src/graphics/renderer.js';
+    import { ParticleSystem } from './src/graphics/particles.js';
+    import { Starfield } from './src/graphics/starfield.js';
+    import { sound } from './src/audio/audioSynth.js';
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const starfield = new Starfield(canvas.width, canvas.height);
+    const particles = new ParticleSystem();
+
+    let renderMode = 'pixel';
+    let isThrusting = false;
+    let isBeamActive = true;
+    let lastTime = performance.now();
+    let totalTime = 0;
+    let score = 5;
+
+    // Rocket physics preview
+    const rocket = {
+      x: 120,
+      y: 280,
+      vy: 0,
+      angle: 0.1,
+      scale: 3.0
+    };
+
+    const pillar = {
+      x: 310,
+      gapY: 280,
+      gapHeight: 140,
+      width: 44,
+      isBeamActive: true
+    };
+
+    function triggerThrust() {
+      sound.playThrust();
+      isThrusting = true;
+      rocket.vy = -180;
+      rocket.angle = -0.4;
+      particles.emitThrust(rocket.x - 25, rocket.y + 4, rocket.angle, 5);
+      setTimeout(() => { isThrusting = false; }, 160);
+    }
+
+    function triggerCrash() {
+      sound.playCrash();
+      particles.emitExplosion(rocket.x, rocket.y, 25);
+    }
+
+    // Input handlers
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        triggerThrust();
+      }
+    });
+
+    canvas.addEventListener('pointerdown', (e) => {
+      triggerThrust();
+    });
+
+    document.getElementById('btnThrust').addEventListener('click', triggerThrust);
+    document.getElementById('btnCrash').addEventListener('click', triggerCrash);
+    document.getElementById('btnScore').addEventListener('click', () => {
+      score++;
+      sound.playScore();
+    });
+    document.getElementById('btnToggleMode').addEventListener('click', (e) => {
+      renderMode = renderMode === 'pixel' ? 'vector' : 'pixel';
+      e.target.innerText = renderMode === 'pixel' ? '🎨 Mode: Pixel Art' : '🎨 Mode: Vector Retro';
+      sound.playTap();
+    });
+    document.getElementById('btnLaserToggle').addEventListener('click', () => {
+      isBeamActive = !isBeamActive;
+      pillar.isBeamActive = isBeamActive;
+      sound.playTap();
+    });
+
+    // Game Animation Loop
+    function loop(now) {
+      const dt = Math.min((now - lastTime) / 1000, 0.1);
+      lastTime = now;
+      totalTime += dt;
+
+      // Rocket bobbing / falling physics
+      rocket.vy += 380 * dt; // gravity
+      rocket.y += rocket.vy * dt;
+      if (rocket.y > canvas.height - 40) {
+        rocket.y = canvas.height - 40;
+        rocket.vy = -120;
+      }
+      if (rocket.y < 40) {
+        rocket.y = 40;
+        rocket.vy = 50;
+      }
+
+      // Smooth tilt rotation
+      const targetAngle = rocket.vy > 0 ? 0.35 : -0.4;
+      rocket.angle += (targetAngle - rocket.angle) * 8 * dt;
+
+      // Update background and particles
+      starfield.update(dt, 1.2);
+      particles.update(dt);
+
+      // Render Scene
+      ctx.save();
+      // Apply screen shake
+      if (particles.shakeIntensity > 0) {
+        ctx.translate(particles.shakeOffsetX, particles.shakeOffsetY);
+      }
+
+      // 1. Starfield background
+      starfield.draw(ctx);
+
+      // 2. Laser Obstacle
+      drawLaserHazard(ctx, pillar, canvas.height, totalTime);
+
+      // 3. Particles
+      particles.draw(ctx);
+
+      // 4. Drunk Rocket
+      drawRocket(ctx, rocket.x, rocket.y, {
+        angle: rocket.angle,
+        isThrusting: isThrusting,
+        dizzyTime: totalTime,
+        scale: rocket.scale,
+        mode: renderMode
+      });
+
+      // 5. In-game HUD
+      drawHUD(ctx, score, 12, { width: canvas.width, state: 'PLAYING' });
+
+      ctx.restore();
+
+      requestAnimationFrame(loop);
+    }
+
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>

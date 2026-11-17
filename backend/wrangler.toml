@@ -1,0 +1,18 @@
+﻿name = "drunk-rocket-backend"
+main = "worker.js"
+compatibility_date = "2024-04-01"
+
+[vars]
+ENVIRONMENT = "production"
+SCORE_SALT = "drunk_rocket_arcade_secret_salt_2026"
+MIN_MS_PER_POINT = "800"
+
+# Cloudflare D1 Database Binding
+[[d1_databases]]
+binding = "DB"
+database_name = "drunk_rocket_db"
+database_id = "your-d1-database-id-here" # Thay the bang D1 ID that sau khi chay: npx wrangler d1 create drunk_rocket_db
+
+# CORS Headers & Caching Options (Cloudflare Free Tier 0d)
+[observability]
+enabled = false

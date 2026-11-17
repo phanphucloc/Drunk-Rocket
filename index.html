@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Drunk Rocket (Tàu Say Rượu) - Cyber Neon Arcade</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="game-container">
+    <canvas id="game-canvas"></canvas>
+
+    <!-- Top Floating Toolbar -->
+    <div id="top-toolbar">
+      <button id="btn-open-leaderboard" class="arcade-btn" title="Bảng xếp hạng">🏆 TOP</button>
+      <button id="btn-toggle-sound" class="arcade-btn" title="Bật/Tắt âm thanh">🔊</button>
+    </div>
+
+    <!-- Game Over Floating Action Bar -->
+    <div id="gameover-actions" class="hidden">
+      <button id="btn-share-challenge" class="arcade-btn action-share">📤 THÁCH ĐỐ</button>
+      <button id="btn-save-score" class="arcade-btn action-top">🏆 LƯU ĐIỂM</button>
+    </div>
+
+    <!-- Leaderboard Modal Overlay -->
+    <div id="leaderboard-modal" class="modal-overlay hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h2>🏆 BẢNG VÀNG ARCADE</h2>
+          <button id="btn-close-modal" class="close-btn">&times;</button>
+        </div>
+
+        <!-- Submit Score Section -->
+        <div id="score-submit-box" class="submit-box" style="display: none;">
+          <div id="submit-status" class="submit-info">Ghi danh kỷ lục của bạn</div>
+          <div class="submit-form">
+            <input type="text" id="input-player-name" maxlength="3" placeholder="TAG" autocomplete="off" spellcheck="false">
+            <button id="btn-submit-score" class="arcade-btn-submit">LƯU ĐIỂM</button>
+          </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="modal-tabs">
+          <button id="tab-daily" class="tab-btn active">HÔM NAY</button>
+          <button id="tab-alltime" class="tab-btn">TẤT CẢ</button>
+        </div>
+
+        <!-- Table -->
+        <div class="table-container">
+          <table class="leaderboard-table">
+            <thead>
+              <tr>
+                <th>HẠNG</th>
+                <th>TÊN</th>
+                <th>ĐIỂM</th>
+                <th>NGÀY</th>
+              </tr>
+            </thead>
+            <tbody id="leaderboard-tbody">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Notification for Copy/Share -->
+    <div id="toast" class="toast hidden"></div>
+  </div>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "name": "drunk-rocket",
+  "version": "1.0.0",
+  "description": "Drunk Rocket (Tàu Say Rượu) - Hyper-casual Web Game",
+  "type": "module",
+  "scripts": {
+    "start": "npx serve -l 3000 ."
+  },
+  "keywords": ["game", "canvas", "html5", "physics", "arcade"],
+  "author": "OpenMausBot Web-Game Team",
+  "license": "MIT"
+}
