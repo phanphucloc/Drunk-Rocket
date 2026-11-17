@@ -1,6 +1,7 @@
 import { InputManager } from './input.js';
 import { Rocket } from '../entities/rocket.js';
 import { LaserPillarManager } from '../entities/laserPillar.js';
+import { EnergyCellManager } from '../entities/energyCell.js';
 import { Starfield } from '../graphics/starfield.js';
 import { ParticleSystem } from '../graphics/particles.js';
 import { EntityRenderer } from '../graphics/renderer.js';
@@ -26,13 +27,20 @@ export class Game {
     this.starfield = new Starfield(this.width, this.height);
     this.particles = new ParticleSystem();
     this.pillars = new LaserPillarManager(this.width, this.height);
+    this.energyCells = new EnergyCellManager(this.width, this.height);
     this.hud = new HUD(this.width, this.height);
     this.rocket = new Rocket(100, 320);
     this.perks = new PerkDraftManager(this);
     this.ghosts = new GhostManager();
+
+    // Active Perk Modifiers
     this.shieldActive = false;
     this.hasQuantumDrift = false;
     this.quantumTimer = 0;
+    this.quantumCooldownTimer = 0;
+    this.quantumMaxCooldown = 4.0;
+    this.hasDrunkMagnet = false;
+    this.magnetParticleTimer = 0;
     this.perkDraftCooldown = 0;
     this.nearMissMultiplier = 1;
     this.smashChainCount = 1;
@@ -61,8 +69,23 @@ export class Game {
 
     this._onScore = this._onScore.bind(this);
     this._onNearMiss = this._onNearMiss.bind(this);
+    this._onCollectCell = this._onCollectCell.bind(this);
     this.loop = this.loop.bind(this);
 
+    // Pointer move listener for card hover effects
+    this.canvas.addEventListener('pointermove', (e) => {
+      if (this.perks && this.perks.isDrafting) {
+        const rect = this.canvas.getBoundingClientRect();
+        const clientX = (e.clientX - rect.left) * (this.width / rect.width);
+        const clientY = (e.clientY - rect.top) * (this.height / rect.height);
+        this.perks.setHover(clientX, clientY);
+        this.canvas.style.cursor = this.perks.hoveredIndex !== -1 ? 'pointer' : 'default';
+      } else {
+        this.canvas.style.cursor = 'default';
+      }
+    });
+
+    // Pointer down listener for card selection
     this.canvas.addEventListener('pointerdown', (e) => {
       if (this.perks && this.perks.isDrafting) {
         const rect = this.canvas.getBoundingClientRect();
@@ -78,7 +101,7 @@ export class Game {
           this.perks.selectCard(cardIdx);
           this.input.consumeTap();
           this.input.consumeDoubleTap();
-          this.perkDraftCooldown = 0.25;
+          this.perkDraftCooldown = 0.35;
         }
       }
     });
@@ -98,7 +121,7 @@ export class Game {
           this.perks.selectCard(cardIdx);
           this.input.consumeTap();
           this.input.consumeDoubleTap();
-          this.perkDraftCooldown = 0.25;
+          this.perkDraftCooldown = 0.35;
         }
       }
     });
@@ -137,11 +160,15 @@ export class Game {
     this.shieldActive = false;
     this.hasQuantumDrift = false;
     this.quantumTimer = 0;
+    this.quantumCooldownTimer = 0;
+    this.hasDrunkMagnet = false;
+    this.magnetParticleTimer = 0;
     this.perkDraftCooldown = 0;
     this.nearMissMultiplier = 1;
     this.smashChainCount = 1;
     this.passiveChargeRate = 0;
     this.pillars.reset();
+    this.energyCells.reset();
     this.particles.reset();
     this.state = 'READY';
     this.timeSinceDeath = 0;
@@ -158,6 +185,12 @@ export class Game {
     const pX = pillar ? pillar.x + (pillar.width || 52) / 2 : this.rocket.x + 20;
     const pY = pillar ? pillar.gapY : this.rocket.y;
     this.particles.emitEnergySiphon(pX, pY, this.width / 2, 126, 9);
+
+    // Spawn floating energy crystal between pillars
+    if (this.score % 2 === 0) {
+      const gapY = pillar ? pillar.gapY + (Math.random() - 0.5) * 50 : 350;
+      this.energyCells.spawn(this.width + 45, Math.min(Math.max(gapY, 140), 560));
+    }
 
     if (this.perks) this.perks.checkMilestone(this.score);
     if (this.ghosts && pillar) this.ghosts.spawnForPillar(pillar, this.score);
@@ -182,6 +215,20 @@ export class Game {
 
     if (this.perks) this.perks.checkMilestone(this.score);
     if (this.ghosts && pillar) this.ghosts.spawnForPillar(pillar, this.score);
+    if (this.score > this.bestScore) {
+      this.bestScore = this.score;
+      localStorage.setItem('drunk_rocket_best', this.bestScore.toString());
+    }
+  }
+
+  _onCollectCell(cell) {
+    this.score += 1;
+    this.drunkMeter = Math.min(100, this.drunkMeter + 10);
+    this.audio.playScore();
+    this.particles.emitCellPickup(cell.x, cell.y);
+    this.particles.emitEnergySiphon(cell.x, cell.y, this.width / 2, 126, 8);
+
+    if (this.perks) this.perks.checkMilestone(this.score);
     if (this.score > this.bestScore) {
       this.bestScore = this.score;
       localStorage.setItem('drunk_rocket_best', this.bestScore.toString());
@@ -248,8 +295,8 @@ export class Game {
       return;
     }
 
-    // While drafting cards, suppress all inputs and freeze flight
-    if (this.perks && this.perks.isDrafting) {
+    // Freeze game loop during Pre-draft (0.5s), Drafting, and Post-draft (0.5s)
+    if (this.perks && (this.perks.isPreDraft || this.perks.isDrafting || this.perks.isPostDraft)) {
       this.input.consumeTap();
       this.input.consumeDoubleTap();
       this.perks.update(dt);
@@ -267,6 +314,21 @@ export class Game {
       this.drunkMeter = Math.min(100, this.drunkMeter + this.passiveChargeRate * dt);
     }
 
+    // Drunk Magnet ambient suction VFX
+    if (this.hasDrunkMagnet) {
+      this.magnetParticleTimer += dt;
+      if (this.magnetParticleTimer >= 0.35) {
+        this.magnetParticleTimer = 0;
+        this.particles.emitMagnetSuction(this.rocket.x, this.rocket.y, 2);
+      }
+    }
+
+    // Quantum Drift cooldown timer
+    if (this.quantumCooldownTimer > 0) {
+      this.quantumCooldownTimer -= dt;
+    }
+
+    // Quantum Drift active duration timer
     if (this.quantumTimer > 0) {
       this.quantumTimer -= dt;
       this.rocket.isQuantum = (this.quantumTimer > 0);
@@ -293,10 +355,8 @@ export class Game {
         this.rocket.thrust();
         this.audio.playThrust();
         this.particles.emitThrust(this.rocket.x, this.rocket.y, this.rocket.rotation);
-        if (this.hasQuantumDrift) {
-          this.quantumTimer = 0.85;
-          this.rocket.isQuantum = true;
-        }
+        // Quick initial floating crystal
+        this.energyCells.spawn(this.width + 20, 320);
       }
     } else if (this.state === 'PLAYING') {
       if (hasDoubleTap && this.drunkMeter >= 100) {
@@ -339,14 +399,19 @@ export class Game {
         this.rocket.thrust();
         this.audio.playThrust();
         this.particles.emitThrust(this.rocket.x, this.rocket.y, this.rocket.rotation);
-        if (this.hasQuantumDrift) {
-          this.quantumTimer = 0.85;
+
+        // Activate Quantum Drift ONLY when off cooldown!
+        if (this.hasQuantumDrift && this.quantumCooldownTimer <= 0) {
+          this.quantumTimer = 0.8;
+          this.quantumCooldownTimer = this.quantumMaxCooldown; // 4s cooldown
           this.rocket.isQuantum = true;
+          this.audio.playMedal();
         }
       }
 
       this.rocket.update(dt, false, this.totalTime);
       this.pillars.update(dt, this.rocket, this._onScore, this._onNearMiss);
+      this.energyCells.update(dt, this.pillars.speed, this.rocket, this.hasDrunkMagnet, this._onCollectCell);
       if (this.ghosts) this.ghosts.update(dt, this.pillars.speed);
 
       // Boundary collision check (ceiling or floor)
@@ -395,37 +460,79 @@ export class Game {
       }
     }
 
+    // Draw Floating Energy Cells
+    this.energyCells.draw(this.ctx);
+
     this.particles.draw(this.ctx);
 
     if (this.ghosts) this.ghosts.draw(this.ctx);
 
+    // Draw Drunk Magnet Field Lines around Rocket
+    if (this.hasDrunkMagnet && !this.rocket.isDead) {
+      this.ctx.save();
+      const mPulse = Math.sin(this.totalTime * 6) * 4;
+      const mRadius = 38 + mPulse;
+
+      // Magnetic field flux arcs
+      this.ctx.strokeStyle = 'rgba(0, 240, 255, 0.45)';
+      this.ctx.lineWidth = 1.5;
+      this.ctx.setLineDash([4, 6]);
+
+      this.ctx.beginPath();
+      this.ctx.arc(this.rocket.x, this.rocket.y, mRadius, -Math.PI * 0.7, Math.PI * 0.7);
+      this.ctx.stroke();
+
+      this.ctx.beginPath();
+      this.ctx.arc(this.rocket.x - 6, this.rocket.y, mRadius - 10, -Math.PI * 0.6, Math.PI * 0.6);
+      this.ctx.stroke();
+
+      // Magnet Badge
+      this.ctx.fillStyle = '#00f0ff';
+      this.ctx.font = 'bold 11px monospace';
+      this.ctx.textAlign = 'center';
+      this.ctx.fillText('🧲 MAGNET', this.rocket.x, this.rocket.y - this.rocket.radius - 12);
+      this.ctx.restore();
+    }
+
     // Draw Rocket (with quantum ghost transparency if active)
     EntityRenderer.drawRocket(this.ctx, this.rocket);
 
-    // Cinematic Quantum Drift Hologram FX
-    if (this.quantumTimer > 0) {
-      this.ctx.save();
-      this.ctx.strokeStyle = '#00f0ff';
-      this.ctx.lineWidth = 1.5;
-      this.ctx.setLineDash([4, 4]);
-      this.ctx.beginPath();
-      this.ctx.arc(this.rocket.x, this.rocket.y, this.rocket.radius + 14, 0, Math.PI * 2);
-      this.ctx.stroke();
-
-      // Quantum lightning flicker
-      for (let qi = 0; qi < 3; qi++) {
-        const qAngle = this.totalTime * 10 + qi * (Math.PI * 2 / 3);
-        const qx1 = this.rocket.x + Math.cos(qAngle) * (this.rocket.radius + 6);
-        const qy1 = this.rocket.y + Math.sin(qAngle) * (this.rocket.radius + 6);
-        const qx2 = this.rocket.x + Math.cos(qAngle + 0.5) * (this.rocket.radius + 14);
-        const qy2 = this.rocket.y + Math.sin(qAngle + 0.5) * (this.rocket.radius + 14);
-        this.ctx.strokeStyle = '#ffffff';
+    // Quantum Drift Hologram / Ready indicator
+    if (this.hasQuantumDrift && !this.rocket.isDead) {
+      if (this.quantumTimer > 0) {
+        // Active Quantum Phase
+        this.ctx.save();
+        this.ctx.strokeStyle = '#00f0ff';
+        this.ctx.lineWidth = 1.5;
+        this.ctx.setLineDash([4, 4]);
         this.ctx.beginPath();
-        this.ctx.moveTo(qx1, qy1);
-        this.ctx.lineTo(qx2, qy2);
+        this.ctx.arc(this.rocket.x, this.rocket.y, this.rocket.radius + 14, 0, Math.PI * 2);
         this.ctx.stroke();
+
+        // Quantum lightning flicker
+        for (let qi = 0; qi < 3; qi++) {
+          const qAngle = this.totalTime * 10 + qi * (Math.PI * 2 / 3);
+          const qx1 = this.rocket.x + Math.cos(qAngle) * (this.rocket.radius + 6);
+          const qy1 = this.rocket.y + Math.sin(qAngle) * (this.rocket.radius + 6);
+          const qx2 = this.rocket.x + Math.cos(qAngle + 0.5) * (this.rocket.radius + 14);
+          const qy2 = this.rocket.y + Math.sin(qAngle + 0.5) * (this.rocket.radius + 14);
+          this.ctx.strokeStyle = '#ffffff';
+          this.ctx.beginPath();
+          this.ctx.moveTo(qx1, qy1);
+          this.ctx.lineTo(qx2, qy2);
+          this.ctx.stroke();
+        }
+        this.ctx.restore();
+      } else if (this.quantumCooldownTimer <= 0) {
+        // Quantum Drift READY indicator aura
+        this.ctx.save();
+        this.ctx.strokeStyle = 'rgba(0, 240, 255, 0.4)';
+        this.ctx.lineWidth = 1.2;
+        this.ctx.beginPath();
+        this.ctx.arc(this.rocket.x, this.rocket.y, this.rocket.radius + 6, 0, Math.PI * 2);
+        this.ctx.stroke();
+        this.ctx.restore();
       }
-      this.ctx.restore();
     }
 
     // Cinematic Beer Bubble Plasma Shield FX

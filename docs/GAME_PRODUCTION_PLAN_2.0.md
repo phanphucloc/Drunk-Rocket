@@ -2,54 +2,52 @@
 **Dự án:** Drunk Rocket (Tàu Say Rượu)  
 **Vai trò:** Game Lead & Producer  
 **Thư mục dự án:** `D:\project\game\Drunk-Rocket`  
-**Phiên bản:** v2.1.0 Roadmap - Cập nhật thông số Smash 5 điểm & Cyber Energy Orb  
-**Trạng thái:** ĐÃ CẬP NHẬT THEO CHỈ ĐẠO MỚI NHẤT -> DEPLOY PRODUCTION  
+**Phiên bản:** v2.2.0 - Tinh chỉnh nhịp độ, Interactive Hover, Khắc phục lỗi Bất tử & Hạt năng lượng trôi nổi  
+**Trạng thái:** ĐÃ CẬP NHẬT HOÀN THIỆN -> DEPLOY PRODUCTION  
 
 ---
 
 ## 1. ĐÁNH GIÁ & ĐỒNG THUẬN TỪ GAME LEAD
-Bản đề xuất **Drunk Rocket 2.0: Overdrive & Roguelite Edition** đã giải quyết triệt để bài toán:
-* Thoát khỏi cái bóng "nhàm chán / lặp lại" của Flappy Bird cổ điển.
-* Giữ nguyên tính tối giản One-Tap (thêm Double-Tap trực quan) nhưng tạo ra chiều sâu chiến thuật và giải tỏa ức chế cực tốt thông qua **The Triple Synergy Loop**:
-  `Bay mạo hiểm (Near-Miss) ➔ Đầy nộ phá cột (Supernova Smash) ➔ Chọn thẻ bài (Micro-Roguelite Draft)`.
-* Tính năng xã hội **Bia mộ bạn bè (Ghost Wreckages)** tận dụng hoàn hảo hệ thống Cloudflare D1 để tạo độ cạnh tranh viral tự nhiên.
+Bản nâng cấp **Drunk Rocket 2.2.0** hoàn thiện trải nghiệm Micro-Roguelite và Overdrive với 5 điểm cải tiến trọng yếu theo phản hồi trực tiếp:
+1. **Dừng nhịp độ 0.5s trước & sau khi chọn thẻ (Pacing Grace Periods):** Tránh gây bất ngờ, giúp người chơi có thời gian chuẩn bị tâm lý và vị trí tay.
+2. **Hiệu ứng Hover thẻ bài sống động (Card Interactive VFX):** Rê chuột phóng to thẻ, phát sáng viền neon vàng/cyan, nền chuyển màu và đổi con trỏ chuột `pointer`.
+3. **Cân bằng Quantum Drift (Hồi chiêu 4s):** Triệt tiêu hoàn toàn lỗi tàng hình bất tử vĩnh viễn bằng cơ chế hồi chiêu chuẩn xác, giữ vững tính thử thách và công bằng.
+4. **Hạt năng lượng trôi nổi (Floating Energy Cells):** Bổ sung các tinh thể năng lượng lơ lửng trong không gian giữa các cột để người chơi thu thập (+10% Nộ & +1 điểm).
+5. **Thẻ bài Drunk Magnet & Magnetic Suction VFX:** Tự động hút các hạt năng lượng trong phạm vi 185px về tên lửa, đồng thời hiển thị từ trường neon và dòng hạt plasma bị hút vào tàu.
 
 ---
 
-## 2. QUY CHUẨN THIẾT KẾ CƠ CHẾ & GIAO DIỆN (SPECIFICATIONS v2.1.0)
+## 2. QUY CHUẨN THIẾT KẾ CƠ CHẾ & GIAO DIỆN (SPECIFICATIONS v2.2.0)
 
-### 2.1. Cơ chế Overdrive & Mốc Smash 5 Điểm (Smash Threshold & Siphon VFX)
-* **Tỷ lệ nạp năng lượng chuẩn:**
-  * **Vượt cột thường (+20% Nộ / cột):** Người chơi vượt qua **5 cột (5 điểm)** là nạp đầy 100% Quả cầu Năng lượng Overdrive, cho phép kích hoạt ngay Supernova Smash đầu tiên.
-  * **Cú lượn sát Near-Miss (+50% Nộ / lần):** Thưởng cực lớn cho kỹ năng né hiểm, chỉ cần 2 cú Near-Miss là đầy bình Smash.
-* **Hiệu ứng Siphon Plasma Stream (VFX):**
-  * Khi ghi điểm hoặc Near-Miss, một chùm hạt plasma năng lượng cao (Cyber Cyan & Gold) phóng thẳng từ tâm chướng ngại vật bị vượt qua và xoáy hút vào Quả cầu Overdrive trên đỉnh HUD.
+### 2.1. Nhịp độ Chọn Thẻ Bài (Pre-Draft & Post-Draft 0.5s Pauses)
+* **Pre-Draft 0.5s Freeze:** Khi đạt mốc điểm chọn thẻ (mỗi 7 điểm), game đóng băng chuyển động trong 0.5s kèm thông báo chuẩn bị và âm thanh mở kho vũ khí.
+* **Post-Draft 0.5s Ready Freeze:** Sau khi người chơi bấm chọn thẻ, giao diện giữ đóng băng thêm 0.5s hiển thị tên kỹ năng vừa nhận và đếm ngược `🚀 CHUẨN BỊ BAY TRONG: 0.5s`. Toàn bộ cú chạm/phím bấm trong thời gian này được cô lập, ngăn chặn việc tên lửa bị giật bay đâm trần.
 
-### 2.2. Giao diện Quả Cầu Năng Lượng (Spherical Cyber Energy Orb)
-* **Tạo hình & Hiệu ứng chất lỏng:**
-  * Thay thế thanh bar ngang truyền thống bằng một **Cyber Energy Orb (Hình cầu)** bán kính 21px đặt tại vị trí trung tâm dưới điểm số.
-  * Bên trong quả cầu chứa chất lỏng plasma chuyển động dập dềnh theo hàm sóng sin (`sin(time * 9)`), sủi bọt khí vi mô và có vệt phản quang kính Specular Reflection.
-* **Trạng thái đầy 100% (Explosive Full Aura):**
-  * Hào quang nộ bùng nổ đa lớp (Gold & Cyan) dao động mãnh liệt.
-  * Các tia sét hồ quang điện (`lightning arcs`) xoay tròn xung quanh thành cầu.
-  * Dòng chữ cảnh báo phát sáng nhấp nháy: `⚡ DOUBLE TAP: SMASH READY! ⚡`.
+### 2.2. Hiệu ứng Tương tác Hover Thẻ Bài (Interactive Card Hover)
+* Khi con trỏ chuột rê vào bất kỳ thẻ bài nào:
+  * Hộp thẻ mở rộng kích thước (+8px chiều ngang, +4px chiều dọc).
+  * Viền đổi sang màu vàng Bumblebee rực rỡ kèm đổ bóng ánh sáng `shadowBlur = 20px` màu Cyber Cyan.
+  * Nền chuyển sang gradient sáng màu công nghệ cao `rgba(42, 60, 110, 0.98)`.
+  * Tiêu đề hiển thị ký hiệu nổi bật: `▶ [1] 🔬 Nano Hull ◀`.
+  * Con trỏ chuột chuyển sang dạng bàn tay (`cursor: pointer`).
 
-### 2.3. Thẻ bài Quantum Drift (Tàng hình & Phasing an toàn tuyệt đối)
-* **Thời lượng:** Kéo dài lên **0.85 giây** sau mỗi cú tap (đủ thời gian vượt qua trọn vẹn bề dày cột laser và đuôi tên lửa).
-* **Hiệu ứng thị giác Ghost Shader:**
-  * Thân tàu chuyển sang trạng thái bán trong suốt (`globalAlpha = 0.38`).
-  * Tách bóng ma màu sắc quang sai (`Chromatic Aberration Glitch`) màu Cyan/Magenta hai bên sườn tàu.
-* **Cơ chế Phasing:** Cột laser khi bị tàu lướt xuyên sẽ tự động đánh dấu `quantumPhased = true`, đảm bảo người chơi không bao giờ bị kẹt chết tức tưởi khi hiệu ứng vừa hết.
+### 2.3. Sửa Lỗi Tàng hình Bất tử (Quantum Drift Cooldown)
+* **Thời gian tàng hình:** 0.8 giây lướt xuyên cột an toàn.
+* **Thời gian hồi chiêu (Cooldown):** **4.0 giây**.
+* **Nguyên lý:** Nhấp tap trong lúc đang hồi chiêu chỉ đẩy tàu bay bình thường chứ không gia hạn thời gian tàng hình. Tàu chỉ có thể kích hoạt xuyên thấu lần tiếp theo sau khi đã hồi chiêu xong.
+* **Chỉ báo HUD:** Khi hồi xong, quanh tàu xuất hiện vòng sáng Cyan báo hiệu sẵn sàng; khi kích hoạt, tàu chuyển sang dạng bóng ma tàng hình Hologram bán trong suốt (`globalAlpha = 0.38`).
 
-### 2.4. Thẻ bài Chain Reaction (Húc nổ 2 cột liên tiếp)
-* Khi kích hoạt Double Tap trong lúc có perk Chain Reaction:
-  * Smash lập tức phá hủy **2 cột liên tiếp** phía trước tàu.
-  * Hệ thống tiếp tục kiểm tra va chạm trong suốt 0.85s lao vọt để đảm bảo luôn húc tan tành đủ 2 chướng ngại vật liên tiếp, tạo cảm giác đắc thắng tột đỉnh.
+### 2.4. Hạt Năng Lượng Trôi Nổi (Floating Energy Cells)
+* Các tinh thể năng lượng Plasma hình thoi vàng/cyan lơ lửng dao động sóng sin nhịp nhàng giữa các khoảng trống cột laser.
+* Khi tên lửa chạm vào:
+  * Thu nhận ngay **+10% năng lượng Overdrive** và **+1 điểm thưởng**.
+  * Bùng nổ pháo hoa hạt lấp lánh và sóng xung kích Shockwave vàng rực.
 
-### 2.5. Chống kẹt phím & rò rỉ cú chạm khi chọn Perk (Input Isolation)
-* Khi bấm chọn thẻ bài (1, 2, 3 hoặc click cảm ứng):
-  * Cú tap được cô lập, tiêu thụ (`consumeTap`) và kích hoạt bộ đếm thời gian cách ly `perkDraftCooldown = 0.25s`.
-  * Loại bỏ hoàn toàn lỗi rò rỉ lực đẩy khiến tàu bị phóng giật lên trần nhà sau khi kết thúc Bullet-Time.
+### 2.5. Thẻ bài Drunk Magnet & Magnetic Attraction VFX
+* Khi sở hữu thẻ bài **🧲 Drunk Magnet**:
+  * Bất kỳ hạt năng lượng nào trong phạm vi **185px** đều bị lực từ trường hút lao thẳng về phía tên lửa.
+  * Hiển thị các đường sức từ trường neon đứt đoạn bao quanh thân tàu cùng nhãn `🧲 MAGNET`.
+  * Định kỳ 0.35s hút các hạt plasma không gian hội tụ vào mũi tàu, trực quan hóa sức hút năng lượng.
 
 ---
 

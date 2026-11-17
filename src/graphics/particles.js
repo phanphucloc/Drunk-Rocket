@@ -1,5 +1,5 @@
 /**
- * Particle System for Engine Smoke, Plasma Thrust, Explosion Debris, Score Sparkles & Siphon VFX
+ * Particle System for Engine Smoke, Plasma Thrust, Explosion Debris, Score Sparkles, Siphon VFX & Magnet Suction
  * Cyber Neon Arcade Visual Effects
  */
 export class ParticleSystem {
@@ -113,6 +113,59 @@ export class ParticleSystem {
         life: 0.4 + Math.random() * 0.3,
         maxLife: 0.7,
         gravity: -50
+      });
+    }
+  }
+
+  /**
+   * Spawns golden celebration sparkles and shockwave when an energy crystal is gathered
+   */
+  emitCellPickup(x, y) {
+    const colors = ['#ffd13b', '#00f0ff', '#ffffff'];
+    for (let i = 0; i < 16; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 90 + Math.random() * 150;
+      this.particles.push({
+        type: 'sparkle',
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        size: 2.5 + Math.random() * 2.5,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        life: 0.4 + Math.random() * 0.3,
+        maxLife: 0.7,
+        gravity: 0
+      });
+    }
+    this.addShockwave(x, y, '#ffd13b', 38, 240);
+  }
+
+  /**
+   * Spawns ambient magnetic suction stream converging into the rocket
+   */
+  emitMagnetSuction(targetX, targetY, count = 3) {
+    const colors = ['#00f0ff', '#05ffa1', '#ffffff'];
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 65 + Math.random() * 55;
+      const startX = targetX + Math.cos(angle) * dist;
+      const startY = targetY + Math.sin(angle) * dist;
+
+      this.particles.push({
+        type: 'siphon',
+        x: startX,
+        y: startY,
+        targetX,
+        targetY,
+        vx: -Math.cos(angle) * 160,
+        vy: -Math.sin(angle) * 160,
+        size: 2 + Math.random() * 2,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        life: 0.35 + Math.random() * 0.2,
+        maxLife: 0.55,
+        gravity: 0,
+        homing: true
       });
     }
   }
