@@ -1,13 +1,15 @@
-/**
- * Input Manager for Drunk Rocket
- * Handles Touch, Mouse, and Keyboard events with zero latency.
+﻿/**
+ * Input Manager for Drunk Rocket 2.0
+ * Handles Single Tap (Thrust) and Double Tap (Supernova Smash)
  */
 export class InputManager {
   constructor(targetElement = window) {
     this.targetElement = targetElement;
     this.justPressed = false;
+    this.doubleTapped = false;
     this.isPressed = false;
     this.lastTapTime = 0;
+    this.doubleTapThreshold = 280; // ms between taps to trigger Double Tap
 
     this._onKeyDown = this._onKeyDown.bind(this);
     this._onKeyUp = this._onKeyUp.bind(this);
@@ -21,17 +23,29 @@ export class InputManager {
     window.addEventListener('keydown', this._onKeyDown, { passive: false });
     window.addEventListener('keyup', this._onKeyUp, { passive: false });
 
-    // Pointer events handle both mouse and touch efficiently
     this.targetElement.addEventListener('pointerdown', this._onPointerDown, { passive: false });
     window.addEventListener('pointerup', this._onPointerUp, { passive: false });
     window.addEventListener('pointercancel', this._onPointerUp, { passive: false });
+  }
+
+  _handleTap() {
+    const now = performance.now();
+    const timeDiff = now - this.lastTapTime;
+
+    if (timeDiff > 30 && timeDiff <= this.doubleTapThreshold) {
+      this.doubleTapped = true;
+      this.justPressed = false;
+    } else {
+      this.justPressed = true;
+    }
+    this.lastTapTime = now;
   }
 
   _onKeyDown(e) {
     if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
       e.preventDefault();
       if (!this.isPressed) {
-        this.justPressed = true;
+        this._handleTap();
       }
       this.isPressed = true;
     }
@@ -46,22 +60,26 @@ export class InputManager {
   _onPointerDown(e) {
     e.preventDefault();
     if (!this.isPressed) {
-      this.justPressed = true;
+      this._handleTap();
     }
     this.isPressed = true;
-    this.lastTapTime = performance.now();
   }
 
   _onPointerUp(e) {
     this.isPressed = false;
   }
 
-  /**
-   * Consumes and returns true if an input tap occurred since last check.
-   */
   consumeTap() {
     if (this.justPressed) {
       this.justPressed = false;
+      return true;
+    }
+    return false;
+  }
+
+  consumeDoubleTap() {
+    if (this.doubleTapped) {
+      this.doubleTapped = false;
       return true;
     }
     return false;

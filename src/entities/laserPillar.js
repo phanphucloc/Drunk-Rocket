@@ -1,4 +1,4 @@
-import { PhysicsEngine } from '../core/physics.js';
+﻿import { PhysicsEngine } from '../core/physics.js';
 
 export class LaserPillar {
   constructor(x, gapY, gapHeight, width = 52) {
@@ -7,6 +7,8 @@ export class LaserPillar {
     this.gapHeight = gapHeight;
     this.width = width;
     this.passed = false;
+    this.nearMissChecked = false;
+    this.isDestroyed = false;
     this.emitterHeight = 24;
     this.pulsePhase = Math.random() * Math.PI * 2;
   }
@@ -29,9 +31,33 @@ export class LaserPillar {
   }
 
   /**
+   * Check Near-Miss: Rocket passes very close (<12px margin) to top or bottom hazard
+   */
+  checkNearMiss(rocket) {
+    if (this.isDestroyed || this.nearMissChecked) return false;
+
+    // Check when rocket is horizontally passing through the pillar
+    const inXRange = rocket.x >= this.x - 10 && rocket.x <= this.x + this.width + 10;
+    if (inXRange) {
+      const distToTop = (rocket.y - rocket.radius) - this.topY;
+      const distToBottom = this.bottomY - (rocket.y + rocket.radius);
+
+      // Within close proximity but without colliding
+      const nearMargin = 16;
+      if ((distToTop > 0 && distToTop <= nearMargin) || (distToBottom > 0 && distToBottom <= nearMargin)) {
+        this.nearMissChecked = true;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
    * Collision check against rocket
    */
   collidesWith(rocket) {
+    if (this.isDestroyed) return false;
+
     // 1. Top pillar (from y=0 to this.topY)
     if (PhysicsEngine.checkCircleAABB(
       rocket.x, rocket.y, rocket.radius,
@@ -70,7 +96,7 @@ export class LaserPillarManager {
     this.spawnTimer = 0.5; // Quick first obstacle
   }
 
-  update(dt, rocket, onScore) {
+  update(dt, rocket, onScore, onNearMiss) {
     this.spawnTimer -= dt;
     if (this.spawnTimer <= 0) {
       this.spawn();
@@ -81,10 +107,15 @@ export class LaserPillarManager {
       const p = this.pillars[i];
       p.update(dt, this.speed);
 
-      // Score detection
+      // Near-Miss check
+      if (!p.nearMissChecked && p.checkNearMiss(rocket)) {
+        if (onNearMiss) onNearMiss(p);
+      }
+
+      // Normal score check
       if (!p.passed && p.x + p.width / 2 < rocket.x) {
         p.passed = true;
-        if (onScore) onScore();
+        if (onScore) onScore(p);
       }
 
       // Cleanup offscreen
@@ -95,7 +126,6 @@ export class LaserPillarManager {
   }
 
   spawn() {
-    // Generate randomized gap position with slight safety margin
     const gapY = this.minGapY + Math.random() * (this.maxGapY - this.minGapY);
     const pillar = new LaserPillar(this.gameWidth + 30, gapY, this.gapHeight);
     this.pillars.push(pillar);
@@ -104,9 +134,20 @@ export class LaserPillarManager {
   checkCollision(rocket) {
     for (const p of this.pillars) {
       if (p.collidesWith(rocket)) {
-        return true;
+        return p; // Return collided pillar
       }
     }
-    return false;
+    return null;
+  }
+
+  destroyFrontPillar(rocketX) {
+    // Find closest pillar ahead of rocket to smash
+    for (const p of this.pillars) {
+      if (!p.isDestroyed && p.x + p.width > rocketX - 20) {
+        p.isDestroyed = true;
+        return p;
+      }
+    }
+    return null;
   }
 }

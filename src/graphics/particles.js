@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Particle System for Engine Smoke, Plasma Thrust, Explosion Debris & Score Sparkles
  * Cyber Neon Arcade Visual Effects
  */
@@ -116,6 +116,53 @@ export class ParticleSystem {
         gravity: -50 // Float upward gently
       });
     }
+  }
+
+    /**
+   * Spawns electric sparks for Near-Miss close shave
+   */
+  emitNearMiss(x, y) {
+    const colors = ['#00f0ff', '#ffffff', '#05ffa1'];
+    for (let i = 0; i < 14; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 140 + Math.random() * 120;
+      this.particles.push({
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        size: 2.5 + Math.random() * 2,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        life: 0.35 + Math.random() * 0.2,
+        maxLife: 0.55,
+        gravity: 0
+      });
+    }
+    this.addShockwave(x, y, '#00f0ff', 45);
+  }
+
+  /**
+   * Spawns massive debris explosion when a laser pillar is smashed
+   */
+  emitPillarSmash(x, y) {
+    const colors = ['#ff3b5c', '#ffd13b', '#ffffff', '#00f0ff'];
+    for (let i = 0; i < 40; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 150 + Math.random() * 280;
+      this.particles.push({
+        x: x + (Math.random() - 0.5) * 40,
+        y: y + (Math.random() - 0.5) * 80,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        size: 3 + Math.random() * 3.5,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        life: 0.5 + Math.random() * 0.35,
+        maxLife: 0.85,
+        gravity: 300
+      });
+    }
+    this.addShockwave(x, y, '#ff3b5c', 85);
+    this.triggerScreenShake(8);
   }
 
   update(dt) {

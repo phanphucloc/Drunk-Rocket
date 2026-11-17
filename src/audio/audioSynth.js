@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Web Audio API 8-Bit Chiptune Synthesizer
  * Generates retro arcade sounds procedurally with 0 bytes external asset size!
  */
@@ -200,6 +200,52 @@ export class AudioSynthesizer {
     } catch (e) {
       // Ignore audio error gracefully
     }
+  }
+
+    /**
+   * Sound effect for Near-Miss close graze
+   */
+  playNearMiss() {
+    if (this.isMuted) return;
+    this._ensureContext();
+    if (!this.ctx) return;
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(880, now);
+      osc.frequency.exponentialRampToValueAtTime(1760, now + 0.12);
+      gain.gain.setValueAtTime(0.25, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.12);
+    } catch (e) {}
+  }
+
+  /**
+   * Sound effect for Supernova Smash breaking a pillar
+   */
+  playSmash() {
+    if (this.isMuted) return;
+    this._ensureContext();
+    if (!this.ctx) return;
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(240, now);
+      osc.frequency.exponentialRampToValueAtTime(40, now + 0.35);
+      gain.gain.setValueAtTime(0.4, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.35);
+    } catch (e) {}
   }
 
   toggleMute() {

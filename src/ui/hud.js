@@ -1,6 +1,6 @@
-/**
- * Heads-Up Display (HUD) and UI Overlay Manager
- * Implements arcade pixel typography, screen shake, red flash, and medal badges.
+﻿/**
+ * Heads-Up Display (HUD) and UI Overlay Manager for Drunk Rocket 2.0
+ * Renders Score, Near-Miss popups, Drunk-Meter Overdrive bar, and Game Over Screen.
  */
 export class HUD {
   constructor(gameWidth = 400, gameHeight = 700) {
@@ -11,12 +11,30 @@ export class HUD {
     this.shakeDuration = 0;
     this.shakeIntensity = 0;
     this.flashDuration = 0;
+    this.flashColor = 'rgba(255, 59, 92, 0.4)';
+
+    // Near-Miss notification banner
+    this.nearMissText = null;
+    this.nearMissTimer = 0;
   }
 
   triggerCrashEffects() {
-    this.shakeDuration = 0.18; // 180ms screen shake
+    this.shakeDuration = 0.18;
     this.shakeIntensity = 9;
-    this.flashDuration = 0.08; // 80ms red flash
+    this.flashDuration = 0.08;
+    this.flashColor = 'rgba(255, 59, 92, 0.4)';
+  }
+
+  triggerSmashEffects() {
+    this.shakeDuration = 0.25;
+    this.shakeIntensity = 12;
+    this.flashDuration = 0.12;
+    this.flashColor = 'rgba(0, 240, 255, 0.35)';
+  }
+
+  showNearMiss(pointsBonus = 2) {
+    this.nearMissText = `NEAR-MISS! +${pointsBonus}`;
+    this.nearMissTimer = 0.7; // Display for 0.7s
   }
 
   update(dt) {
@@ -30,6 +48,13 @@ export class HUD {
     if (this.flashDuration > 0) {
       this.flashDuration -= dt;
     }
+
+    if (this.nearMissTimer > 0) {
+      this.nearMissTimer -= dt;
+      if (this.nearMissTimer <= 0) {
+        this.nearMissText = null;
+      }
+    }
   }
 
   getShakeOffset() {
@@ -42,12 +67,12 @@ export class HUD {
     return { x: 0, y: 0 };
   }
 
-  draw(ctx, state, score, bestScore, time, timeSinceDeath) {
+  draw(ctx, state, score, bestScore, time, timeSinceDeath, drunkMeter = 0, isSmashActive = false) {
     const cx = this.gameWidth / 2;
 
     // Draw Screen Flash
     if (this.flashDuration > 0) {
-      ctx.fillStyle = 'rgba(255, 59, 92, 0.4)';
+      ctx.fillStyle = this.flashColor;
       ctx.fillRect(0, 0, this.gameWidth, this.gameHeight);
     }
 
@@ -57,12 +82,17 @@ export class HUD {
     if (state === 'READY') {
       // 1. Ready Title
       ctx.fillStyle = '#ffd13b';
-      ctx.font = 'bold 36px monospace';
-      ctx.fillText('DRUNK ROCKET v1.1.0', cx, 180);
+      ctx.font = 'bold 34px monospace';
+      ctx.fillText('DRUNK ROCKET 2.0', cx, 170);
 
       ctx.fillStyle = '#00f0ff';
-      ctx.font = 'bold 16px monospace';
-      ctx.fillText('⚡ TÀU SAY RƯỢU ⚡', cx, 215);
+      ctx.font = 'bold 15px monospace';
+      ctx.fillText('★ OVERDRIVE & ROGUELITE ★', cx, 205);
+
+      // Controls info
+      ctx.fillStyle = '#a6b0cf';
+      ctx.font = '13px monospace';
+      ctx.fillText('Single Tap: Bay  |  Double Tap: Smash', cx, 240);
 
       // Blinking prompt
       if (Math.sin(time * 6) > -0.2) {
@@ -71,39 +101,74 @@ export class HUD {
         ctx.fillText('CHẠM HOẶC SPACE ĐỂ BAY', cx, 460);
       }
 
-      // Best score banner
-      ctx.fillStyle = '#a6b0cf';
+      ctx.fillStyle = '#05ffa1';
       ctx.font = '14px monospace';
       ctx.fillText(`KỶ LỤC CỦA BẠN: ${bestScore}`, cx, 520);
     } else if (state === 'PLAYING') {
       // 2. In-Game Big Score Counter
       ctx.font = '900 48px monospace';
-      // Black thick outline
       ctx.lineWidth = 6;
       ctx.strokeStyle = '#0b0e14';
-      ctx.strokeText(`${score}`, cx, 90);
-      // Main text
+      ctx.strokeText(`${score}`, cx, 85);
       ctx.fillStyle = '#ffffff';
-      ctx.fillText(`${score}`, cx, 90);
-    } else if (state === 'GAMEOVER') {
-      // 3. Game Over Score Board
-      const cardY = 190;
-      const cardW = 300;
-      const cardH = 220;
+      ctx.fillText(`${score}`, cx, 85);
 
-      // Outer Card Box
+      // 3. Drunk-Meter Energy Bar (Overdrive)
+      const barW = 160;
+      const barH = 12;
+      const barX = cx - barW / 2;
+      const barY = 110;
+
+      // Background
+      ctx.fillStyle = 'rgba(11, 14, 20, 0.8)';
+      ctx.fillRect(barX, barY, barW, barH);
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = '#2e3856';
+      ctx.strokeRect(barX, barY, barW, barH);
+
+      // Filled portion
+      const fillW = Math.max(0, Math.min(barW, (drunkMeter / 100) * barW));
+      if (drunkMeter >= 100) {
+        // Blinking gold/cyan when full
+        ctx.fillStyle = Math.sin(time * 12) > 0 ? '#ffd13b' : '#00f0ff';
+      } else {
+        ctx.fillStyle = '#00f0ff';
+      }
+      ctx.fillRect(barX + 1, barY + 1, Math.max(0, fillW - 2), barH - 2);
+
+      // Overdrive ready text
+      if (drunkMeter >= 100) {
+        ctx.fillStyle = '#ffd13b';
+        ctx.font = 'bold 12px monospace';
+        ctx.fillText('⚡ DOUBLE TAP: SMASH READY! ⚡', cx, barY + 26);
+      } else if (isSmashActive) {
+        ctx.fillStyle = '#ff3b5c';
+        ctx.font = 'bold 13px monospace';
+        ctx.fillText('💥 SUPERNOVA SMASH! 💥', cx, barY + 26);
+      }
+
+      // 4. Near-Miss Floating Notification
+      if (this.nearMissText) {
+        ctx.fillStyle = '#05ffa1';
+        ctx.font = '900 20px monospace';
+        ctx.fillText(this.nearMissText, cx, 160);
+      }
+    } else if (state === 'GAMEOVER') {
+      // 5. Game Over Score Board
+      const cardY = 180;
+      const cardW = 310;
+      const cardH = 240;
+
       ctx.fillStyle = 'rgba(22, 28, 46, 0.95)';
       ctx.fillRect(cx - cardW / 2, cardY, cardW, cardH);
       ctx.lineWidth = 2.5;
       ctx.strokeStyle = '#2e3856';
       ctx.strokeRect(cx - cardW / 2, cardY, cardW, cardH);
 
-      // Game Over Header
       ctx.fillStyle = '#ff3b5c';
       ctx.font = '900 28px monospace';
       ctx.fillText('NỔ TÀU!', cx, cardY + 45);
 
-      // Scores
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 18px monospace';
       ctx.fillText(`ĐIỂM: ${score}`, cx, cardY + 85);
@@ -112,7 +177,6 @@ export class HUD {
       ctx.font = 'bold 16px monospace';
       ctx.fillText(`KỶ LỤC: ${bestScore}`, cx, cardY + 115);
 
-      // Medal check
       let medal = 'CHƯA CÓ';
       let medalColor = '#6b7280';
       if (score >= 10) {
@@ -130,12 +194,11 @@ export class HUD {
       ctx.font = 'bold 15px monospace';
       ctx.fillText(`HUY HIỆU: ${medal}`, cx, cardY + 155);
 
-      // Instant Respawn prompt (enabled after 0.1s)
       if (timeSinceDeath >= 0.1) {
         if (Math.sin(time * 8) > -0.2) {
           ctx.fillStyle = '#05ffa1';
           ctx.font = '900 16px monospace';
-          ctx.fillText('▶ CHẠM ĐỂ CHƠI LẠI NGAY ◀', cx, cardY + cardH + 45);
+          ctx.fillText('👉 CHẠM ĐỂ CHƠI LẠI NGAY 👈', cx, cardY + cardH + 45);
         }
       }
     }
