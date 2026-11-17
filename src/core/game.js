@@ -259,7 +259,7 @@ export class Game {
     this.originalRocketX = this.rocket.x;
     const isChain = forcedChain || (this.smashChainCount >= 2);
 
-    this.audio.playSmash();
+    this.audio.playSmash(isChain);
     this.hud.triggerSmashEffects();
 
     // 1. Pha huy cot: Neu co Chain Reaction thi pha 2 cot, con Smash thuong thi pha 1 cot
