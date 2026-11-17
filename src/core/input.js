@@ -1,6 +1,6 @@
-﻿/**
+/**
  * Input Manager for Drunk Rocket 2.0
- * Handles Single Tap (Thrust) and Double Tap (Supernova Smash)
+ * Handles Responsive Tap (Thrust) and Double Tap (Supernova Smash)
  */
 export class InputManager {
   constructor(targetElement = window) {
@@ -9,7 +9,7 @@ export class InputManager {
     this.doubleTapped = false;
     this.isPressed = false;
     this.lastTapTime = 0;
-    this.doubleTapThreshold = 280; // ms between taps to trigger Double Tap
+    this.doubleTapThreshold = 280; // ms threshold for double tap
 
     this._onKeyDown = this._onKeyDown.bind(this);
     this._onKeyUp = this._onKeyUp.bind(this);
@@ -32,11 +32,12 @@ export class InputManager {
     const now = performance.now();
     const timeDiff = now - this.lastTapTime;
 
-    if (timeDiff > 30 && timeDiff <= this.doubleTapThreshold) {
+    // Luôn ghi nhận là 1 cú tap để đẩy tàu bay lên, không bao giờ bị nuốt phím
+    this.justPressed = true;
+
+    // Nếu khoảng cách giữa 2 lần bấm từ 20ms đến 280ms -> ghi nhận thêm Double Tap
+    if (timeDiff > 20 && timeDiff <= this.doubleTapThreshold) {
       this.doubleTapped = true;
-      this.justPressed = false;
-    } else {
-      this.justPressed = true;
     }
     this.lastTapTime = now;
   }
@@ -44,7 +45,8 @@ export class InputManager {
   _onKeyDown(e) {
     if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
       e.preventDefault();
-      if (!this.isPressed) {
+      // Ngăn keydown auto-repeat của hệ điều hành làm spam phím, nhưng cho phép nhấp nhả nhanh
+      if (!e.repeat) {
         this._handleTap();
       }
       this.isPressed = true;
@@ -59,9 +61,7 @@ export class InputManager {
 
   _onPointerDown(e) {
     e.preventDefault();
-    if (!this.isPressed) {
-      this._handleTap();
-    }
+    this._handleTap();
     this.isPressed = true;
   }
 
