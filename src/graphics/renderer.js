@@ -328,7 +328,7 @@ export class EntityRenderer {
     drawRocket(ctx, rocket.x, rocket.y, {
       angle: rocket.angle,
       isThrusting: rocket.isThrusting,
-      scale: 1.0,
+      scale: rocket.scale || (rocket.radius ? rocket.radius / 12 : 1.0),
       dizzyTime: (rocket.totalTime || 0) + (rocket.pupilX || 0)
     });
   }

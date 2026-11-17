@@ -105,6 +105,8 @@ export class Game {
     this.isSmashActive = false;
     this.smashDuration = 0;
     this.rocket.reset(100, 320);
+    this.rocket.scale = 1.0;
+    this.rocket.radius = 12;
     if (this.perks) this.perks.reset();
     this.shieldActive = false;
     this.hasQuantumDrift = false;
@@ -230,7 +232,7 @@ export class Game {
         this.rocket.thrust();
         this.audio.playThrust();
         this.particles.emitThrust(this.rocket.x, this.rocket.y, this.rocket.rotation);
-        if (this.hasQuantumDrift) this.quantumTimer = 0.3;
+        if (this.hasQuantumDrift) this.quantumTimer = 0.45;
       }
     } else if (this.state === 'PLAYING') {
       if (hasDoubleTap && this.drunkMeter >= 100) {
@@ -251,7 +253,7 @@ export class Game {
         this.rocket.thrust();
         this.audio.playThrust();
         this.particles.emitThrust(this.rocket.x, this.rocket.y, this.rocket.rotation);
-        if (this.hasQuantumDrift) this.quantumTimer = 0.3;
+        if (this.hasQuantumDrift) this.quantumTimer = 0.45;
       }
 
       this.rocket.update(dt, false, this.totalTime);
@@ -307,12 +309,80 @@ export class Game {
 
     if (this.ghosts) this.ghosts.draw(this.ctx);
     EntityRenderer.drawRocket(this.ctx, this.rocket);
-    if (this.shieldActive) {
+    // Cinematic Quantum Drift Hologram FX
+    if (this.quantumTimer > 0) {
+      this.ctx.save();
       this.ctx.strokeStyle = '#00f0ff';
-      this.ctx.lineWidth = 3;
+      this.ctx.lineWidth = 1.5;
+      this.ctx.setLineDash([4, 4]);
       this.ctx.beginPath();
-      this.ctx.arc(this.rocket.x, this.rocket.y, this.rocket.radius + 8, 0, Math.PI * 2);
+      this.ctx.arc(this.rocket.x, this.rocket.y, this.rocket.radius + 14, 0, Math.PI * 2);
       this.ctx.stroke();
+
+      // Quantum lightning flicker
+      for (let qi = 0; qi < 3; qi++) {
+        const qAngle = this.totalTime * 10 + qi * (Math.PI * 2 / 3);
+        const qx1 = this.rocket.x + Math.cos(qAngle) * (this.rocket.radius + 6);
+        const qy1 = this.rocket.y + Math.sin(qAngle) * (this.rocket.radius + 6);
+        const qx2 = this.rocket.x + Math.cos(qAngle + 0.5) * (this.rocket.radius + 14);
+        const qy2 = this.rocket.y + Math.sin(qAngle + 0.5) * (this.rocket.radius + 14);
+        this.ctx.strokeStyle = '#ffffff';
+        this.ctx.beginPath();
+        this.ctx.moveTo(qx1, qy1);
+        this.ctx.lineTo(qx2, qy2);
+        this.ctx.stroke();
+      }
+      this.ctx.restore();
+    }
+
+    // Cinematic Beer Bubble Plasma Shield FX
+    if (this.shieldActive) {
+      this.ctx.save();
+      const pulse = Math.sin(this.totalTime * 8) * 2;
+      const shRadius = this.rocket.radius + 12 + pulse;
+
+      // 1. Atmospheric Plasma Outer Aura
+      const grad = this.ctx.createRadialGradient(
+        this.rocket.x, this.rocket.y, this.rocket.radius * 0.5,
+        this.rocket.x, this.rocket.y, shRadius + 6
+      );
+      grad.addColorStop(0, 'rgba(0, 240, 255, 0.05)');
+      grad.addColorStop(0.65, 'rgba(255, 209, 59, 0.15)');
+      grad.addColorStop(0.95, 'rgba(0, 240, 255, 0.4)');
+      grad.addColorStop(1, 'rgba(0, 240, 255, 0)');
+      this.ctx.fillStyle = grad;
+      this.ctx.beginPath();
+      this.ctx.arc(this.rocket.x, this.rocket.y, shRadius + 6, 0, Math.PI * 2);
+      this.ctx.fill();
+
+      // 2. Dual Neon Resonant Energy Rings
+      this.ctx.shadowColor = '#00f0ff';
+      this.ctx.shadowBlur = 10;
+      this.ctx.lineWidth = 2.5;
+      this.ctx.strokeStyle = '#00f0ff';
+      this.ctx.beginPath();
+      this.ctx.arc(this.rocket.x, this.rocket.y, shRadius, 0, Math.PI * 2);
+      this.ctx.stroke();
+
+      // Secondary Gold Energy Crest
+      this.ctx.lineWidth = 1.2;
+      this.ctx.strokeStyle = '#ffd13b';
+      this.ctx.beginPath();
+      this.ctx.arc(this.rocket.x - 3, this.rocket.y - 3, shRadius * 0.75, -Math.PI * 0.4, Math.PI * 0.2);
+      this.ctx.stroke();
+
+      // 3. Orbiting Beer Foam Plasma Micro-Bubbles
+      for (let bi = 0; bi < 4; bi++) {
+        const bAngle = this.totalTime * 4 + bi * (Math.PI / 2);
+        const bx = this.rocket.x + Math.cos(bAngle) * shRadius;
+        const by = this.rocket.y + Math.sin(bAngle) * shRadius;
+        this.ctx.fillStyle = bi % 2 === 0 ? '#ffd13b' : '#ffffff';
+        this.ctx.beginPath();
+        this.ctx.arc(bx, by, 2.5, 0, Math.PI * 2);
+        this.ctx.fill();
+      }
+
+      this.ctx.restore();
     }
 
     if (this.perks) this.perks.draw(this.ctx, this.width, this.height);

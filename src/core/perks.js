@@ -11,6 +11,7 @@ export const PERK_CATALOG = [
     group: 'defense',
     apply: (game) => {
       game.rocket.radius = Math.round(game.rocket.radius * 0.75);
+      game.rocket.scale = 0.75;
     }
   },
   {
