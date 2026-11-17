@@ -11,8 +11,7 @@ MIN_MS_PER_POINT = "800"
 [[d1_databases]]
 binding = "DB"
 database_name = "drunk_rocket_db"
-database_id = "your-d1-database-id-here" # Thay the bang D1 ID that sau khi chay: npx wrangler d1 create drunk_rocket_db
+database_id = "d628f5e6-1bc6-4192-9f36-d4ab2b2c843a"
 
-# CORS Headers & Caching Options (Cloudflare Free Tier 0d)
 [observability]
 enabled = false

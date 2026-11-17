@@ -30,7 +30,7 @@ export class Game {
     this.pillars = new LaserPillarManager(this.width, this.height);
     this.hud = new HUD(this.width, this.height);
     this.rocket = new Rocket(100, 320);
-    this.leaderboard = new LeaderboardModal();
+    this.leaderboard = new LeaderboardModal('https://drunk-rocket-backend.ppldhsp.workers.dev');
 
     // Scoring, Telemetry & Statistics
     this.score = 0;
