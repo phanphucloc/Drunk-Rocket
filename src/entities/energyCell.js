@@ -40,7 +40,7 @@ export class EnergyCell {
 
     this.isMagnetized = false;
     // Dynamic floating motion (drifts left and bobs up and down)
-    this.x -= (speed + 25) * dt;
+    this.x -= speed * dt;
     this.y = this.baseY + Math.sin(this.pulsePhase) * this.floatAmp;
   }
 
@@ -71,11 +71,17 @@ export class EnergyCellManager {
   /**
    * Spawns a cluster of 2 to 4 animated floating energy orbs
    */
-  spawnCluster(startX, centerY, count = 3) {
+  /**
+   * Spawns a scattered cluster of 2 to 4 animated floating energy orbs
+   * positioned midway in the open corridor between the cleared pillar and upcoming pillar.
+   */
+  spawnCluster(centerX, centerY, count = 3) {
+    const spacing = 34;
+    const startX = centerX - ((count - 1) * spacing) / 2;
     for (let i = 0; i < count; i++) {
-      const offsetX = i * 26 + (Math.random() - 0.5) * 15;
-      const offsetY = (Math.random() - 0.5) * 60;
-      const cellY = Math.min(Math.max(centerY + offsetY, 120), 580);
+      const offsetX = i * spacing + (Math.random() - 0.5) * 16;
+      const offsetY = (Math.random() - 0.5) * 70;
+      const cellY = Math.min(Math.max(centerY + offsetY, 130), 570);
       this.cells.push(new EnergyCell(startX + offsetX, cellY));
     }
   }

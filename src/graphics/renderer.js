@@ -291,17 +291,27 @@ export function drawLaserHazard(ctx, pillar, gameHeight = 700, totalTime = 0) {
   const emitterH = pillar.emitterHeight || 26;
   const pulsePhase = pillar.pulsePhase !== undefined ? pillar.pulsePhase : totalTime * 8;
   const isBeamActive = pillar.isBeamActive !== undefined ? pillar.isBeamActive : true;
+  const angle = pillar.angle || 0;
 
-  // 1. Top Metal Column (from ceiling y=0 down to topY)
+  ctx.save();
+  if (angle !== 0) {
+    const cx = x + w / 2;
+    const cy = Math.floor(pillar.gapY !== undefined ? pillar.gapY : (topY + bottomY) / 2);
+    ctx.translate(cx, cy);
+    ctx.rotate(angle);
+    ctx.translate(-cx, -cy);
+  }
+
+  // 1. Top Metal Column (extend -140 up above ceiling)
   ctx.fillStyle = PALETTE.METAL_DARK;
-  ctx.fillRect(x, 0, w, topY);
+  ctx.fillRect(x, -140, w, topY + 140);
 
   // Bevel shading
   ctx.fillStyle = PALETTE.METAL_MID;
-  ctx.fillRect(x + 4, 0, w - 8, topY - emitterH);
+  ctx.fillRect(x + 4, -140, w - 8, topY + 140 - emitterH);
 
   // Retro hazard warning stripes on top pillar
-  drawHazardStripes(ctx, x + 6, Math.max(0, topY - emitterH - 30), w - 12, 24);
+  drawHazardStripes(ctx, x + 6, Math.max(-100, topY - emitterH - 30), w - 12, 24);
 
   // Top Emitter Head
   ctx.fillStyle = PALETTE.METAL_LIGHT;
@@ -316,13 +326,13 @@ export function drawLaserHazard(ctx, pillar, gameHeight = 700, totalTime = 0) {
   ctx.fillStyle = PALETTE.WHITE;
   ctx.fillRect(x + w / 2 - 4, topY - 6, 8, 3);
 
-  // 2. Bottom Metal Column (from bottomY to gameHeight)
+  // 2. Bottom Metal Column (extend +140 below floor)
   ctx.fillStyle = PALETTE.METAL_DARK;
-  ctx.fillRect(x, bottomY, w, gameHeight - bottomY);
+  ctx.fillRect(x, bottomY, w, gameHeight - bottomY + 140);
 
   // Bevel shading
   ctx.fillStyle = PALETTE.METAL_MID;
-  ctx.fillRect(x + 4, bottomY + emitterH, w - 8, Math.max(0, gameHeight - bottomY - emitterH));
+  ctx.fillRect(x + 4, bottomY + emitterH, w - 8, Math.max(0, gameHeight - bottomY - emitterH + 140));
 
   // Retro hazard warning stripes on bottom pillar
   drawHazardStripes(ctx, x + 6, bottomY + emitterH + 6, w - 12, 24);
@@ -374,6 +384,8 @@ export function drawLaserHazard(ctx, pillar, gameHeight = 700, totalTime = 0) {
 
     ctx.restore();
   }
+
+  ctx.restore();
 }
 
 /**

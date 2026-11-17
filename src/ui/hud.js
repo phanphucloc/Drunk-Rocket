@@ -118,7 +118,7 @@ export class HUD {
       const orbY = 126;
       const orbR = 21;
       const fillPct = Math.max(0, Math.min(1, drunkMeter / 100));
-      const isFull = drunkMeter >= 100;
+      const isFull = (drunkMeter >= 100 && score >= 10);
 
       // 3A. Explosive Aura / Outer Glow
       if (isFull) {
@@ -285,7 +285,11 @@ export class HUD {
         ctx.fillStyle = '#7d8aa8';
         ctx.font = 'bold 11px monospace';
         const chainTag = smashChainCount >= 2 ? ' [2 CỘT]' : '';
-        ctx.fillText('OVERDRIVE: ' + Math.floor(drunkMeter) + '%' + chainTag, cx, orbY + orbR + 16);
+        if (score < 10) {
+          ctx.fillText(`OVERDRIVE: ${Math.floor(drunkMeter)}% (CẦN 10 ĐIỂM: ${score}/10)${chainTag}`, cx, orbY + orbR + 16);
+        } else {
+          ctx.fillText(`OVERDRIVE: ${Math.floor(drunkMeter)}%${chainTag}`, cx, orbY + orbR + 16);
+        }
       }
 
       // 4. Near-Miss Floating Notification

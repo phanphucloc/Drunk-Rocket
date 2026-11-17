@@ -98,7 +98,7 @@ export class Game {
       const clickX = (e.clientX - rect.left) * (this.width / rect.width);
       const clickY = (e.clientY - rect.top) * (this.height / rect.height);
       const distToOrb = Math.hypot(clickX - this.width / 2, clickY - 126);
-      if (this.state === 'PLAYING' && this.drunkMeter >= 100 && distToOrb <= 36) {
+      if (this.state === 'PLAYING' && this.drunkMeter >= 100 && this.score >= 10 && distToOrb <= 36) {
         e.preventDefault();
         e.stopPropagation();
         this._triggerSupernovaSmash();
@@ -194,8 +194,8 @@ export class Game {
   _onScore(pillar) {
     this.score += 1;
     this.justScoredTimer = 0.6; // Cheerful expression timer
-    // Regular pillar gives +20% Overdrive
-    this.drunkMeter = Math.min(100, this.drunkMeter + 20);
+    // Regular pillar gives +10% Overdrive (10 pillars cleared = 100% Smash ready)
+    this.drunkMeter = Math.min(100, this.drunkMeter + 10);
     this.audio.playScore(); // Cheerful "HEYYY!" sound
     this.particles.emitScoreSparkles(this.rocket.x + 20, this.rocket.y);
 
@@ -203,9 +203,23 @@ export class Game {
     const pY = pillar ? pillar.gapY : this.rocket.y;
     this.particles.emitEnergySiphon(pX, pY, this.width / 2, 126, 9);
 
-    // Spawn 2 to 4 moving floating energy particles behind the cleared pillar
+    // Spawn 2 to 4 moving floating energy particles midway between the cleared pillar and upcoming pillar
+    const upcomingPillars = this.pillars.pillars.filter(p => !p.passed && !p.isDestroyed && p.x > (pillar ? pillar.x : this.rocket.x));
+    const nextPillar = upcomingPillars.length > 0 ? upcomingPillars[0] : null;
+
+    let midX;
+    if (nextPillar && pillar) {
+      const clearedRight = pillar.x + (pillar.width || 52);
+      midX = (clearedRight + nextPillar.x) / 2;
+    } else if (pillar) {
+      midX = pillar.x + (pillar.width || 52) + 160;
+    } else {
+      midX = this.rocket.x + 180;
+    }
+
     const clusterCount = Math.floor(Math.random() * 3) + 2; // 2, 3, or 4 cells
-    this.energyCells.spawnCluster(this.width + 45, pY, clusterCount);
+    const midY = (pillar && nextPillar) ? (pillar.gapY + nextPillar.gapY) / 2 : (pillar ? pillar.gapY : 350);
+    this.energyCells.spawnCluster(midX, midY, clusterCount);
 
     if (this.perks) this.perks.onPassPillar();
 
@@ -221,7 +235,7 @@ export class Game {
     const bonus = 2 * this.nearMissMultiplier;
     this.score += bonus;
     this.justScoredTimer = 0.8;
-    this.drunkMeter = Math.min(100, this.drunkMeter + (50 * this.nearMissMultiplier));
+    this.drunkMeter = Math.min(100, this.drunkMeter + (12 * this.nearMissMultiplier));
     this.audio.playNearMiss();
     this.hud.showNearMiss(bonus);
     this.particles.emitNearMiss(this.rocket.x, this.rocket.y);
@@ -242,7 +256,7 @@ export class Game {
    * Energy cell pickup: DOES NOT ADD LEVEL SCORE, ONLY CHARGES OVERDRIVE SMASH (+4% each)
    */
   _onCollectCell(cell) {
-    this.drunkMeter = Math.min(100, this.drunkMeter + 4);
+    this.drunkMeter = Math.min(100, this.drunkMeter + 2);
     if (this.audio.playCellCollect) {
       this.audio.playCellCollect();
     }
@@ -252,7 +266,7 @@ export class Game {
 
   _triggerSupernovaSmash(forcedChain = false) {
     if (this.isSmashActive) return;
-    if (!forcedChain && this.drunkMeter < 100) return;
+    if (!forcedChain && (this.drunkMeter < 100 || this.score < 10)) return;
 
     this.isSmashActive = true;
     this.drunkMeter = 0;
@@ -454,7 +468,7 @@ export class Game {
       } else {
         this.rocket.update(dt, false, this.totalTime);
       }
-      this.pillars.update(dt, this.rocket, this._onScore, this._onNearMiss);
+      this.pillars.update(dt, this.rocket, this._onScore, this._onNearMiss, this.score);
       this.energyCells.update(dt, this.pillars.speed, this.rocket, this.hasDrunkMagnet, this._onCollectCell);
       if (this.ghosts) this.ghosts.update(dt, this.pillars.speed);
 
