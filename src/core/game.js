@@ -47,6 +47,7 @@ export class Game {
     this.smashedCountInSupernova = 0;
     this.maxSmashCount = 1;
     this.passiveChargeRate = 0;
+    this.perkDurations = {};
 
     // Visual expression feedback
     this.justScoredTimer = 0;
@@ -182,6 +183,7 @@ export class Game {
     this.nearMissMultiplier = 1;
     this.smashChainCount = 1;
     this.passiveChargeRate = 0;
+    this.perkDurations = {};
     this.pillars.reset();
     this.energyCells.reset();
     this.particles.reset();
@@ -204,6 +206,8 @@ export class Game {
     // Spawn 2 to 4 moving floating energy particles behind the cleared pillar
     const clusterCount = Math.floor(Math.random() * 3) + 2; // 2, 3, or 4 cells
     this.energyCells.spawnCluster(this.width + 45, pY, clusterCount);
+
+    if (this.perks) this.perks.onPassPillar();
 
     if (this.perks) this.perks.checkMilestone(this.score);
     if (this.ghosts && pillar) this.ghosts.spawnForPillar(pillar, this.score);
@@ -419,6 +423,9 @@ export class Game {
           this.rocket.x = this.originalRocketX;
           this.rocket.vx = 0;
           this.rocket.vy = 0;
+
+          // Chain Reaction dùng 1 lần là hết -> reset về 1 cột
+          this.smashChainCount = 1;
 
           // Sau khi lướt xong cột mới kiểm tra điểm để hiện bảng chọn thẻ bài
           if (this.perks) {

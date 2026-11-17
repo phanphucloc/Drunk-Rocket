@@ -1,69 +1,107 @@
 /**
  * Micro-Roguelite Perk System for Drunk Rocket 2.0
- * Manages drafting cards, passive modifiers, 1.0s pre/post draft pauses, and card hover effects.
+ * Manages drafting cards, pillar-based durations, resetting durations, and continuous random availability.
  */
 export const PERK_CATALOG = [
   {
     id: 'nano_hull',
     name: 'Nano Hull',
     icon: '🔬',
-    desc: 'Co nhỏ tàu 25%, lách qua khe hẹp cực dễ',
+    desc: 'Co nhỏ tàu 25% (Hiệu lực: qua 3 cột)',
     group: 'defense',
+    durationPillars: 3,
     apply: (game) => {
-      game.rocket.radius = Math.round(game.rocket.radius * 0.75);
+      game.rocket.radius = Math.round(12 * 0.75); // 9px
       game.rocket.scale = 0.75;
+      game.perkDurations.nano_hull = 3;
+    },
+    remove: (game) => {
+      game.rocket.radius = 12;
+      game.rocket.scale = 1.0;
+      delete game.perkDurations.nano_hull;
     }
   },
   {
     id: 'beer_bubble',
     name: 'Beer Bubble',
     icon: '🫧',
-    desc: 'Khiên bọt cồn: Đỡ 1 lần va chạm tử nạn',
+    desc: 'Khiên bọt cồn đỡ 1 va chạm (Hiệu lực: qua 1 cột)',
     group: 'defense',
+    durationPillars: 1,
     apply: (game) => {
       game.shieldActive = true;
+      game.perkDurations.beer_bubble = 1;
+    },
+    remove: (game) => {
+      game.shieldActive = false;
+      delete game.perkDurations.beer_bubble;
     }
   },
   {
     id: 'quantum_drift',
     name: 'Quantum Drift',
     icon: '🌌',
-    desc: 'Tàng hình xuyên cột 0.8s khi tap (Hồi chiêu 4s)',
+    desc: 'Tàng hình xuyên cột khi tap (Hiệu lực: qua 1 cột)',
     group: 'defense',
+    durationPillars: 1,
     apply: (game) => {
       game.hasQuantumDrift = true;
       game.quantumCooldownTimer = 0;
+      game.perkDurations.quantum_drift = 1;
+    },
+    remove: (game) => {
+      game.hasQuantumDrift = false;
+      game.quantumTimer = 0;
+      if (game.rocket) game.rocket.isQuantum = false;
+      delete game.perkDurations.quantum_drift;
     }
   },
   {
     id: 'adrenaline_junkie',
     name: 'Adrenaline Junkie',
     icon: '⚡',
-    desc: 'Điểm Near-Miss tăng gấp đôi (+4 điểm & +60% Nộ)',
+    desc: 'Điểm Near-Miss tăng gấp đôi (Hiệu lực: qua 3 cột)',
     group: 'offense',
+    durationPillars: 3,
     apply: (game) => {
       game.nearMissMultiplier = 2;
+      game.perkDurations.adrenaline_junkie = 3;
+    },
+    remove: (game) => {
+      game.nearMissMultiplier = 1;
+      delete game.perkDurations.adrenaline_junkie;
     }
   },
   {
     id: 'chain_reaction',
     name: 'Chain Reaction',
     icon: '💥',
-    desc: 'Supernova Smash đốt lửa húc nổ 2 cột liên tiếp',
+    desc: 'Supernova Smash phá nổ 2 cột (Dùng 1 lần là hết)',
     group: 'offense',
+    durationPillars: 0,
     apply: (game) => {
       game.smashChainCount = 2;
+    },
+    remove: (game) => {
+      game.smashChainCount = 1;
     }
   },
   {
     id: 'drunk_magnet',
-    name: 'Drunk Magnet',
+    name: 'Magnet Core',
     icon: '🧲',
-    desc: 'Hút mọi hạt năng lượng trong 220px & nạp +2%/s',
+    desc: 'Hút mọi hạt năng lượng 220px (Hiệu lực: qua 3 cột)',
     group: 'utility',
+    durationPillars: 3,
     apply: (game) => {
       game.hasDrunkMagnet = true;
       game.passiveChargeRate = 2;
+      game.perkDurations.drunk_magnet = 3;
+    },
+    remove: (game) => {
+      game.hasDrunkMagnet = false;
+      game.passiveChargeRate = 0;
+      delete game.perkDurations.drunk_magnet;
     }
   }
 ];
@@ -71,7 +109,6 @@ export const PERK_CATALOG = [
 export class PerkDraftManager {
   constructor(game) {
     this.game = game;
-    this.activePerks = new Set();
     this.isDrafting = false;
     this.isPreDraft = false;
     this.preDraftTimer = 0;
@@ -87,7 +124,6 @@ export class PerkDraftManager {
   }
 
   reset() {
-    this.activePerks.clear();
     this.isDrafting = false;
     this.isPreDraft = false;
     this.preDraftTimer = 0;
@@ -107,7 +143,7 @@ export class PerkDraftManager {
 
     if (currentScore >= this.lastMilestoneScore + this.milestoneInterval) {
       this.lastMilestoneScore = currentScore;
-      // UPGRADE: 1.0s pre-draft pause before showing cards
+      // 1.0s pre-draft pause before showing cards
       this.isPreDraft = true;
       this.preDraftTimer = 1.0;
       if (this.game && this.game.rocket) {
@@ -121,10 +157,8 @@ export class PerkDraftManager {
   }
 
   triggerDraft() {
-    const available = PERK_CATALOG.filter(p => !this.activePerks.has(p.id));
-    if (available.length === 0) return;
-
-    const shuffled = [...available].sort(() => 0.5 - Math.random());
+    // REQUIREMENT: Mỗi thẻ bài xuất hiện nhiều lần và ngẫu nhiên (không bị chặn vĩnh viễn)
+    const shuffled = [...PERK_CATALOG].sort(() => 0.5 - Math.random());
     this.draftCards = shuffled.slice(0, 3);
     this.isDrafting = true;
     this.hoveredIndex = -1;
@@ -162,13 +196,12 @@ export class PerkDraftManager {
   selectCard(index) {
     if (!this.isDrafting || index < 0 || index >= this.draftCards.length) return;
     const perk = this.draftCards[index];
-    this.activePerks.add(perk.id);
 
     this.selectedCard = perk;
     this.isDrafting = false;
     this.hoveredIndex = -1;
 
-    // Apply perk modifiers
+    // Apply or Reset perk duration back to full
     perk.apply(this.game);
 
     // Consume all inputs immediately
@@ -182,16 +215,30 @@ export class PerkDraftManager {
     }
 
     if (perk.id === 'chain_reaction') {
-      // Khi chon the pha vo 2 cot: Khong can pause 1.0s ma ngay lap tuc kick hoat cu luot pha 2 cot than toc!
+      // Khi chọn thẻ Chain Reaction: dùng 1 lần ngay lập tức
       this.isPostDraft = false;
       this.selectedCard = null;
       this.draftCards = [];
       this.game.drunkMeter = 100;
       this.game._triggerSupernovaSmash(true);
     } else {
-      // Cac the khac: 1.0s post-draft freeze pause de nguoi choi san sang
+      // Các thẻ khác: 1.0s post-draft freeze pause để người chơi chuẩn bị
       this.isPostDraft = true;
       this.postDraftTimer = 1.0;
+    }
+  }
+
+  onPassPillar() {
+    if (!this.game || !this.game.perkDurations) return;
+
+    for (const perk of PERK_CATALOG) {
+      if (this.game.perkDurations[perk.id] !== undefined) {
+        this.game.perkDurations[perk.id]--;
+        // Khi đi qua đủ số cột -> hết hiệu lực, gọi remove()
+        if (this.game.perkDurations[perk.id] <= 0) {
+          perk.remove(this.game);
+        }
+      }
     }
   }
 
@@ -254,7 +301,7 @@ export class PerkDraftManager {
       ctx.textAlign = 'center';
       ctx.fillStyle = '#05ffa1';
       ctx.font = '900 22px monospace';
-      ctx.fillText(`✅ ĐÃ CHỌN: ${this.selectedCard.icon} ${this.selectedCard.name}`, width / 2, 310);
+      ctx.fillText(`✔ ĐÃ CHỌN: ${this.selectedCard.icon} ${this.selectedCard.name}`, width / 2, 310);
 
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 14px monospace';
@@ -316,7 +363,7 @@ export class PerkDraftManager {
 
         ctx.fillStyle = '#ffd13b';
         ctx.font = '900 17px monospace';
-        ctx.fillText(`▶ [${idx + 1}] ${card.icon} ${card.name} ◀`, width / 2, cardY + 28);
+        ctx.fillText(`★  [${idx + 1}] ${card.icon} ${card.name} ★`, width / 2, cardY + 28);
 
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 12px monospace';
