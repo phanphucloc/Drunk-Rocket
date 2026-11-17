@@ -1,4 +1,4 @@
-﻿import { PhysicsEngine } from '../core/physics.js';
+import { PhysicsEngine } from '../core/physics.js';
 
 export class LaserPillar {
   constructor(x, gapY, gapHeight, width = 52) {
@@ -9,6 +9,7 @@ export class LaserPillar {
     this.passed = false;
     this.nearMissChecked = false;
     this.isDestroyed = false;
+    this.quantumPhased = false;
     this.emitterHeight = 24;
     this.pulsePhase = Math.random() * Math.PI * 2;
   }
@@ -31,7 +32,7 @@ export class LaserPillar {
   }
 
   /**
-   * Check Near-Miss: Rocket passes very close (<12px margin) to top or bottom hazard
+   * Check Near-Miss: Rocket passes very close (<16px margin) to top or bottom hazard
    */
   checkNearMiss(rocket) {
     if (this.isDestroyed || this.nearMissChecked) return false;
@@ -56,7 +57,7 @@ export class LaserPillar {
    * Collision check against rocket
    */
   collidesWith(rocket) {
-    if (this.isDestroyed) return false;
+    if (this.isDestroyed || this.quantumPhased) return false;
 
     // 1. Top pillar (from y=0 to this.topY)
     if (PhysicsEngine.checkCircleAABB(
@@ -141,13 +142,19 @@ export class LaserPillarManager {
   }
 
   destroyFrontPillar(rocketX) {
-    // Find closest pillar ahead of rocket to smash
-    for (const p of this.pillars) {
-      if (!p.isDestroyed && p.x + p.width > rocketX - 20) {
-        p.isDestroyed = true;
-        return p;
-      }
+    return this.destroyFrontPillars(rocketX, 1)[0] || null;
+  }
+
+  destroyFrontPillars(rocketX, count = 1) {
+    const destroyed = [];
+    const candidates = this.pillars
+      .filter(p => !p.isDestroyed && p.x + p.width > rocketX - 30)
+      .sort((a, b) => a.x - b.x);
+
+    for (let i = 0; i < Math.min(count, candidates.length); i++) {
+      candidates[i].isDestroyed = true;
+      destroyed.push(candidates[i]);
     }
-    return null;
+    return destroyed;
   }
 }

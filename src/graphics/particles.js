@@ -1,5 +1,5 @@
 /**
- * Particle System for Engine Smoke, Plasma Thrust, Explosion Debris & Score Sparkles
+ * Particle System for Engine Smoke, Plasma Thrust, Explosion Debris, Score Sparkles & Siphon VFX
  * Cyber Neon Arcade Visual Effects
  */
 export class ParticleSystem {
@@ -118,6 +118,40 @@ export class ParticleSystem {
   }
 
   /**
+   * Spawns cyber energy siphon stream flowing from cleared obstacle into the Overdrive Orb
+   */
+  emitEnergySiphon(fromX, fromY, targetX = 200, targetY = 126, count = 9) {
+    const colors = ['#00f0ff', '#05ffa1', '#ffd13b', '#ffffff'];
+    for (let i = 0; i < count; i++) {
+      const spreadX = (Math.random() - 0.5) * 35;
+      const spreadY = (Math.random() - 0.5) * 45;
+      const startX = fromX + spreadX;
+      const startY = fromY + spreadY;
+
+      const dx = targetX - startX;
+      const dy = targetY - startY;
+      const dist = Math.hypot(dx, dy) || 1;
+      const speed = 260 + Math.random() * 160;
+
+      this.particles.push({
+        type: 'siphon',
+        x: startX,
+        y: startY,
+        targetX,
+        targetY,
+        vx: (dx / dist) * speed + (Math.random() - 0.5) * 80,
+        vy: (dy / dist) * speed - 60 - Math.random() * 80,
+        size: 2.5 + Math.random() * 2.5,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        life: 0.55 + Math.random() * 0.25,
+        maxLife: 0.8,
+        gravity: 0,
+        homing: true
+      });
+    }
+  }
+
+  /**
    * Spawns electric sparks for Near-Miss close shave
    */
   emitNearMiss(x, y) {
@@ -201,6 +235,16 @@ export class ParticleSystem {
         continue;
       }
 
+      if (p.homing && p.targetX !== undefined) {
+        const dx = p.targetX - p.x;
+        const dy = p.targetY - p.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist > 8) {
+          p.vx += (dx / dist) * 1100 * dt;
+          p.vy += (dy / dist) * 1100 * dt;
+        }
+      }
+
       p.vy += p.gravity * dt;
       p.x += p.vx * dt;
       p.y += p.vy * dt;
@@ -228,12 +272,18 @@ export class ParticleSystem {
       ctx.fillStyle = p.color;
 
       const renderSize = Math.max(1, p.size * (p.life / p.maxLife));
-      ctx.fillRect(
-        Math.floor(p.x - renderSize / 2),
-        Math.floor(p.y - renderSize / 2),
-        Math.ceil(renderSize),
-        Math.ceil(renderSize)
-      );
+      if (p.type === 'siphon') {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, renderSize * 1.2, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.fillRect(
+          Math.floor(p.x - renderSize / 2),
+          Math.floor(p.y - renderSize / 2),
+          Math.ceil(renderSize),
+          Math.ceil(renderSize)
+        );
+      }
     }
 
     ctx.restore();

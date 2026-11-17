@@ -37,12 +37,30 @@ export function drawRocket(ctx, x, y, options = {}) {
   const isThrusting = !!options.isThrusting;
   const scale = options.scale || 1.0;
   const dizzyTime = options.dizzyTime || 0;
-  const mode = options.mode || 'pixel';
+  const isQuantum = !!options.isQuantum;
 
   ctx.save();
   ctx.translate(Math.floor(x), Math.floor(y));
   ctx.rotate(angle);
   ctx.scale(scale, scale);
+
+  // Quantum Ghostly / Semi-Transparent Phase
+  if (isQuantum) {
+    ctx.globalAlpha = 0.38;
+
+    // Chromatic aberration glitch silhouettes
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 240, 255, 0.4)';
+    ctx.beginPath();
+    ctx.ellipse(-3, 0, 16, 11, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(255, 59, 92, 0.3)';
+    ctx.beginPath();
+    ctx.ellipse(3, 0, 16, 11, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
 
   // 1. Thruster flame (Dual-layer Animated Plasma)
   if (isThrusting) {
@@ -183,7 +201,6 @@ export function drawLaserHazard(ctx, pillar, gameHeight = 700, totalTime = 0) {
   const isBeamActive = pillar.isBeamActive !== undefined ? pillar.isBeamActive : true;
 
   // 1. Top Metal Column (from ceiling y=0 down to topY)
-  // Base metal
   ctx.fillStyle = PALETTE.METAL_DARK;
   ctx.fillRect(x, 0, w, topY);
 
@@ -202,7 +219,6 @@ export function drawLaserHazard(ctx, pillar, gameHeight = 700, totalTime = 0) {
   ctx.strokeRect(x - 2, topY - emitterH, w + 4, emitterH);
 
   // Top Emitter Glowing Energy Core (Cyan Pulsing)
-  const corePulse = Math.sin(pulsePhase * 1.5) * 0.3 + 0.7;
   ctx.fillStyle = PALETTE.CYAN;
   ctx.fillRect(x + w / 2 - 8, topY - 8, 16, 7);
   ctx.fillStyle = PALETTE.WHITE;
@@ -329,7 +345,8 @@ export class EntityRenderer {
       angle: rocket.angle,
       isThrusting: rocket.isThrusting,
       scale: rocket.scale || (rocket.radius ? rocket.radius / 12 : 1.0),
-      dizzyTime: (rocket.totalTime || 0) + (rocket.pupilX || 0)
+      dizzyTime: (rocket.totalTime || 0) + (rocket.pupilX || 0),
+      isQuantum: !!rocket.isQuantum || (rocket.quantumTimer > 0)
     });
   }
 

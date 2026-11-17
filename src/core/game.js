@@ -33,8 +33,11 @@ export class Game {
     this.shieldActive = false;
     this.hasQuantumDrift = false;
     this.quantumTimer = 0;
+    this.perkDraftCooldown = 0;
     this.nearMissMultiplier = 1;
     this.smashChainCount = 1;
+    this.smashedCountInSupernova = 0;
+    this.maxSmashCount = 1;
     this.passiveChargeRate = 0;
 
     this.leaderboard = new LeaderboardModal('https://drunk-rocket-backend.ppldhsp.workers.dev');
@@ -64,9 +67,19 @@ export class Game {
       if (this.perks && this.perks.isDrafting) {
         const rect = this.canvas.getBoundingClientRect();
         const clientY = (e.clientY - rect.top) * (this.height / rect.height);
-        if (clientY >= 240 && clientY <= 315) this.perks.selectCard(0);
-        else if (clientY >= 335 && clientY <= 410) this.perks.selectCard(1);
-        else if (clientY >= 430 && clientY <= 505) this.perks.selectCard(2);
+        let cardIdx = -1;
+        if (clientY >= 240 && clientY <= 315) cardIdx = 0;
+        else if (clientY >= 335 && clientY <= 410) cardIdx = 1;
+        else if (clientY >= 430 && clientY <= 505) cardIdx = 2;
+
+        if (cardIdx !== -1) {
+          e.preventDefault();
+          e.stopPropagation();
+          this.perks.selectCard(cardIdx);
+          this.input.consumeTap();
+          this.input.consumeDoubleTap();
+          this.perkDraftCooldown = 0.25;
+        }
       }
     });
 
@@ -74,9 +87,19 @@ export class Game {
     window.addEventListener('resize', () => this.resize());
     window.addEventListener('keydown', (e) => {
       if (this.perks && this.perks.isDrafting) {
-        if (e.key === '1') this.perks.selectCard(0);
-        if (e.key === '2') this.perks.selectCard(1);
-        if (e.key === '3') this.perks.selectCard(2);
+        let cardIdx = -1;
+        if (e.key === '1') cardIdx = 0;
+        else if (e.key === '2') cardIdx = 1;
+        else if (e.key === '3') cardIdx = 2;
+
+        if (cardIdx !== -1) {
+          e.preventDefault();
+          e.stopPropagation();
+          this.perks.selectCard(cardIdx);
+          this.input.consumeTap();
+          this.input.consumeDoubleTap();
+          this.perkDraftCooldown = 0.25;
+        }
       }
     });
   }
@@ -104,12 +127,17 @@ export class Game {
     this.drunkMeter = 0;
     this.isSmashActive = false;
     this.smashDuration = 0;
+    this.smashedCountInSupernova = 0;
+    this.maxSmashCount = 1;
     this.rocket.reset(100, 320);
     this.rocket.scale = 1.0;
     this.rocket.radius = 12;
+    this.rocket.isQuantum = false;
     if (this.perks) this.perks.reset();
     this.shieldActive = false;
     this.hasQuantumDrift = false;
+    this.quantumTimer = 0;
+    this.perkDraftCooldown = 0;
     this.nearMissMultiplier = 1;
     this.smashChainCount = 1;
     this.passiveChargeRate = 0;
@@ -121,9 +149,15 @@ export class Game {
 
   _onScore(pillar) {
     this.score += 1;
-    this.drunkMeter = Math.min(100, this.drunkMeter + 5);
+    // Exactly 5 points to 100% full Overdrive Smash (+20% per regular obstacle)
+    this.drunkMeter = Math.min(100, this.drunkMeter + 20);
     this.audio.playScore();
     this.particles.emitScoreSparkles(this.rocket.x + 20, this.rocket.y);
+
+    // Exciting energy siphon stream flying from cleared pillar directly into Overdrive Orb
+    const pX = pillar ? pillar.x + (pillar.width || 52) / 2 : this.rocket.x + 20;
+    const pY = pillar ? pillar.gapY : this.rocket.y;
+    this.particles.emitEnergySiphon(pX, pY, this.width / 2, 126, 9);
 
     if (this.perks) this.perks.checkMilestone(this.score);
     if (this.ghosts && pillar) this.ghosts.spawnForPillar(pillar, this.score);
@@ -136,10 +170,15 @@ export class Game {
   _onNearMiss(pillar) {
     const bonus = 2 * this.nearMissMultiplier;
     this.score += bonus;
-    this.drunkMeter = Math.min(100, this.drunkMeter + (35 * this.nearMissMultiplier));
+    // Near-Miss offers instant high-voltage Overdrive charge (+50% base)
+    this.drunkMeter = Math.min(100, this.drunkMeter + (50 * this.nearMissMultiplier));
     this.audio.playNearMiss();
     this.hud.showNearMiss(bonus);
     this.particles.emitNearMiss(this.rocket.x, this.rocket.y);
+
+    const pX = pillar ? pillar.x + (pillar.width || 52) / 2 : this.rocket.x + 20;
+    const pY = pillar ? pillar.gapY : this.rocket.y;
+    this.particles.emitEnergySiphon(pX, pY, this.width / 2, 126, 14);
 
     if (this.perks) this.perks.checkMilestone(this.score);
     if (this.ghosts && pillar) this.ghosts.spawnForPillar(pillar, this.score);
@@ -153,23 +192,25 @@ export class Game {
     if (this.drunkMeter < 100 || this.isSmashActive) return;
 
     this.isSmashActive = true;
-    this.smashDuration = 0.8;
+    this.smashDuration = 0.85;
     this.drunkMeter = 0;
+    this.smashedCountInSupernova = 0;
+    this.maxSmashCount = this.smashChainCount || 1;
 
     this.audio.playSmash();
     this.hud.triggerSmashEffects();
 
-    for (let k = 0; k < this.smashChainCount; k++) {
-      const smashed = this.pillars.destroyFrontPillar(this.rocket.x);
-      if (smashed) {
-        this.score += 3;
-        this.particles.emitPillarSmash(smashed.x + smashed.width / 2, smashed.gapY);
-        if (this.perks) this.perks.checkMilestone(this.score);
-        if (this.ghosts) this.ghosts.spawnForPillar(smashed, this.score);
-        if (this.score > this.bestScore) {
-          this.bestScore = this.score;
-          localStorage.setItem('drunk_rocket_best', this.bestScore.toString());
-        }
+    // Smash up to maxSmashCount columns ahead immediately
+    const smashedList = this.pillars.destroyFrontPillars(this.rocket.x, this.maxSmashCount);
+    for (const smashed of smashedList) {
+      this.smashedCountInSupernova++;
+      this.score += 3;
+      this.particles.emitPillarSmash(smashed.x + smashed.width / 2, smashed.gapY);
+      if (this.perks) this.perks.checkMilestone(this.score);
+      if (this.ghosts) this.ghosts.spawnForPillar(smashed, this.score);
+      if (this.score > this.bestScore) {
+        this.bestScore = this.score;
+        localStorage.setItem('drunk_rocket_best', this.bestScore.toString());
       }
     }
   }
@@ -207,9 +248,19 @@ export class Game {
       return;
     }
 
+    // While drafting cards, suppress all inputs and freeze flight
     if (this.perks && this.perks.isDrafting) {
+      this.input.consumeTap();
+      this.input.consumeDoubleTap();
       this.perks.update(dt);
       return;
+    }
+
+    // Post-draft cooldown to prevent tap leaking into rocket thrust
+    if (this.perkDraftCooldown > 0) {
+      this.perkDraftCooldown -= dt;
+      this.input.consumeTap();
+      this.input.consumeDoubleTap();
     }
 
     if (this.passiveChargeRate > 0) {
@@ -218,7 +269,17 @@ export class Game {
 
     if (this.quantumTimer > 0) {
       this.quantumTimer -= dt;
+      this.rocket.isQuantum = (this.quantumTimer > 0);
+      // Guarantee safe passage: mark any pillar overlapping rocket during quantum drift
+      for (const p of this.pillars.pillars) {
+        if (this.rocket.x >= p.x - 30 && this.rocket.x <= p.x + p.width + 30) {
+          p.quantumPhased = true;
+        }
+      }
+    } else {
+      this.rocket.isQuantum = false;
     }
+
     const hasTap = this.input.consumeTap();
     const hasDoubleTap = this.input.consumeDoubleTap();
 
@@ -232,7 +293,10 @@ export class Game {
         this.rocket.thrust();
         this.audio.playThrust();
         this.particles.emitThrust(this.rocket.x, this.rocket.y, this.rocket.rotation);
-        if (this.hasQuantumDrift) this.quantumTimer = 0.45;
+        if (this.hasQuantumDrift) {
+          this.quantumTimer = 0.85;
+          this.rocket.isQuantum = true;
+        }
       }
     } else if (this.state === 'PLAYING') {
       if (hasDoubleTap && this.drunkMeter >= 100) {
@@ -243,6 +307,28 @@ export class Game {
         this.smashDuration -= dt;
         this.rocket.vx = 280;
         this.particles.emitThrust(this.rocket.x, this.rocket.y, this.rocket.rotation, 6);
+
+        // Chain Reaction: continuously smash oncoming pillars up to maxSmashCount
+        if (this.smashedCountInSupernova < this.maxSmashCount) {
+          for (const p of this.pillars.pillars) {
+            if (!p.isDestroyed && p.x <= this.rocket.x + 120 && p.x + p.width >= this.rocket.x - 20) {
+              p.isDestroyed = true;
+              this.smashedCountInSupernova++;
+              this.score += 3;
+              this.audio.playSmash();
+              this.hud.triggerSmashEffects();
+              this.particles.emitPillarSmash(p.x + p.width / 2, p.gapY);
+              if (this.perks) this.perks.checkMilestone(this.score);
+              if (this.ghosts) this.ghosts.spawnForPillar(p, this.score);
+              if (this.score > this.bestScore) {
+                this.bestScore = this.score;
+                localStorage.setItem('drunk_rocket_best', this.bestScore.toString());
+              }
+              if (this.smashedCountInSupernova >= this.maxSmashCount) break;
+            }
+          }
+        }
+
         if (this.smashDuration <= 0) {
           this.isSmashActive = false;
           this.rocket.vx = 0;
@@ -253,7 +339,10 @@ export class Game {
         this.rocket.thrust();
         this.audio.playThrust();
         this.particles.emitThrust(this.rocket.x, this.rocket.y, this.rocket.rotation);
-        if (this.hasQuantumDrift) this.quantumTimer = 0.45;
+        if (this.hasQuantumDrift) {
+          this.quantumTimer = 0.85;
+          this.rocket.isQuantum = true;
+        }
       }
 
       this.rocket.update(dt, false, this.totalTime);
@@ -276,7 +365,8 @@ export class Game {
             this.hud.triggerSmashEffects();
             this.particles.emitPillarSmash(collided.x + (collided.width || 52) / 2, collided.gapY || 350);
             this.audio.playSmash();
-            this.quantumTimer = 0.5; // Cho 0.5s bất tử sau khi vỡ khiên để tránh va chạm liên hoàn
+            this.quantumTimer = 0.6; // 0.6s bất tử sau khi vỡ khiên
+            this.rocket.isQuantum = true;
           } else {
             this._die();
             return;
@@ -308,7 +398,10 @@ export class Game {
     this.particles.draw(this.ctx);
 
     if (this.ghosts) this.ghosts.draw(this.ctx);
+
+    // Draw Rocket (with quantum ghost transparency if active)
     EntityRenderer.drawRocket(this.ctx, this.rocket);
+
     // Cinematic Quantum Drift Hologram FX
     if (this.quantumTimer > 0) {
       this.ctx.save();

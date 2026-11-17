@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Micro-Roguelite Perk System for Drunk Rocket 2.0
  * Manages drafting cards, passive modifiers, and bullet-time effect.
  */
@@ -17,7 +17,7 @@ export const PERK_CATALOG = [
   {
     id: 'beer_bubble',
     name: 'Beer Bubble',
-    icon: '🍺',
+    icon: '🫧',
     desc: 'Khiên bọt cồn: Đỡ 1 lần va chạm tử nạn',
     group: 'defense',
     apply: (game) => {
@@ -28,7 +28,7 @@ export const PERK_CATALOG = [
     id: 'quantum_drift',
     name: 'Quantum Drift',
     icon: '🌌',
-    desc: 'Tàng hình và đi xuyên cột 0.3s sau mỗi cú tap',
+    desc: 'Tàng hình và đi xuyên hoàn toàn cột 0.85s sau mỗi cú tap',
     group: 'defense',
     apply: (game) => {
       game.hasQuantumDrift = true;
@@ -58,10 +58,10 @@ export const PERK_CATALOG = [
     id: 'drunk_magnet',
     name: 'Drunk Magnet',
     icon: '🧲',
-    desc: 'Tự động nạp năng lượng cồn +2% mỗi giây',
+    desc: 'Tự động nạp năng lượng cồn +3% mỗi giây',
     group: 'utility',
     apply: (game) => {
-      game.passiveChargeRate = 2;
+      game.passiveChargeRate = 3;
     }
   }
 ];
@@ -104,7 +104,7 @@ export class PerkDraftManager {
     this.isDrafting = true;
     this.draftTimer = this.draftMaxDuration;
 
-    // Bullet time
+    // Bullet time sound
     if (this.game.audio) {
       this.game.audio.playMedal();
     }
@@ -118,6 +118,13 @@ export class PerkDraftManager {
 
     this.isDrafting = false;
     this.draftCards = [];
+
+    // Clear and prevent any tap from leaking into rocket thrust
+    if (this.game && this.game.input) {
+      this.game.input.consumeTap();
+      this.game.input.consumeDoubleTap();
+      this.game.perkDraftCooldown = 0.25;
+    }
   }
 
   update(dt) {
@@ -141,7 +148,7 @@ export class PerkDraftManager {
     ctx.textAlign = 'center';
     ctx.fillStyle = '#ffd13b';
     ctx.font = '900 22px monospace';
-    ctx.fillText('⚡ CHỌN THẺ NÂNG CẤP (PERK) ⚡', width / 2, 170);
+    ctx.fillText('⭐ CHỌN THẺ NÂNG CẤP (PERK) ⭐', width / 2, 170);
 
     ctx.fillStyle = '#00f0ff';
     ctx.font = 'bold 13px monospace';
