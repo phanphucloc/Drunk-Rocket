@@ -66,7 +66,7 @@ export default {
       // 2. Health Check
       if (path === "/" || path === "/health" || path === "/api/health") {
         return jsonResponse({
-          status: "healthy",
+          status: "healthy (CI/CD v1.1.0-verified)",
           service: "Drunk Rocket Serverless Backend",
           timestamp: new Date().toISOString(),
           d1Connected: !!env.DB,

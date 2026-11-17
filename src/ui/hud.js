@@ -58,7 +58,7 @@ export class HUD {
       // 1. Ready Title
       ctx.fillStyle = '#ffd13b';
       ctx.font = 'bold 36px monospace';
-      ctx.fillText('DRUNK ROCKET', cx, 180);
+      ctx.fillText('DRUNK ROCKET v1.1.0', cx, 180);
 
       ctx.fillStyle = '#00f0ff';
       ctx.font = 'bold 16px monospace';
