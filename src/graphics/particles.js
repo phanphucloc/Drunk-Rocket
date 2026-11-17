@@ -39,6 +39,33 @@ export class ParticleSystem {
   /**
    * Spawns exhaust puff particles behind rocket nozzle
    */
+  
+  /**
+   * Spawns a massive fiery dragon thruster trail during Supernova Smash dash
+   */
+  emitSmashFireTrail(x, y, angle) {
+    const fireColors = ['#ffffff', '#ffd13b', '#ff3b5c', '#ff0055', '#990033'];
+    for (let i = 0; i < 9; i++) {
+      const spread = (Math.random() - 0.5) * 0.55;
+      const speed = 280 + Math.random() * 220;
+      const vx = -Math.cos(angle + spread) * speed;
+      const vy = -Math.sin(angle + spread) * speed;
+
+      this.particles.push({
+        type: 'smash',
+        x: x - Math.cos(angle) * 20,
+        y: y - Math.sin(angle) * 20 + (Math.random() - 0.5) * 8,
+        vx,
+        vy,
+        size: 4 + Math.random() * 5,
+        color: fireColors[Math.floor(Math.random() * fireColors.length)],
+        life: 0.35 + Math.random() * 0.25,
+        maxLife: 0.6,
+        gravity: 40
+      });
+    }
+  }
+
   emitThrust(x, y, angle, count = 4) {
     const colors = ['#00f0ff', '#ffffff', '#ffd13b', '#ff3b5c'];
 

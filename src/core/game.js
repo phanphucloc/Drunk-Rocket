@@ -239,33 +239,46 @@ export class Game {
     if (this.drunkMeter < 100 || this.isSmashActive) return;
 
     this.isSmashActive = true;
-    this.smashDuration = 0.9;
     this.drunkMeter = 0;
-    this.smashedCountInSupernova = 0;
-    this.maxSmashCount = this.smashChainCount || 1;
     this.originalRocketX = this.rocket.x;
+    const isChain = this.smashChainCount >= 2;
 
     this.audio.playSmash();
     this.hud.triggerSmashEffects();
 
-    // Smash up to maxSmashCount columns ahead immediately
-    const smashedList = this.pillars.destroyFrontPillars(this.rocket.x, this.maxSmashCount);
-    let lastSmashedX = this.rocket.x + 160;
+    // 1. Phá hủy cột: Nếu có Chain Reaction thì phá 2 cột, còn Smash thường thì phá 1 cột
+    const targetCount = isChain ? 2 : 1;
+    const smashedList = this.pillars.destroyFrontPillars(this.rocket.x, targetCount);
 
+    // Xác định đích đến (Destination X) dựa vào vị trí cột bị phá
+    let targetX = this.rocket.x + 160;
+    if (smashedList.length > 0) {
+      // Vị trí cột xa nhất bị phá hủy
+      const lastPillar = smashedList[smashedList.length - 1];
+      targetX = lastPillar.x + (lastPillar.width || 52) / 2;
+    } else {
+      // Nếu không có cột trước mặt, lướt 1 quãng xa về phía trước
+      targetX = isChain ? this.width - 50 : this.width / 2 + 50;
+    }
+
+    // Giới hạn đích đến trong màn hình an toàn
+    this.smashTargetX = Math.min(this.width - 55, Math.max(this.rocket.x + 80, targetX));
+    this.smashStartX = this.rocket.x;
+    this.smashProgress = 0;
+    // Thời gian lướt: 0.85s cho 2 cột, 0.65s cho 1 cột
+    this.smashTotalDuration = isChain ? 0.85 : 0.65;
+    this.smashDuration = this.smashTotalDuration;
+
+    // Kích hoạt hiệu ứng nổ tung cho từng cột bị phá
     for (const smashed of smashedList) {
-      this.smashedCountInSupernova++;
       this.score += 3;
-      lastSmashedX = Math.max(lastSmashedX, smashed.x + (smashed.width || 52) / 2);
-      this.particles.emitPillarSmash(smashed.x + smashed.width / 2, smashed.gapY);
+      this.particles.emitPillarSmash(smashed.x + (smashed.width || 52) / 2, smashed.gapY || 350);
       if (this.ghosts) this.ghosts.spawnForPillar(smashed, this.score);
       if (this.score > this.bestScore) {
         this.bestScore = this.score;
         localStorage.setItem('drunk_rocket_best', this.bestScore.toString());
       }
     }
-
-    // Rocket will dash to the location of the 2nd smashed pillar (clamped to screen width)
-    this.smashTargetX = Math.min(this.width - 60, lastSmashedX + 40);
   }
 
   _die() {
@@ -366,45 +379,42 @@ export class Game {
         this._triggerSupernovaSmash();
       }
 
-      // Supernova Smash burning dash towards smashed column
+      // Supernova Smash: Đốt cháy lửa rồng và lướt thẳng đến vị trí cột bị phá
       if (this.isSmashActive) {
         this.smashDuration -= dt;
+        const elapsed = this.smashTotalDuration - this.smashDuration;
+        const t = Math.min(1, Math.max(0, elapsed / this.smashTotalDuration));
 
-        // Smooth dash forward towards smashed column location
-        if (this.rocket.x < this.smashTargetX) {
-          this.rocket.x += (this.smashTargetX - this.rocket.x) * 8 * dt;
+        // Hàm chuyển động lướt phi tiêu (Ease-Out Cubic)
+        const easeT = 1 - Math.pow(1 - t, 3);
+
+        if (t < 0.72) {
+          // Giai đoạn 1: Lướt thần tốc tới đích cột bị phá hủy
+          const forwardT = t / 0.72;
+          this.rocket.x = this.smashStartX + (this.smashTargetX - this.smashStartX) * (1 - Math.pow(1 - forwardT, 2.5));
+          this.rocket.angle = -0.15; // Giữ mũi hướng thẳng về trước
+          this.rocket.vy = 0; // Không bị rơi trong lúc lướt
+        } else {
+          // Giai đoạn 2: Trôi êm ái về vị trí bay chuẩn
+          const returnT = (t - 0.72) / 0.28;
+          this.rocket.x = this.smashTargetX + (this.originalRocketX - this.smashTargetX) * (returnT * returnT);
+          this.rocket.vy = 0;
         }
 
-        // Heavy fiery dragon thrust trail
-        this.particles.emitThrust(this.rocket.x, this.rocket.y, this.rocket.rotation, 8);
+        // Đốt lửa rồng phản lực cuồn cuộn phía sau đuôi
+        this.particles.emitSmashFireTrail(this.rocket.x, this.rocket.y, this.rocket.angle || 0);
 
-        // Smash any oncoming pillars in dash path up to maxSmashCount
-        if (this.smashedCountInSupernova < this.maxSmashCount) {
-          for (const p of this.pillars.pillars) {
-            if (!p.isDestroyed && p.x <= this.rocket.x + 120 && p.x + p.width >= this.rocket.x - 20) {
-              p.isDestroyed = true;
-              this.smashedCountInSupernova++;
-              this.score += 3;
-              this.audio.playSmash();
-              this.hud.triggerSmashEffects();
-              this.particles.emitPillarSmash(p.x + p.width / 2, p.gapY);
-              if (this.ghosts) this.ghosts.spawnForPillar(p, this.score);
-              if (this.score > this.bestScore) {
-                this.bestScore = this.score;
-                localStorage.setItem('drunk_rocket_best', this.bestScore.toString());
-              }
-              if (this.smashedCountInSupernova >= this.maxSmashCount) break;
-            }
-          }
-        }
-
-        // Return rocket smoothly to cruising base X when smash expires
+        // KHI KẾT THÚC HOÀN TOÀN CÚ LƯỚT: Trả về vị trí chuẩn và KIỂM TRA HIỆN BẢNG CHỌN THẺ BÀI!
         if (this.smashDuration <= 0) {
           this.isSmashActive = false;
           this.rocket.x = this.originalRocketX;
           this.rocket.vx = 0;
-          // CRITICAL REQUIREMENT: AFTER DASH FINISHES, NOW CHECK MILESTONE DRAFT!
-          if (this.perks) this.perks.checkMilestone(this.score);
+          this.rocket.vy = 0;
+
+          // Sau khi lướt xong cột mới kiểm tra điểm để hiện bảng chọn thẻ bài
+          if (this.perks) {
+            this.perks.checkMilestone(this.score);
+          }
         }
       }
 
@@ -421,7 +431,13 @@ export class Game {
         }
       }
 
-      this.rocket.update(dt, false, this.totalTime);
+      if (this.isSmashActive) {
+        // Trong lúc đang Smash, giữ nguyên vị trí lướt và không cho trọng lực kéo rơi
+        this.rocket.vy = 0;
+        this.rocket.isThrusting = true;
+      } else {
+        this.rocket.update(dt, false, this.totalTime);
+      }
       this.pillars.update(dt, this.rocket, this._onScore, this._onNearMiss);
       this.energyCells.update(dt, this.pillars.speed, this.rocket, this.hasDrunkMagnet, this._onCollectCell);
       if (this.ghosts) this.ghosts.update(dt, this.pillars.speed);
