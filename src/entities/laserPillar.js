@@ -54,6 +54,15 @@ export class LaserPillar {
   }
 
   /**
+   * Check if rocket has COMPLETELY passed through the pillar including the tail
+   * Rocket nose is at x + radius, tail is at x - radius - 14 (nozzle/flame edge)
+   */
+  hasPassedCompletely(rocket) {
+    const tailX = rocket.x - (rocket.radius + 14);
+    return tailX > (this.x + this.width);
+  }
+
+  /**
    * Collision check against rocket
    */
   collidesWith(rocket) {
@@ -113,8 +122,8 @@ export class LaserPillarManager {
         if (onNearMiss) onNearMiss(p);
       }
 
-      // Normal score check
-      if (!p.passed && p.x + p.width / 2 < rocket.x) {
+      // STRICT SCORING: Rocket must clear COMPLETELY past the column including its tail
+      if (!p.passed && p.hasPassedCompletely(rocket)) {
         p.passed = true;
         if (onScore) onScore(p);
       }
@@ -135,7 +144,7 @@ export class LaserPillarManager {
   checkCollision(rocket) {
     for (const p of this.pillars) {
       if (p.collidesWith(rocket)) {
-        return p; // Return collided pillar
+        return p;
       }
     }
     return null;

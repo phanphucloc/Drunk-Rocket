@@ -48,6 +48,9 @@ export class Game {
     this.maxSmashCount = 1;
     this.passiveChargeRate = 0;
 
+    // Visual expression feedback
+    this.justScoredTimer = 0;
+
     this.leaderboard = new LeaderboardModal('https://drunk-rocket-backend.ppldhsp.workers.dev');
 
     // Scoring & Overdrive
@@ -59,6 +62,8 @@ export class Game {
     this.drunkMeter = 0;
     this.isSmashActive = false;
     this.smashDuration = 0;
+    this.smashTargetX = 100;
+    this.originalRocketX = 100;
 
     // Timers
     this.lastTime = 0;
@@ -101,7 +106,7 @@ export class Game {
           this.perks.selectCard(cardIdx);
           this.input.consumeTap();
           this.input.consumeDoubleTap();
-          this.perkDraftCooldown = 0.35;
+          this.perkDraftCooldown = 0.5;
         }
       }
     });
@@ -121,7 +126,7 @@ export class Game {
           this.perks.selectCard(cardIdx);
           this.input.consumeTap();
           this.input.consumeDoubleTap();
-          this.perkDraftCooldown = 0.35;
+          this.perkDraftCooldown = 0.5;
         }
       }
     });
@@ -156,6 +161,7 @@ export class Game {
     this.rocket.scale = 1.0;
     this.rocket.radius = 12;
     this.rocket.isQuantum = false;
+    this.justScoredTimer = 0;
     if (this.perks) this.perks.reset();
     this.shieldActive = false;
     this.hasQuantumDrift = false;
@@ -176,21 +182,19 @@ export class Game {
 
   _onScore(pillar) {
     this.score += 1;
-    // Exactly 5 points to 100% full Overdrive Smash (+20% per regular obstacle)
+    this.justScoredTimer = 0.6; // Cheerful expression timer
+    // Regular pillar gives +20% Overdrive
     this.drunkMeter = Math.min(100, this.drunkMeter + 20);
-    this.audio.playScore();
+    this.audio.playScore(); // Cheerful "HEYYY!" sound
     this.particles.emitScoreSparkles(this.rocket.x + 20, this.rocket.y);
 
-    // Exciting energy siphon stream flying from cleared pillar directly into Overdrive Orb
     const pX = pillar ? pillar.x + (pillar.width || 52) / 2 : this.rocket.x + 20;
     const pY = pillar ? pillar.gapY : this.rocket.y;
     this.particles.emitEnergySiphon(pX, pY, this.width / 2, 126, 9);
 
-    // Spawn floating energy crystal between pillars
-    if (this.score % 2 === 0) {
-      const gapY = pillar ? pillar.gapY + (Math.random() - 0.5) * 50 : 350;
-      this.energyCells.spawn(this.width + 45, Math.min(Math.max(gapY, 140), 560));
-    }
+    // Spawn 2 to 4 moving floating energy particles behind the cleared pillar
+    const clusterCount = Math.floor(Math.random() * 3) + 2; // 2, 3, or 4 cells
+    this.energyCells.spawnCluster(this.width + 45, pY, clusterCount);
 
     if (this.perks) this.perks.checkMilestone(this.score);
     if (this.ghosts && pillar) this.ghosts.spawnForPillar(pillar, this.score);
@@ -203,7 +207,7 @@ export class Game {
   _onNearMiss(pillar) {
     const bonus = 2 * this.nearMissMultiplier;
     this.score += bonus;
-    // Near-Miss offers instant high-voltage Overdrive charge (+50% base)
+    this.justScoredTimer = 0.8;
     this.drunkMeter = Math.min(100, this.drunkMeter + (50 * this.nearMissMultiplier));
     this.audio.playNearMiss();
     this.hud.showNearMiss(bonus);
@@ -221,45 +225,49 @@ export class Game {
     }
   }
 
+  /**
+   * Energy cell pickup: DOES NOT ADD LEVEL SCORE, ONLY CHARGES OVERDRIVE SMASH (+4% each)
+   */
   _onCollectCell(cell) {
-    this.score += 1;
-    this.drunkMeter = Math.min(100, this.drunkMeter + 10);
-    this.audio.playScore();
-    this.particles.emitCellPickup(cell.x, cell.y);
-    this.particles.emitEnergySiphon(cell.x, cell.y, this.width / 2, 126, 8);
-
-    if (this.perks) this.perks.checkMilestone(this.score);
-    if (this.score > this.bestScore) {
-      this.bestScore = this.score;
-      localStorage.setItem('drunk_rocket_best', this.bestScore.toString());
+    this.drunkMeter = Math.min(100, this.drunkMeter + 4);
+    if (this.audio.playCellCollect) {
+      this.audio.playCellCollect();
     }
+    this.particles.emitCellPickup(cell.x, cell.y);
+    this.particles.emitEnergySiphon(cell.x, cell.y, this.width / 2, 126, 6);
   }
 
   _triggerSupernovaSmash() {
     if (this.drunkMeter < 100 || this.isSmashActive) return;
 
     this.isSmashActive = true;
-    this.smashDuration = 0.85;
+    this.smashDuration = 0.9;
     this.drunkMeter = 0;
     this.smashedCountInSupernova = 0;
     this.maxSmashCount = this.smashChainCount || 1;
+    this.originalRocketX = this.rocket.x;
 
     this.audio.playSmash();
     this.hud.triggerSmashEffects();
 
     // Smash up to maxSmashCount columns ahead immediately
     const smashedList = this.pillars.destroyFrontPillars(this.rocket.x, this.maxSmashCount);
+    let lastSmashedX = this.rocket.x + 160;
+
     for (const smashed of smashedList) {
       this.smashedCountInSupernova++;
       this.score += 3;
+      lastSmashedX = Math.max(lastSmashedX, smashed.x + (smashed.width || 52) / 2);
       this.particles.emitPillarSmash(smashed.x + smashed.width / 2, smashed.gapY);
-      if (this.perks) this.perks.checkMilestone(this.score);
       if (this.ghosts) this.ghosts.spawnForPillar(smashed, this.score);
       if (this.score > this.bestScore) {
         this.bestScore = this.score;
         localStorage.setItem('drunk_rocket_best', this.bestScore.toString());
       }
     }
+
+    // Rocket will dash to the location of the 2nd smashed pillar (clamped to screen width)
+    this.smashTargetX = Math.min(this.width - 60, lastSmashedX + 40);
   }
 
   _die() {
@@ -269,7 +277,7 @@ export class Game {
     this.deathCount++;
     localStorage.setItem('drunk_rocket_deaths', this.deathCount.toString());
 
-    this.audio.playCrash();
+    this.audio.playCrash(); // Comic "QUÉO QUÈO QUEO" failure sound
     this.hud.triggerCrashEffects();
 
     const safeX = typeof this.rocket.x === 'number' && !isNaN(this.rocket.x) ? this.rocket.x : 100;
@@ -295,7 +303,11 @@ export class Game {
       return;
     }
 
-    // Freeze game loop during Pre-draft (0.5s), Drafting, and Post-draft (0.5s)
+    if (this.justScoredTimer > 0) {
+      this.justScoredTimer -= dt;
+    }
+
+    // Freeze game loop during Pre-draft (1.0s), Drafting, and Post-draft (1.0s)
     if (this.perks && (this.perks.isPreDraft || this.perks.isDrafting || this.perks.isPostDraft)) {
       this.input.consumeTap();
       this.input.consumeDoubleTap();
@@ -317,7 +329,7 @@ export class Game {
     // Drunk Magnet ambient suction VFX
     if (this.hasDrunkMagnet) {
       this.magnetParticleTimer += dt;
-      if (this.magnetParticleTimer >= 0.35) {
+      if (this.magnetParticleTimer >= 0.3) {
         this.magnetParticleTimer = 0;
         this.particles.emitMagnetSuction(this.rocket.x, this.rocket.y, 2);
       }
@@ -332,7 +344,6 @@ export class Game {
     if (this.quantumTimer > 0) {
       this.quantumTimer -= dt;
       this.rocket.isQuantum = (this.quantumTimer > 0);
-      // Guarantee safe passage: mark any pillar overlapping rocket during quantum drift
       for (const p of this.pillars.pillars) {
         if (this.rocket.x >= p.x - 30 && this.rocket.x <= p.x + p.width + 30) {
           p.quantumPhased = true;
@@ -355,20 +366,25 @@ export class Game {
         this.rocket.thrust();
         this.audio.playThrust();
         this.particles.emitThrust(this.rocket.x, this.rocket.y, this.rocket.rotation);
-        // Quick initial floating crystal
-        this.energyCells.spawn(this.width + 20, 320);
       }
     } else if (this.state === 'PLAYING') {
       if (hasDoubleTap && this.drunkMeter >= 100) {
         this._triggerSupernovaSmash();
       }
 
+      // Supernova Smash burning dash towards smashed column
       if (this.isSmashActive) {
         this.smashDuration -= dt;
-        this.rocket.vx = 280;
-        this.particles.emitThrust(this.rocket.x, this.rocket.y, this.rocket.rotation, 6);
 
-        // Chain Reaction: continuously smash oncoming pillars up to maxSmashCount
+        // Smooth dash forward towards smashed column location
+        if (this.rocket.x < this.smashTargetX) {
+          this.rocket.x += (this.smashTargetX - this.rocket.x) * 8 * dt;
+        }
+
+        // Heavy fiery dragon thrust trail
+        this.particles.emitThrust(this.rocket.x, this.rocket.y, this.rocket.rotation, 8);
+
+        // Smash any oncoming pillars in dash path up to maxSmashCount
         if (this.smashedCountInSupernova < this.maxSmashCount) {
           for (const p of this.pillars.pillars) {
             if (!p.isDestroyed && p.x <= this.rocket.x + 120 && p.x + p.width >= this.rocket.x - 20) {
@@ -378,7 +394,6 @@ export class Game {
               this.audio.playSmash();
               this.hud.triggerSmashEffects();
               this.particles.emitPillarSmash(p.x + p.width / 2, p.gapY);
-              if (this.perks) this.perks.checkMilestone(this.score);
               if (this.ghosts) this.ghosts.spawnForPillar(p, this.score);
               if (this.score > this.bestScore) {
                 this.bestScore = this.score;
@@ -389,21 +404,24 @@ export class Game {
           }
         }
 
+        // Return rocket smoothly to cruising base X when smash expires
         if (this.smashDuration <= 0) {
           this.isSmashActive = false;
+          this.rocket.x = this.originalRocketX;
           this.rocket.vx = 0;
+          // CRITICAL REQUIREMENT: AFTER DASH FINISHES, NOW CHECK MILESTONE DRAFT!
+          if (this.perks) this.perks.checkMilestone(this.score);
         }
       }
 
-      if (hasTap) {
+      if (hasTap && !this.isSmashActive) {
         this.rocket.thrust();
         this.audio.playThrust();
         this.particles.emitThrust(this.rocket.x, this.rocket.y, this.rocket.rotation);
 
-        // Activate Quantum Drift ONLY when off cooldown!
         if (this.hasQuantumDrift && this.quantumCooldownTimer <= 0) {
           this.quantumTimer = 0.8;
-          this.quantumCooldownTimer = this.quantumMaxCooldown; // 4s cooldown
+          this.quantumCooldownTimer = this.quantumMaxCooldown;
           this.rocket.isQuantum = true;
           this.audio.playMedal();
         }
@@ -425,12 +443,12 @@ export class Game {
         const collided = this.pillars.checkCollision(this.rocket);
         if (collided) {
           if (this.shieldActive) {
-            this.shieldActive = false; // Khiên vỡ
-            collided.isDestroyed = true; // Cột bị phá hủy
+            this.shieldActive = false;
+            collided.isDestroyed = true;
             this.hud.triggerSmashEffects();
             this.particles.emitPillarSmash(collided.x + (collided.width || 52) / 2, collided.gapY || 350);
             this.audio.playSmash();
-            this.quantumTimer = 0.6; // 0.6s bất tử sau khi vỡ khiên
+            this.quantumTimer = 0.6;
             this.rocket.isQuantum = true;
           } else {
             this._die();
@@ -468,12 +486,11 @@ export class Game {
     if (this.ghosts) this.ghosts.draw(this.ctx);
 
     // Draw Drunk Magnet Field Lines around Rocket
-    if (this.hasDrunkMagnet && !this.rocket.isDead) {
+    if (this.hasDrunkMagnet && !this.rocket.isDead && this.state !== 'GAMEOVER') {
       this.ctx.save();
       const mPulse = Math.sin(this.totalTime * 6) * 4;
-      const mRadius = 38 + mPulse;
+      const mRadius = 40 + mPulse;
 
-      // Magnetic field flux arcs
       this.ctx.strokeStyle = 'rgba(0, 240, 255, 0.45)';
       this.ctx.lineWidth = 1.5;
       this.ctx.setLineDash([4, 6]);
@@ -486,7 +503,6 @@ export class Game {
       this.ctx.arc(this.rocket.x - 6, this.rocket.y, mRadius - 10, -Math.PI * 0.6, Math.PI * 0.6);
       this.ctx.stroke();
 
-      // Magnet Badge
       this.ctx.fillStyle = '#00f0ff';
       this.ctx.font = 'bold 11px monospace';
       this.ctx.textAlign = 'center';
@@ -494,13 +510,16 @@ export class Game {
       this.ctx.restore();
     }
 
-    // Draw Rocket (with quantum ghost transparency if active)
-    EntityRenderer.drawRocket(this.ctx, this.rocket);
+    // Draw Rocket with funny comical styling
+    EntityRenderer.drawRocket(this.ctx, this.rocket, {
+      isDead: this.state === 'GAMEOVER',
+      isSmashing: this.isSmashActive,
+      justScored: this.justScoredTimer > 0
+    });
 
     // Quantum Drift Hologram / Ready indicator
-    if (this.hasQuantumDrift && !this.rocket.isDead) {
+    if (this.hasQuantumDrift && this.state !== 'GAMEOVER') {
       if (this.quantumTimer > 0) {
-        // Active Quantum Phase
         this.ctx.save();
         this.ctx.strokeStyle = '#00f0ff';
         this.ctx.lineWidth = 1.5;
@@ -509,7 +528,6 @@ export class Game {
         this.ctx.arc(this.rocket.x, this.rocket.y, this.rocket.radius + 14, 0, Math.PI * 2);
         this.ctx.stroke();
 
-        // Quantum lightning flicker
         for (let qi = 0; qi < 3; qi++) {
           const qAngle = this.totalTime * 10 + qi * (Math.PI * 2 / 3);
           const qx1 = this.rocket.x + Math.cos(qAngle) * (this.rocket.radius + 6);
@@ -524,7 +542,6 @@ export class Game {
         }
         this.ctx.restore();
       } else if (this.quantumCooldownTimer <= 0) {
-        // Quantum Drift READY indicator aura
         this.ctx.save();
         this.ctx.strokeStyle = 'rgba(0, 240, 255, 0.4)';
         this.ctx.lineWidth = 1.2;
@@ -535,13 +552,12 @@ export class Game {
       }
     }
 
-    // Cinematic Beer Bubble Plasma Shield FX
-    if (this.shieldActive) {
+    // Beer Bubble Plasma Shield FX
+    if (this.shieldActive && this.state !== 'GAMEOVER') {
       this.ctx.save();
       const pulse = Math.sin(this.totalTime * 8) * 2;
       const shRadius = this.rocket.radius + 12 + pulse;
 
-      // 1. Atmospheric Plasma Outer Aura
       const grad = this.ctx.createRadialGradient(
         this.rocket.x, this.rocket.y, this.rocket.radius * 0.5,
         this.rocket.x, this.rocket.y, shRadius + 6
@@ -555,7 +571,6 @@ export class Game {
       this.ctx.arc(this.rocket.x, this.rocket.y, shRadius + 6, 0, Math.PI * 2);
       this.ctx.fill();
 
-      // 2. Dual Neon Resonant Energy Rings
       this.ctx.shadowColor = '#00f0ff';
       this.ctx.shadowBlur = 10;
       this.ctx.lineWidth = 2.5;
@@ -564,14 +579,12 @@ export class Game {
       this.ctx.arc(this.rocket.x, this.rocket.y, shRadius, 0, Math.PI * 2);
       this.ctx.stroke();
 
-      // Secondary Gold Energy Crest
       this.ctx.lineWidth = 1.2;
       this.ctx.strokeStyle = '#ffd13b';
       this.ctx.beginPath();
       this.ctx.arc(this.rocket.x - 3, this.rocket.y - 3, shRadius * 0.75, -Math.PI * 0.4, Math.PI * 0.2);
       this.ctx.stroke();
 
-      // 3. Orbiting Beer Foam Plasma Micro-Bubbles
       for (let bi = 0; bi < 4; bi++) {
         const bAngle = this.totalTime * 4 + bi * (Math.PI / 2);
         const bx = this.rocket.x + Math.cos(bAngle) * shRadius;

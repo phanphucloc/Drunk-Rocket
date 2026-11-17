@@ -1,13 +1,6 @@
 /**
  * Canvas 2D Vector & Pixel-Art Entity Renderer
- * Cyber Neon Arcade Palette:
- * - Void: #0b0e14
- * - Navy: #1a1f36
- * - Bumblebee Yellow: #ffd13b
- * - Laser Red: #ff3b5c
- * - Cyber Cyan: #00f0ff
- * - Highscore Green: #05ffa1
- * - Pure White: #ffffff
+ * Cyber Neon Arcade Palette with Goofy Comedic Cartoon Styling
  */
 
 export const PALETTE = {
@@ -26,11 +19,14 @@ export const PALETTE = {
   METAL_MID: '#1c2338',
   METAL_LIGHT: '#2e3856',
   HAZARD_YELLOW: '#ffd13b',
-  HAZARD_BLACK: '#0b0e14'
+  HAZARD_BLACK: '#0b0e14',
+  BEER_BOTTLE: '#2e7d32',
+  BEER_FOAM: '#fff9c4'
 };
 
 /**
- * Functional export for standalone preview / tests
+ * Functional export for rocket preview / rendering
+ * Super goofy, drunken Gen-Z rocket with wobbly cross-eyes, derpy tongue / beer bottle
  */
 export function drawRocket(ctx, x, y, options = {}) {
   const angle = options.angle || 0;
@@ -38,6 +34,9 @@ export function drawRocket(ctx, x, y, options = {}) {
   const scale = options.scale || 1.0;
   const dizzyTime = options.dizzyTime || 0;
   const isQuantum = !!options.isQuantum;
+  const isDead = !!options.isDead;
+  const isSmashing = !!options.isSmashing;
+  const justScored = !!options.justScored;
 
   ctx.save();
   ctx.translate(Math.floor(x), Math.floor(y));
@@ -52,18 +51,48 @@ export function drawRocket(ctx, x, y, options = {}) {
     ctx.save();
     ctx.fillStyle = 'rgba(0, 240, 255, 0.4)';
     ctx.beginPath();
-    ctx.ellipse(-3, 0, 16, 11, 0, 0, Math.PI * 2);
+    ctx.ellipse(-4, 0, 16, 11, 0, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.fillStyle = 'rgba(255, 59, 92, 0.3)';
     ctx.beginPath();
-    ctx.ellipse(3, 0, 16, 11, 0, 0, Math.PI * 2);
+    ctx.ellipse(4, 0, 16, 11, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
 
-  // 1. Thruster flame (Dual-layer Animated Plasma)
-  if (isThrusting) {
+  // 1. Thruster flame (Mega Burner if Supernova Smashing, else drunken farts/flickers)
+  if (isSmashing) {
+    // Massive Dragon Supernova Fire Trail
+    const flameLen = 42 + Math.sin(dizzyTime * 50) * 12;
+
+    // Outermost violet/red inferno
+    ctx.fillStyle = '#ff0055';
+    ctx.beginPath();
+    ctx.moveTo(-16, -10);
+    ctx.lineTo(-16 - flameLen, 0);
+    ctx.lineTo(-16, 10);
+    ctx.closePath();
+    ctx.fill();
+
+    // Intense Gold flame
+    ctx.fillStyle = '#ffd13b';
+    ctx.beginPath();
+    ctx.moveTo(-16, -7);
+    ctx.lineTo(-16 - flameLen * 0.75, 0);
+    ctx.lineTo(-16, 7);
+    ctx.closePath();
+    ctx.fill();
+
+    // White-hot plasma core
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(-16, -4);
+    ctx.lineTo(-16 - flameLen * 0.45, 0);
+    ctx.lineTo(-16, 4);
+    ctx.closePath();
+    ctx.fill();
+  } else if (isThrusting) {
     const flicker = Math.sin(dizzyTime * 45) * 3 + Math.random() * 4;
     const flameLen = 14 + flicker;
 
@@ -127,7 +156,7 @@ export function drawRocket(ctx, x, y, options = {}) {
   ctx.fillRect(-17, -14, 2, 2);
   ctx.fillRect(-17, 13, 2, 2);
 
-  // 4. Main Rocket Body (Chubby Aerodynamic Fuselage)
+  // 4. Main Chubby Rocket Fuselage
   ctx.fillStyle = PALETTE.ROCKET;
   ctx.beginPath();
   ctx.ellipse(0, 0, 16, 11, 0, 0, Math.PI * 2);
@@ -144,46 +173,109 @@ export function drawRocket(ctx, x, y, options = {}) {
   ctx.ellipse(-2, -5, 10, 3, -0.1, 0, Math.PI * 2);
   ctx.fill();
 
-  // Nose Cone Tip
-  ctx.fillStyle = PALETTE.WHITE;
+  // Nose Cone Tip (Goofy soft rubber nose)
+  ctx.fillStyle = isDead ? '#666666' : '#ff3b5c';
   ctx.beginPath();
-  ctx.arc(12, 0, 3, 0, Math.PI * 2);
+  ctx.arc(14, 0, 3.5, 0, Math.PI * 2);
   ctx.fill();
 
-  // 5. Goofy "Drunk" Eye & Face
-  // Eyeball (Big White Circle)
-  ctx.fillStyle = PALETTE.WHITE;
-  ctx.beginPath();
-  ctx.arc(3, -2, 5.5, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = PALETTE.NAVY;
-  ctx.lineWidth = 1.2;
-  ctx.stroke();
+  // 5. Hilarious Comic Eyes & Facial Expressions
+  if (isDead) {
+    // X_X Dead eyes
+    ctx.strokeStyle = '#0b0e14';
+    ctx.lineWidth = 1.8;
+    // Left eye X
+    ctx.beginPath();
+    ctx.moveTo(0, -5); ctx.lineTo(6, 0);
+    ctx.moveTo(6, -5); ctx.lineTo(0, 0);
+    ctx.stroke();
+    // Mouth crying down
+    ctx.beginPath();
+    ctx.arc(6, 6, 3, Math.PI, 0);
+    ctx.stroke();
+  } else {
+    // Big Derpy Cock-eyed Eyeballs (One big, one small for maximum goofy vibe)
+    // Left Big Eye
+    ctx.fillStyle = PALETTE.WHITE;
+    ctx.beginPath();
+    ctx.arc(4, -3, 5.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = PALETTE.NAVY;
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
 
-  // Drunk Pupil - wobbles or rolls around
-  const pupilOffsetX = Math.sin(dizzyTime * 8) * 2.2;
-  const pupilOffsetY = Math.cos(dizzyTime * 7) * 2.0;
-  ctx.fillStyle = PALETTE.VOID;
-  ctx.beginPath();
-  ctx.arc(3 + pupilOffsetX, -2 + pupilOffsetY, 2.0, 0, Math.PI * 2);
-  ctx.fill();
+    // Right Small Cross-Eye
+    ctx.fillStyle = PALETTE.WHITE;
+    ctx.beginPath();
+    ctx.arc(10, -1, 4.0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
 
-  // Pupil white reflection glint
-  ctx.fillStyle = PALETTE.WHITE;
-  ctx.fillRect(2 + pupilOffsetX, -3 + pupilOffsetY, 1.2, 1.2);
+    // Dazed Drunk Pupils wobbling in different directions (cross-eyed)
+    const p1x = Math.sin(dizzyTime * 7) * 2.2;
+    const p1y = Math.cos(dizzyTime * 6) * 1.8;
+    const p2x = Math.cos(dizzyTime * 8) * 1.5;
+    const p2y = Math.sin(dizzyTime * 9) * 1.5;
 
-  // Cheek Blush (Rosy Drunk Glow)
-  ctx.fillStyle = 'rgba(255, 59, 92, 0.5)';
-  ctx.beginPath();
-  ctx.arc(1, 4, 3.2, 0, Math.PI * 2);
-  ctx.fill();
+    ctx.fillStyle = PALETTE.VOID;
+    ctx.beginPath();
+    ctx.arc(4 + p1x, -3 + p1y, 2.0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(10 + p2x, -1 + p2y, 1.6, 0, Math.PI * 2);
+    ctx.fill();
 
-  // Cute goofy mouth / hiccup expression
-  ctx.strokeStyle = PALETTE.ROCKET_DARK;
-  ctx.lineWidth = 1.2;
-  ctx.beginPath();
-  ctx.arc(8, 4, 2, 0, Math.PI);
-  ctx.stroke();
+    // Specular eye shine
+    ctx.fillStyle = PALETTE.WHITE;
+    ctx.fillRect(3 + p1x, -4 + p1y, 1.2, 1.2);
+    ctx.fillRect(9 + p2x, -2 + p2y, 1.0, 1.0);
+
+    // Cute Rosy Drunk Cheeks (Blushing)
+    ctx.fillStyle = 'rgba(255, 59, 92, 0.65)';
+    ctx.beginPath();
+    ctx.arc(2, 4, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Derpy Tongue Sticking Out (😛) or Happy Woohoo smile
+    if (justScored) {
+      // Big happy open mouth shouting "HEYYY!"
+      ctx.fillStyle = '#0b0e14';
+      ctx.beginPath();
+      ctx.arc(8, 4, 3.5, 0, Math.PI);
+      ctx.fill();
+      ctx.fillStyle = '#ff3b5c';
+      ctx.beginPath();
+      ctx.arc(8, 5, 2, 0, Math.PI);
+      ctx.fill();
+    } else {
+      // Goofy tongue sticking out
+      ctx.strokeStyle = PALETTE.ROCKET_DARK;
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(7, 3, 2.5, 0, Math.PI * 0.9);
+      ctx.stroke();
+
+      // Pink tongue
+      ctx.fillStyle = '#ff3b5c';
+      ctx.beginPath();
+      ctx.ellipse(8, 6, 2.2, 3.2, 0.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Cute mini beer bottle taped to the side
+    ctx.save();
+    ctx.translate(-4, 6);
+    ctx.rotate(0.3);
+    // Green glass bottle body
+    ctx.fillStyle = PALETTE.BEER_BOTTLE;
+    ctx.fillRect(0, 0, 7, 3.5);
+    // Bottle neck
+    ctx.fillRect(7, 1, 3, 1.5);
+    // Foam cap
+    ctx.fillStyle = PALETTE.BEER_FOAM;
+    ctx.fillRect(10, 0.5, 2, 2.5);
+    ctx.restore();
+  }
 
   ctx.restore();
 }
@@ -338,15 +430,16 @@ export function drawHUD(ctx, score, bestScore, options = {}) {
  * Main EntityRenderer class used by src/core/game.js
  */
 export class EntityRenderer {
-  static drawRocket(ctx, rocket) {
-    if (rocket.isDead) return;
-
+  static drawRocket(ctx, rocket, options = {}) {
     drawRocket(ctx, rocket.x, rocket.y, {
       angle: rocket.angle,
       isThrusting: rocket.isThrusting,
       scale: rocket.scale || (rocket.radius ? rocket.radius / 12 : 1.0),
       dizzyTime: (rocket.totalTime || 0) + (rocket.pupilX || 0),
-      isQuantum: !!rocket.isQuantum || (rocket.quantumTimer > 0)
+      isQuantum: !!rocket.isQuantum || (rocket.quantumTimer > 0),
+      isDead: !!options.isDead,
+      isSmashing: !!options.isSmashing,
+      justScored: !!options.justScored
     });
   }
 

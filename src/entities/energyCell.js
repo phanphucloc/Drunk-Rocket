@@ -1,45 +1,47 @@
 /**
  * Floating Energy Cells / Plasma Crystals for Drunk Rocket 2.0
- * Drifts in space between laser pillars. Can be collected by rocket or sucked in by Drunk Magnet.
+ * Swarms of 2-4 playful moving orbs floating through space.
+ * Only charges Overdrive energy (+4% each) toward Smash without accelerating level score!
  */
 export class EnergyCell {
-  constructor(x, y) {
+  constructor(x, y, vx = -60, vy = 0) {
     this.x = x;
     this.y = y;
     this.baseY = y;
-    this.radius = 8;
+    this.vx = vx;
+    this.vy = vy;
+    this.radius = 7;
     this.pulsePhase = Math.random() * Math.PI * 2;
+    this.floatSpeed = 2.5 + Math.random() * 3.5;
+    this.floatAmp = 12 + Math.random() * 16;
     this.isCollected = false;
     this.isMagnetized = false;
-    this.vx = 0;
-    this.vy = 0;
   }
 
   update(dt, speed, rocket, hasMagnet = false) {
-    this.pulsePhase += dt * 6;
+    this.pulsePhase += dt * this.floatSpeed;
 
     if (hasMagnet && !this.isCollected) {
       const dx = rocket.x - this.x;
       const dy = rocket.y - this.y;
       const dist = Math.hypot(dx, dy);
-      const magnetRange = 185;
+      const magnetRange = 220; // Broad magnet suction range
 
       if (dist < magnetRange) {
         this.isMagnetized = true;
-        const pullForce = 850 * (1 - dist / magnetRange) + 320;
+        const pullForce = 950 * (1 - dist / magnetRange) + 420;
         this.vx += (dx / dist) * pullForce * dt;
         this.vy += (dy / dist) * pullForce * dt;
         this.x += this.vx * dt;
         this.y += this.vy * dt;
-      } else {
-        this.isMagnetized = false;
-        this.x -= speed * dt;
-        this.y = this.baseY + Math.sin(this.pulsePhase) * 6;
+        return;
       }
-    } else {
-      this.x -= speed * dt;
-      this.y = this.baseY + Math.sin(this.pulsePhase) * 6;
     }
+
+    this.isMagnetized = false;
+    // Dynamic floating motion (drifts left and bobs up and down)
+    this.x -= (speed + 25) * dt;
+    this.y = this.baseY + Math.sin(this.pulsePhase) * this.floatAmp;
   }
 
   isOffscreen() {
@@ -51,7 +53,7 @@ export class EnergyCell {
     const dx = rocket.x - this.x;
     const dy = rocket.y - this.y;
     const dist = Math.hypot(dx, dy);
-    return dist < (rocket.radius + this.radius + 4);
+    return dist < (rocket.radius + this.radius + 6);
   }
 }
 
@@ -60,16 +62,22 @@ export class EnergyCellManager {
     this.gameWidth = gameWidth;
     this.gameHeight = gameHeight;
     this.cells = [];
-    this.spawnTimer = 1.0;
   }
 
   reset() {
     this.cells = [];
-    this.spawnTimer = 1.0;
   }
 
-  spawn(x, y) {
-    this.cells.push(new EnergyCell(x, y));
+  /**
+   * Spawns a cluster of 2 to 4 animated floating energy orbs
+   */
+  spawnCluster(startX, centerY, count = 3) {
+    for (let i = 0; i < count; i++) {
+      const offsetX = i * 26 + (Math.random() - 0.5) * 15;
+      const offsetY = (Math.random() - 0.5) * 60;
+      const cellY = Math.min(Math.max(centerY + offsetY, 120), 580);
+      this.cells.push(new EnergyCell(startX + offsetX, cellY));
+    }
   }
 
   update(dt, speed, rocket, hasMagnet, onCollect) {
@@ -99,13 +107,13 @@ export class EnergyCellManager {
       const r = cell.radius + pulse * 1.5;
 
       // Outer glowing halo
-      const grad = ctx.createRadialGradient(cell.x, cell.y, 2, cell.x, cell.y, r + 10);
+      const grad = ctx.createRadialGradient(cell.x, cell.y, 2, cell.x, cell.y, r + 12);
       grad.addColorStop(0, cell.isMagnetized ? 'rgba(0, 240, 255, 0.95)' : 'rgba(255, 209, 59, 0.95)');
       grad.addColorStop(0.5, cell.isMagnetized ? 'rgba(0, 240, 255, 0.4)' : 'rgba(255, 209, 59, 0.35)');
       grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
       ctx.fillStyle = grad;
       ctx.beginPath();
-      ctx.arc(cell.x, cell.y, r + 10, 0, Math.PI * 2);
+      ctx.arc(cell.x, cell.y, r + 12, 0, Math.PI * 2);
       ctx.fill();
 
       // Rotating diamond crystal

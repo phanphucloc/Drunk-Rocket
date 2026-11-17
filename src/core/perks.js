@@ -1,6 +1,6 @@
 /**
  * Micro-Roguelite Perk System for Drunk Rocket 2.0
- * Manages drafting cards, passive modifiers, 0.5s pre/post draft pauses, and card hover effects.
+ * Manages drafting cards, passive modifiers, 1.0s pre/post draft pauses, and card hover effects.
  */
 export const PERK_CATALOG = [
   {
@@ -32,7 +32,7 @@ export const PERK_CATALOG = [
     group: 'defense',
     apply: (game) => {
       game.hasQuantumDrift = true;
-      game.quantumCooldownTimer = 0; // Sẵn sàng ngay lần đầu
+      game.quantumCooldownTimer = 0;
     }
   },
   {
@@ -49,7 +49,7 @@ export const PERK_CATALOG = [
     id: 'chain_reaction',
     name: 'Chain Reaction',
     icon: '💥',
-    desc: 'Supernova Smash húc nổ luôn 2 cột liên tiếp',
+    desc: 'Supernova Smash đốt lửa húc nổ 2 cột liên tiếp',
     group: 'offense',
     apply: (game) => {
       game.smashChainCount = 2;
@@ -59,7 +59,7 @@ export const PERK_CATALOG = [
     id: 'drunk_magnet',
     name: 'Drunk Magnet',
     icon: '🧲',
-    desc: 'Hút mọi hạt năng lượng trong 185px & nạp +2%/s',
+    desc: 'Hút mọi hạt năng lượng trong 220px & nạp +2%/s',
     group: 'utility',
     apply: (game) => {
       game.hasDrunkMagnet = true;
@@ -81,9 +81,9 @@ export class PerkDraftManager {
     this.hoveredIndex = -1;
     this.draftCards = [];
     this.draftTimer = 0;
-    this.draftMaxDuration = 3.0; // 3.0s Bullet Time
+    this.draftMaxDuration = 3.5;
     this.lastMilestoneScore = 0;
-    this.milestoneInterval = 7;   // Draft every 7 points
+    this.milestoneInterval = 7;
   }
 
   reset() {
@@ -101,12 +101,15 @@ export class PerkDraftManager {
   }
 
   checkMilestone(currentScore) {
+    // If rocket is currently dashing in Supernova Smash, wait until dash finishes
+    if (this.game && this.game.isSmashActive) return;
     if (this.isDrafting || this.isPreDraft || this.isPostDraft) return;
+
     if (currentScore >= this.lastMilestoneScore + this.milestoneInterval) {
       this.lastMilestoneScore = currentScore;
-      // Start 0.5s pre-draft pause before showing cards
+      // UPGRADE: 1.0s pre-draft pause before showing cards
       this.isPreDraft = true;
-      this.preDraftTimer = 0.5;
+      this.preDraftTimer = 1.0;
       if (this.game && this.game.audio) {
         this.game.audio.playMedal();
       }
@@ -162,15 +165,15 @@ export class PerkDraftManager {
     this.isDrafting = false;
     this.hoveredIndex = -1;
 
-    // Start 0.5s post-draft freeze pause so player can get ready
+    // UPGRADE: 1.0s post-draft freeze pause so player can get ready
     this.isPostDraft = true;
-    this.postDraftTimer = 0.5;
+    this.postDraftTimer = 1.0;
 
     // Consume all inputs immediately
     if (this.game && this.game.input) {
       this.game.input.consumeTap();
       this.game.input.consumeDoubleTap();
-      this.game.perkDraftCooldown = 0.35;
+      this.game.perkDraftCooldown = 0.5;
     }
     if (this.game && this.game.audio) {
       this.game.audio.playMedal();
@@ -178,7 +181,7 @@ export class PerkDraftManager {
   }
 
   update(dt) {
-    // 1. Pre-draft 0.5s freeze
+    // 1. Pre-draft 1.0s freeze
     if (this.isPreDraft) {
       this.preDraftTimer -= dt;
       if (this.preDraftTimer <= 0) {
@@ -192,13 +195,12 @@ export class PerkDraftManager {
     if (this.isDrafting) {
       this.draftTimer -= dt;
       if (this.draftTimer <= 0) {
-        // Auto pick first card if time expires
         this.selectCard(0);
       }
       return;
     }
 
-    // 3. Post-draft 0.5s ready pause
+    // 3. Post-draft 1.0s ready pause
     if (this.isPostDraft) {
       this.postDraftTimer -= dt;
       if (this.postDraftTimer <= 0) {
@@ -210,10 +212,10 @@ export class PerkDraftManager {
   }
 
   draw(ctx, width, height) {
-    // Pre-draft 0.5s pause display
+    // Pre-draft 1.0s pause display
     if (this.isPreDraft) {
       ctx.save();
-      ctx.fillStyle = 'rgba(11, 14, 20, 0.7)';
+      ctx.fillStyle = 'rgba(11, 14, 20, 0.75)';
       ctx.fillRect(0, 0, width, height);
 
       ctx.textAlign = 'center';
@@ -228,10 +230,10 @@ export class PerkDraftManager {
       return;
     }
 
-    // Post-draft 0.5s ready pause display
+    // Post-draft 1.0s ready pause display
     if (this.isPostDraft && this.selectedCard) {
       ctx.save();
-      ctx.fillStyle = 'rgba(11, 14, 20, 0.75)';
+      ctx.fillStyle = 'rgba(11, 14, 20, 0.8)';
       ctx.fillRect(0, 0, width, height);
 
       ctx.textAlign = 'center';
@@ -253,8 +255,7 @@ export class PerkDraftManager {
     if (!this.isDrafting || this.draftCards.length === 0) return;
 
     ctx.save();
-    // Dark overlay for bullet time focus
-    ctx.fillStyle = 'rgba(11, 14, 20, 0.78)';
+    ctx.fillStyle = 'rgba(11, 14, 20, 0.82)';
     ctx.fillRect(0, 0, width, height);
 
     ctx.textAlign = 'center';
@@ -266,7 +267,6 @@ export class PerkDraftManager {
     ctx.font = 'bold 13px monospace';
     ctx.fillText(`Thời gian: ${Math.max(0, this.draftTimer).toFixed(1)}s (Rê chuột/chạm hoặc phím 1, 2, 3)`, width / 2, 200);
 
-    // Draw 3 cards with interactive Hover effects
     const cardW = 320;
     const cardH = 75;
     const startY = 240;
@@ -279,7 +279,6 @@ export class PerkDraftManager {
       ctx.save();
 
       if (isHovered) {
-        // Hover scaling & intense neon aura
         const growX = 8;
         const growY = 4;
         const hX = cardX - growX / 2;
@@ -290,7 +289,6 @@ export class PerkDraftManager {
         ctx.shadowColor = '#00f0ff';
         ctx.shadowBlur = 20;
 
-        // Gradient highlight background
         const grad = ctx.createLinearGradient(hX, hY, hX + hW, hY + hH);
         grad.addColorStop(0, 'rgba(42, 60, 110, 0.98)');
         grad.addColorStop(1, 'rgba(22, 32, 65, 0.98)');
@@ -301,29 +299,24 @@ export class PerkDraftManager {
         ctx.strokeStyle = '#ffd13b';
         ctx.strokeRect(hX, hY, hW, hH);
 
-        // Highlight header badge
         ctx.fillStyle = '#ffd13b';
         ctx.font = '900 17px monospace';
         ctx.fillText(`▶ [${idx + 1}] ${card.icon} ${card.name} ◀`, width / 2, cardY + 28);
 
-        // Description
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 12px monospace';
         ctx.fillText(card.desc, width / 2, cardY + 54);
       } else {
-        // Normal state
         ctx.fillStyle = 'rgba(26, 31, 54, 0.92)';
         ctx.fillRect(cardX, cardY, cardW, cardH);
         ctx.lineWidth = 1.5;
         ctx.strokeStyle = idx === 0 ? '#ffd13b' : '#00f0ff';
         ctx.strokeRect(cardX, cardY, cardW, cardH);
 
-        // Number badge
         ctx.fillStyle = '#ffd13b';
         ctx.font = 'bold 16px monospace';
         ctx.fillText(`[${idx + 1}] ${card.icon} ${card.name}`, cardX + 90, cardY + 28);
 
-        // Description
         ctx.fillStyle = '#d0d7de';
         ctx.font = '12px monospace';
         ctx.fillText(card.desc, width / 2, cardY + 54);
