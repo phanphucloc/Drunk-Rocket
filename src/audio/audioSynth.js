@@ -7,6 +7,10 @@ export class AudioSynthesizer {
     this.ctx = null;
     this.isMuted = false;
     this.noiseBuffer = null;
+    this.laserHumGain = null;
+    this.laserBuzzOsc = null;
+    this.laserCrackleSrc = null;
+    this.laserCrackleFilter = null;
     this._bindUnlock();
   }
 
@@ -501,6 +505,108 @@ export class AudioSynthesizer {
       sub.start(now);
       sub.stop(now + 0.22);
     } catch (e) {}
+  }
+
+
+  /**
+   * Initializes the continuous electric proximity buzz & sizzling crackle audio graph ("xẹt xẹt")
+   */
+  _initLaserProximity() {
+    if (!this.ctx || this.laserHumGain) return;
+    try {
+      const now = this.ctx.currentTime;
+      // Master proximity gain node
+      this.laserHumGain = this.ctx.createGain();
+      this.laserHumGain.gain.setValueAtTime(0, now);
+
+      // 1. Low-frequency AC electrical hum / buzz (65Hz sawtooth)
+      this.laserBuzzOsc = this.ctx.createOscillator();
+      this.laserBuzzOsc.type = 'sawtooth';
+      this.laserBuzzOsc.frequency.setValueAtTime(65, now);
+
+      const buzzFilter = this.ctx.createBiquadFilter();
+      buzzFilter.type = 'bandpass';
+      buzzFilter.frequency.setValueAtTime(140, now);
+      buzzFilter.Q.setValueAtTime(4.0, now);
+
+      const buzzGain = this.ctx.createGain();
+      buzzGain.gain.setValueAtTime(0.22, now);
+
+      this.laserBuzzOsc.connect(buzzFilter);
+      buzzFilter.connect(buzzGain);
+      buzzGain.connect(this.laserHumGain);
+      this.laserBuzzOsc.start(now);
+
+      // 2. Sizzling high-voltage electrical arcing crackle ("xẹt xẹt")
+      const noise = this._getNoiseBuffer();
+      if (noise) {
+        this.laserCrackleSrc = this.ctx.createBufferSource();
+        this.laserCrackleSrc.buffer = noise;
+        this.laserCrackleSrc.loop = true;
+
+        this.laserCrackleFilter = this.ctx.createBiquadFilter();
+        this.laserCrackleFilter.type = 'bandpass';
+        this.laserCrackleFilter.frequency.setValueAtTime(2600, now);
+        this.laserCrackleFilter.Q.setValueAtTime(3.8, now);
+
+        const crackleGain = this.ctx.createGain();
+        crackleGain.gain.setValueAtTime(0.38, now);
+
+        this.laserCrackleSrc.connect(this.laserCrackleFilter);
+        this.laserCrackleFilter.connect(crackleGain);
+        crackleGain.connect(this.laserHumGain);
+        this.laserCrackleSrc.start(now);
+      }
+
+      this.laserHumGain.connect(this.ctx.destination);
+    } catch (e) {}
+  }
+
+  /**
+   * Dynamically modulates laser electric buzz volume and intensity based on rocket proximity (0.0 to 1.0)
+   */
+  updateLaserProximity(proximityNorm) {
+    if (this.isMuted) {
+      if (this.laserHumGain && this.ctx) {
+        this.laserHumGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.05);
+      }
+      return;
+    }
+    this._ensureContext();
+    if (!this.ctx) return;
+    if (!this.laserHumGain) {
+      this._initLaserProximity();
+    }
+    if (!this.laserHumGain) return;
+
+    const now = this.ctx.currentTime;
+    const clamped = Math.max(0, Math.min(1, proximityNorm));
+
+    if (clamped > 0.03) {
+      // Exponential rise: quiet when far away, rapid aggressive sizzle when brushing laser
+      const targetGain = Math.min(0.38, Math.pow(clamped, 1.5) * 0.38);
+      this.laserHumGain.gain.setTargetAtTime(targetGain, now, 0.035);
+
+      if (this.laserCrackleFilter) {
+        const targetFreq = 1800 + clamped * 2600;
+        this.laserCrackleFilter.frequency.setTargetAtTime(targetFreq, now, 0.035);
+      }
+      if (this.laserBuzzOsc) {
+        const targetPitch = 65 + clamped * 65;
+        this.laserBuzzOsc.frequency.setTargetAtTime(targetPitch, now, 0.035);
+      }
+    } else {
+      this.laserHumGain.gain.setTargetAtTime(0, now, 0.05);
+    }
+  }
+
+  /**
+   * Mutes laser proximity hum immediately on death, pause, or smash
+   */
+  stopLaserProximity() {
+    if (this.laserHumGain && this.ctx) {
+      this.laserHumGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.03);
+    }
   }
 
   toggleMute() {

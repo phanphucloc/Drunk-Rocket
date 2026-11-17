@@ -283,7 +283,7 @@ export function drawRocket(ctx, x, y, options = {}) {
 /**
  * Functional export for standalone laser hazard preview / tests
  */
-export function drawLaserHazard(ctx, pillar, gameHeight = 700, totalTime = 0) {
+export function drawLaserHazard(ctx, pillar, gameHeight = 700, totalTime = 0, currentTheme = null) {
   const x = Math.floor(pillar.x);
   const w = pillar.width || 52;
   const topY = Math.floor(pillar.topY !== undefined ? pillar.topY : (pillar.gapY - (pillar.gapHeight || 140) / 2));
@@ -292,6 +292,13 @@ export function drawLaserHazard(ctx, pillar, gameHeight = 700, totalTime = 0) {
   const pulsePhase = pillar.pulsePhase !== undefined ? pillar.pulsePhase : totalTime * 8;
   const isBeamActive = pillar.isBeamActive !== undefined ? pillar.isBeamActive : true;
   const angle = pillar.angle || 0;
+
+  // Visual Theme Colors
+  const theme = pillar.theme || currentTheme || null;
+  const laserColor = (theme && theme.laserColor) || PALETTE.LASER;
+  const laserGlow = (theme && theme.laserGlow) || PALETTE.LASER_GLOW;
+  const laserCore = (theme && theme.laserCore) || '#ffffff';
+  const emitterCore = (theme && theme.emitterCore) || PALETTE.CYAN;
 
   ctx.save();
   if (angle !== 0) {
@@ -316,14 +323,14 @@ export function drawLaserHazard(ctx, pillar, gameHeight = 700, totalTime = 0) {
   // Top Emitter Head
   ctx.fillStyle = PALETTE.METAL_LIGHT;
   ctx.fillRect(x - 2, topY - emitterH, w + 4, emitterH);
-  ctx.strokeStyle = PALETTE.CYAN;
+  ctx.strokeStyle = emitterCore;
   ctx.lineWidth = 1.5;
   ctx.strokeRect(x - 2, topY - emitterH, w + 4, emitterH);
 
-  // Top Emitter Glowing Energy Core (Cyan Pulsing)
-  ctx.fillStyle = PALETTE.CYAN;
+  // Top Emitter Glowing Energy Core
+  ctx.fillStyle = emitterCore;
   ctx.fillRect(x + w / 2 - 8, topY - 8, 16, 7);
-  ctx.fillStyle = PALETTE.WHITE;
+  ctx.fillStyle = '#ffffff';
   ctx.fillRect(x + w / 2 - 4, topY - 6, 8, 3);
 
   // 2. Bottom Metal Column (extend +140 below floor)
@@ -340,37 +347,37 @@ export function drawLaserHazard(ctx, pillar, gameHeight = 700, totalTime = 0) {
   // Bottom Emitter Head
   ctx.fillStyle = PALETTE.METAL_LIGHT;
   ctx.fillRect(x - 2, bottomY, w + 4, emitterH);
-  ctx.strokeStyle = PALETTE.CYAN;
+  ctx.strokeStyle = emitterCore;
   ctx.lineWidth = 1.5;
   ctx.strokeRect(x - 2, bottomY, w + 4, emitterH);
 
   // Bottom Emitter Glowing Energy Core
-  ctx.fillStyle = PALETTE.CYAN;
+  ctx.fillStyle = emitterCore;
   ctx.fillRect(x + w / 2 - 8, bottomY + 1, 16, 7);
-  ctx.fillStyle = PALETTE.WHITE;
+  ctx.fillStyle = '#ffffff';
   ctx.fillRect(x + w / 2 - 4, bottomY + 3, 8, 3);
 
-  // 3. Pulsing Deadly Laser Hazard Beam (Neon Red Energy Corridor)
+  // 3. Pulsing Deadly Laser Hazard Beam (Neon Energy Corridor)
   if (isBeamActive && bottomY > topY) {
     const pulse = Math.sin(pulsePhase);
     const beamW = 12 + pulse * 3;
     const beamX = x + (w - beamW) / 2;
 
     ctx.save();
-    // High-energy Red Neon Glow
-    ctx.shadowColor = PALETTE.LASER;
+    // High-energy Neon Glow
+    ctx.shadowColor = laserColor;
     ctx.shadowBlur = 14 + pulse * 5;
 
     // Wide atmospheric aura
-    ctx.fillStyle = PALETTE.LASER_GLOW;
+    ctx.fillStyle = laserGlow;
     ctx.fillRect(beamX - 6, topY, beamW + 12, bottomY - topY);
 
-    // Main vibrant red laser beam
-    ctx.fillStyle = PALETTE.LASER;
+    // Main vibrant laser beam
+    ctx.fillStyle = laserColor;
     ctx.fillRect(beamX, topY, beamW, bottomY - topY);
 
     // Intense White-Hot Plasma Center
-    ctx.fillStyle = PALETTE.WHITE;
+    ctx.fillStyle = laserCore;
     ctx.fillRect(beamX + beamW / 2 - 1.5, topY, 3, bottomY - topY);
 
     // Electric plasma flickers / sparks
@@ -378,7 +385,7 @@ export function drawLaserHazard(ctx, pillar, gameHeight = 700, totalTime = 0) {
     for (let i = 0; i < sparkCount; i++) {
       const sparkY = topY + ((totalTime * 300 + i * 47) % (bottomY - topY));
       const sparkW = 6 + Math.random() * 8;
-      ctx.fillStyle = PALETTE.WHITE;
+      ctx.fillStyle = '#ffffff';
       ctx.fillRect(x + (w - sparkW) / 2, sparkY, sparkW, 1.5);
     }
 
@@ -455,7 +462,7 @@ export class EntityRenderer {
     });
   }
 
-  static drawLaserPillar(ctx, pillar, gameHeight = 700) {
-    drawLaserHazard(ctx, pillar, gameHeight);
+  static drawLaserPillar(ctx, pillar, gameHeight = 700, currentTheme = null) {
+    drawLaserHazard(ctx, pillar, gameHeight, 0, currentTheme);
   }
 }

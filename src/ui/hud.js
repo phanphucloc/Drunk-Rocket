@@ -67,7 +67,7 @@ export class HUD {
     return { x: 0, y: 0 };
   }
 
-  draw(ctx, state, score, bestScore, time, timeSinceDeath, drunkMeter = 0, isSmashActive = false, smashChainCount = 1) {
+  draw(ctx, state, score, bestScore, time, timeSinceDeath, drunkMeter = 0, isSmashActive = false, smashChainCount = 1, currentTheme = null) {
     const cx = this.gameWidth / 2;
 
     // Draw Screen Flash
@@ -109,9 +109,16 @@ export class HUD {
       ctx.font = '900 48px monospace';
       ctx.lineWidth = 6;
       ctx.strokeStyle = '#0b0e14';
-      ctx.strokeText(`${score}`, cx, 85);
+      ctx.strokeText(`${score}`, cx, 82);
       ctx.fillStyle = '#ffffff';
-      ctx.fillText(`${score}`, cx, 85);
+      ctx.fillText(`${score}`, cx, 82);
+
+      // Tier Badge indicator
+      if (currentTheme && currentTheme.badgeText) {
+        ctx.font = '900 10px monospace';
+        ctx.fillStyle = currentTheme.laserColor || '#00f0ff';
+        ctx.fillText(currentTheme.badgeText, cx, 98);
+      }
 
       // 3. Spherical Cyber Energy Orb (Overdrive)
       const orbX = cx;

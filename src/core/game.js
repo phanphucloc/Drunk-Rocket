@@ -10,6 +10,7 @@ import { HUD } from '../ui/hud.js';
 import { LeaderboardModal } from '../ui/leaderboardModal.js';
 import { PerkDraftManager } from './perks.js';
 import { GhostManager } from '../entities/ghosts.js';
+import { getThemeForScore } from '../graphics/themes.js';
 
 export class Game {
   constructor(canvas) {
@@ -20,6 +21,9 @@ export class Game {
     this.height = 700;
     this.scale = 1;
 
+    this.currentTheme = getThemeForScore(0);
+    this.starfield.setTheme(this.currentTheme);
+    if (this.audio && this.audio.stopLaserProximity) this.audio.stopLaserProximity();
     this.state = 'READY';
 
     this.input = new InputManager(this.canvas);
@@ -32,6 +36,8 @@ export class Game {
     this.rocket = new Rocket(100, 320);
     this.perks = new PerkDraftManager(this);
     this.ghosts = new GhostManager();
+    this.currentTheme = getThemeForScore(0);
+    this.starfield.setTheme(this.currentTheme);
 
     // Active Perk Modifiers
     this.shieldActive = false;
@@ -194,6 +200,12 @@ export class Game {
   _onScore(pillar) {
     this.score += 1;
     this.justScoredTimer = 0.6; // Cheerful expression timer
+    const prevTier = this.currentTheme ? this.currentTheme.tier : 1;
+    this.currentTheme = getThemeForScore(this.score);
+    if (this.currentTheme.tier !== prevTier) {
+      this.starfield.setTheme(this.currentTheme);
+      this.hud.triggerSmashEffects();
+    }
     // Regular pillar gives +10% Overdrive (10 pillars cleared = 100% Smash ready)
     this.drunkMeter = Math.min(100, this.drunkMeter + 10);
     this.audio.playScore(); // Cheerful "HEYYY!" sound
@@ -311,6 +323,7 @@ export class Game {
   _die() {
     if (this.state === 'GAMEOVER') return;
     this.state = 'GAMEOVER';
+    if (this.audio && this.audio.stopLaserProximity) this.audio.stopLaserProximity();
     this.timeSinceDeath = 0;
     this.deathCount++;
     localStorage.setItem('drunk_rocket_deaths', this.deathCount.toString());
@@ -472,6 +485,50 @@ export class Game {
       this.energyCells.update(dt, this.pillars.speed, this.rocket, this.hasDrunkMagnet, this._onCollectCell);
       if (this.ghosts) this.ghosts.update(dt, this.pillars.speed);
 
+      // Proximity Laser Hum & Electric Crackle ("xẹt xẹt" gets louder as rocket approaches beam)
+      if (!this.isSmashActive && this.quantumTimer <= 0) {
+        let maxProximity = 0;
+        for (const p of this.pillars.pillars) {
+          if (p.isDestroyed) continue;
+          if (p.x + p.width > this.rocket.x - 45 && p.x < this.rocket.x + 220) {
+            const cx = p.x + p.width / 2;
+            const cy = p.gapY;
+            let rx = this.rocket.x;
+            let ry = this.rocket.y;
+            if (p.angle !== 0) {
+              const cos = Math.cos(-p.angle);
+              const sin = Math.sin(-p.angle);
+              const dx = this.rocket.x - cx;
+              const dy = this.rocket.y - cy;
+              rx = cx + (dx * cos - dy * sin);
+              ry = cy + (dx * sin + dy * cos);
+            }
+
+            // Distance to active vertical laser beam in the gap
+            const clampedY = Math.max(p.topY, Math.min(p.bottomY, ry));
+            const distToBeam = Math.hypot(rx - cx, ry - clampedY);
+
+            // Distance to top/bottom emitter heads
+            const distToTopHead = Math.hypot(rx - cx, ry - p.topY);
+            const distToBottomHead = Math.hypot(rx - cx, ry - p.bottomY);
+            const minDist = Math.min(distToBeam, distToTopHead, distToBottomHead);
+
+            const dangerRadius = 180;
+            if (minDist < dangerRadius) {
+              const prox = Math.max(0, 1 - (minDist / dangerRadius));
+              maxProximity = Math.max(maxProximity, prox);
+            }
+          }
+        }
+        if (this.audio && this.audio.updateLaserProximity) {
+          this.audio.updateLaserProximity(maxProximity);
+        }
+      } else {
+        if (this.audio && this.audio.stopLaserProximity) {
+          this.audio.stopLaserProximity();
+        }
+      }
+
       // Boundary collision check (ceiling or floor)
       if (!this.isSmashActive && (this.rocket.y - this.rocket.radius <= 0 || this.rocket.y + this.rocket.radius >= this.height)) {
         this._die();
@@ -514,7 +571,7 @@ export class Game {
 
     for (const p of this.pillars.pillars) {
       if (!p.isDestroyed) {
-        EntityRenderer.drawLaserPillar(this.ctx, p, this.height);
+        EntityRenderer.drawLaserPillar(this.ctx, p, this.height, this.currentTheme);
       }
     }
 
@@ -648,7 +705,8 @@ export class Game {
       this.timeSinceDeath,
       this.drunkMeter,
       this.isSmashActive,
-      this.smashChainCount || 1
+      this.smashChainCount || 1,
+      this.currentTheme
     );
 
     this.ctx.restore();

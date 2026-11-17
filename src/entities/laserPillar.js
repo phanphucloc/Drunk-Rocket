@@ -1,4 +1,5 @@
 import { PhysicsEngine } from '../core/physics.js';
+import { getThemeForScore, getTierFromScore } from '../graphics/themes.js';
 
 export class LaserPillar {
   constructor(x, gapY, gapHeight, width = 52, options = {}) {
@@ -14,7 +15,11 @@ export class LaserPillar {
     this.emitterHeight = 24;
     this.pulsePhase = Math.random() * Math.PI * 2;
 
-    // Dynamic difficulty movement (oscillating gapY & tilted angle)
+    // Visual theme
+    this.theme = options.theme || null;
+    this.tier = options.tier || 1;
+
+    // Dynamic difficulty movement (oscillating gapY & tilted/swaying angle)
     this.oscAmp = options.oscAmp || 0;
     this.oscFreq = options.oscFreq || 0;
     this.oscPhase = options.oscPhase !== undefined ? options.oscPhase : Math.random() * Math.PI * 2;
@@ -45,7 +50,7 @@ export class LaserPillar {
       this.gapY = Math.max(130 + this.gapHeight / 2, Math.min(570 - this.gapHeight / 2, targetY));
     }
 
-    // Tilted angular oscillation / sway
+    // Tilted angular oscillation / sway (leaning left <-> right)
     if (this.angleAmp > 0) {
       this.anglePhase += dt * this.angleFreq;
       this.angle = this.baseAngle + Math.sin(this.anglePhase) * this.angleAmp;
@@ -171,8 +176,8 @@ export class LaserPillarManager {
 
   update(dt, rocket, onScore, onNearMiss, score = 0) {
     this.currentScore = score;
-    // Graceful slight horizontal speed scaling: +4 px/s every 5 points, capped at +28 px/s
-    this.speed = this.baseSpeed + Math.min(Math.floor(score / 5) * 4, 28);
+    // Graceful slight horizontal speed scaling: +3 px/s every 5 points, capped at +24 px/s
+    this.speed = this.baseSpeed + Math.min(Math.floor(score / 5) * 3, 24);
 
     this.spawnTimer -= dt;
     if (this.spawnTimer <= 0) {
@@ -203,46 +208,63 @@ export class LaserPillarManager {
   }
 
   /**
-   * Spawns a pillar with dynamic progressive difficulty tiers based on score:
-   * - Score 0 - 5: Static vertical pillars
-   * - Score 6 - 12: Moving up/down bobbing vertical oscillation
-   * - Score 13 - 20: Tilted angle columns
-   * - Score 21+: Combined tilted angle + vertical bobbing oscillation
+   * Spawns a pillar with progressive difficulty tiers and theme colors:
+   * - Tier 1 (Score 0 - 5): Cột thẳng đứng cố định
+   * - Tier 2 (Score 6 - 11): Cột di chuyển dập dềnh lên xuống
+   * - Tier 3 (Score 12 - 18): Cột nghiêng góc cố định
+   * - Tier 4 (Score 19 - 26): Cột nghiêng góc VÀ di chuyển lên xuống
+   * - Tier 5 (Score 27 - 35): Cột nghiêng trái rồi nghiêng phải liên tục
+   * - Tier 6 (Score 36+): Cột vừa nghiêng trái phải VỪA di chuyển lên xuống
    */
   spawn(score = 0) {
     const gapY = this.minGapY + Math.random() * (this.maxGapY - this.minGapY);
+    const tier = getTierFromScore(score);
+    const theme = getThemeForScore(score);
 
     let oscAmp = 0;
     let oscFreq = 0;
     let baseAngle = 0;
     let angleAmp = 0;
     let angleFreq = 0;
+    let gapH = this.gapHeight;
 
-    if (score >= 21) {
-      // Tier 4: Combined Tilted + Bobbing Vertical Oscillation
-      oscAmp = 26 + Math.random() * 16;   // 26px to 42px bobbing amplitude
-      oscFreq = 1.3 + Math.random() * 0.6; // 1.3 to 1.9 rad/s
-      baseAngle = (Math.random() < 0.5 ? -1 : 1) * (0.06 + Math.random() * 0.04); // ±3.5° to ±6°
-      angleAmp = 0.03 + Math.random() * 0.03;
-      angleFreq = 1.0 + Math.random() * 0.6;
-    } else if (score >= 13) {
-      // Tier 3: Tilted Angle Pillars
-      baseAngle = (Math.random() < 0.5 ? -1 : 1) * (0.07 + Math.random() * 0.05); // ±4° to ±7°
-      angleAmp = Math.random() < 0.5 ? (0.02 + Math.random() * 0.03) : 0;
-      angleFreq = 1.1 + Math.random() * 0.5;
-    } else if (score >= 6) {
-      // Tier 2: Moving Up/Down Vertical Oscillation
-      oscAmp = 32 + Math.random() * 16;   // 32px to 48px bobbing amplitude
-      oscFreq = 1.4 + Math.random() * 0.6; // 1.4 to 2.0 rad/s
+    if (tier === 6) {
+      // Tier 6: Vừa lắc lư nghiêng trái phải VỪA di chuyển lên xuống
+      angleAmp = 0.09 + Math.random() * 0.04; // ±5.2° đến ±7.5°
+      angleFreq = 1.5 + Math.random() * 0.4;  // Tần số lắc mượt mà ~3.5s/chu kỳ
+      baseAngle = 0;
+      oscAmp = 26 + Math.random() * 14;      // 26px đến 40px
+      oscFreq = 1.2 + Math.random() * 0.5;   // 1.2 đến 1.7 rad/s
+      gapH = 150; // Corridor 150px đảm bảo fair-play và lách được
+    } else if (tier === 5) {
+      // Tier 5: Các cột nghiêng trái rồi nghiêng phải liên tục (Swaying pendulum)
+      angleAmp = 0.10 + Math.random() * 0.04; // ±5.8° đến ±8.0°
+      angleFreq = 1.6 + Math.random() * 0.4;
+      baseAngle = 0;
+      gapH = 146;
+    } else if (tier === 4) {
+      // Tier 4: Nghiêng góc cố định + Dập dềnh lên xuống
+      baseAngle = (Math.random() < 0.5 ? -1 : 1) * (0.06 + Math.random() * 0.04);
+      oscAmp = 26 + Math.random() * 16;
+      oscFreq = 1.3 + Math.random() * 0.6;
+      gapH = 146;
+    } else if (tier === 3) {
+      // Tier 3: Nghiêng góc cố định
+      baseAngle = (Math.random() < 0.5 ? -1 : 1) * (0.07 + Math.random() * 0.05); // ±4° đến ±7°
+    } else if (tier === 2) {
+      // Tier 2: Dập dềnh lên xuống
+      oscAmp = 32 + Math.random() * 16;   // 32px đến 48px
+      oscFreq = 1.4 + Math.random() * 0.6; // 1.4 đến 2.0 rad/s
     }
 
-    const gapH = score >= 21 ? 148 : this.gapHeight;
     const pillar = new LaserPillar(this.gameWidth + 30, gapY, gapH, 52, {
       oscAmp,
       oscFreq,
       baseAngle,
       angleAmp,
-      angleFreq
+      angleFreq,
+      theme,
+      tier
     });
 
     this.pillars.push(pillar);
@@ -267,6 +289,9 @@ export class LaserPillarManager {
       .filter(p => !p.isDestroyed && p.x + p.width > rocketX - 25)
       .sort((a, b) => a.x - b.x);
 
+    const theme = getThemeForScore(this.currentScore);
+    const tier = getTierFromScore(this.currentScore);
+
     // If fewer pillars available in front, spawn them dynamically so player sees and smashes them
     while (candidates.length < count) {
       let nextX;
@@ -281,7 +306,7 @@ export class LaserPillarManager {
         nextGapY = Math.min(this.maxGapY, Math.max(this.minGapY, prevPillar.gapY + (Math.random() - 0.5) * 60));
       }
 
-      const newPillar = new LaserPillar(nextX, nextGapY, this.gapHeight);
+      const newPillar = new LaserPillar(nextX, nextGapY, this.gapHeight, 52, { theme, tier });
       this.pillars.push(newPillar);
       candidates.push(newPillar);
       candidates.sort((a, b) => a.x - b.x);
