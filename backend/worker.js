@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Drunk Rocket - Cloudflare Serverless Worker API
  * Architecture: 100% Free Tier ($0) - Cloudflare Workers + D1 SQLite
  * 
@@ -244,6 +244,40 @@ export default {
           rank: currentRank,
           inserted_id: insertResult.meta?.last_row_id || null,
         }, 201);
+      }
+
+            // 4. API: Get Ghost Wrecks (Sprint 2.3)
+      if (url.pathname === "/api/ghosts" && request.method === "GET") {
+        if (!env.DB) {
+          return jsonResponse({
+            success: true,
+            ghosts: [
+              { player_name: "BOT_PRO", death_score: 8, y_pos: 320 },
+              { player_name: "NOOB_99", death_score: 3, y_pos: 440 }
+            ]
+          });
+        }
+        const stmt = env.DB.prepare(`
+          SELECT player_name, death_score, y_pos, created_at 
+          FROM ghost_wrecks 
+          ORDER BY id DESC LIMIT 30;
+        `);
+        const { results } = await stmt.all();
+        return jsonResponse({ success: true, ghosts: results || [] });
+      }
+
+      // 5. API: Submit Ghost Wreck on death (Sprint 2.3)
+      if (url.pathname === "/api/ghosts" && request.method === "POST") {
+        let body;
+        try { body = await request.json(); } catch (e) { return jsonResponse({ error: "Invalid JSON" }, 400); }
+        const { player_name = "ANON", death_score = 0, y_pos = 350 } = body;
+        if (env.DB) {
+          await env.DB.prepare(`
+            INSERT INTO ghost_wrecks (player_name, death_score, y_pos)
+            VALUES (?, ?, ?);
+          `).bind(player_name.slice(0, 8).toUpperCase(), death_score, y_pos).run();
+        }
+        return jsonResponse({ success: true, recorded: true });
       }
 
       // 5. 404 Not Found

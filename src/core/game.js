@@ -7,6 +7,8 @@ import { EntityRenderer } from '../graphics/renderer.js';
 import { AudioSynthesizer } from '../audio/audioSynth.js';
 import { HUD } from '../ui/hud.js';
 import { LeaderboardModal } from '../ui/leaderboardModal.js';
+import { PerkDraftManager } from './perks.js';
+import { GhostManager } from '../entities/ghosts.js';
 
 export class Game {
   constructor(canvas) {
@@ -26,6 +28,14 @@ export class Game {
     this.pillars = new LaserPillarManager(this.width, this.height);
     this.hud = new HUD(this.width, this.height);
     this.rocket = new Rocket(100, 320);
+    this.perks = new PerkDraftManager(this);
+    this.ghosts = new GhostManager();
+    this.shieldActive = false;
+    this.hasQuantumDrift = false;
+    this.quantumTimer = 0;
+    this.nearMissMultiplier = 1;
+    this.smashChainCount = 1;
+    this.passiveChargeRate = 0;
 
     this.leaderboard = new LeaderboardModal('https://drunk-rocket-backend.ppldhsp.workers.dev');
 
@@ -50,8 +60,24 @@ export class Game {
     this._onNearMiss = this._onNearMiss.bind(this);
     this.loop = this.loop.bind(this);
 
+        this.canvas.addEventListener('pointerdown', (e) => {
+      if (this.perks && this.perks.isDrafting) {
+        const rect = this.canvas.getBoundingClientRect();
+        const clientY = (e.clientY - rect.top) * (this.height / rect.height);
+        if (clientY >= 240 && clientY <= 315) this.perks.selectCard(0);
+        else if (clientY >= 335 && clientY <= 410) this.perks.selectCard(1);
+        else if (clientY >= 430 && clientY <= 505) this.perks.selectCard(2);
+      }
+    });
     this.resize();
     window.addEventListener('resize', () => this.resize());
+    window.addEventListener('keydown', (e) => {
+      if (this.perks && this.perks.isDrafting) {
+        if (e.key === '1') this.perks.selectCard(0);
+        if (e.key === '2') this.perks.selectCard(1);
+        if (e.key === '3') this.perks.selectCard(2);
+      }
+    });
   }
 
   resize() {
@@ -78,6 +104,12 @@ export class Game {
     this.isSmashActive = false;
     this.smashDuration = 0;
     this.rocket.reset(100, 320);
+    if (this.perks) this.perks.reset();
+    this.shieldActive = false;
+    this.hasQuantumDrift = false;
+    this.nearMissMultiplier = 1;
+    this.smashChainCount = 1;
+    this.passiveChargeRate = 0;
     this.pillars.reset();
     this.particles.reset();
     this.state = 'READY';
@@ -90,6 +122,8 @@ export class Game {
     this.audio.playScore();
     this.particles.emitScoreSparkles(this.rocket.x + 20, this.rocket.y);
 
+    if (this.perks) this.perks.checkMilestone(this.score);
+    if (this.ghosts && pillar) this.ghosts.spawnForPillar(pillar, this.score);
     if (this.score > this.bestScore) {
       this.bestScore = this.score;
       localStorage.setItem('drunk_rocket_best', this.bestScore.toString());
@@ -97,12 +131,15 @@ export class Game {
   }
 
   _onNearMiss(pillar) {
-    this.score += 2; // Bonus +2 points on Near-Miss
+    this.score += (2 * this.nearMissMultiplier);
+    this.drunkMeter = Math.min(100, this.drunkMeter + (35 * this.nearMissMultiplier)); // Bonus +2 points on Near-Miss
     this.drunkMeter = Math.min(100, this.drunkMeter + 35); // +35% Overdrive charge!
     this.audio.playNearMiss();
     this.hud.showNearMiss(2);
     this.particles.emitNearMiss(this.rocket.x, this.rocket.y);
 
+    if (this.perks) this.perks.checkMilestone(this.score);
+    if (this.ghosts && pillar) this.ghosts.spawnForPillar(pillar, this.score);
     if (this.score > this.bestScore) {
       this.bestScore = this.score;
       localStorage.setItem('drunk_rocket_best', this.bestScore.toString());
@@ -120,11 +157,19 @@ export class Game {
     this.hud.triggerSmashEffects();
 
     // Destroy closest pillar ahead
-    const smashed = this.pillars.destroyFrontPillar(this.rocket.x);
+    for (let k = 0; k < this.smashChainCount; k++) {
+      const smashed = this.pillars.destroyFrontPillar(this.rocket.x);
+      if (smashed) {
+        this.score += 3;
+        this.particles.emitPillarSmash(smashed.x + smashed.width / 2, smashed.gapY);
+      }
+    }
     if (smashed) {
       this.score += 3; // +3 bonus points for smashing
       this.particles.emitPillarSmash(smashed.x + smashed.width / 2, smashed.gapY);
-      if (this.score > this.bestScore) {
+      if (this.perks) this.perks.checkMilestone(this.score);
+    if (this.ghosts && pillar) this.ghosts.spawnForPillar(pillar, this.score);
+    if (this.score > this.bestScore) {
         this.bestScore = this.score;
         localStorage.setItem('drunk_rocket_best', this.bestScore.toString());
       }
@@ -142,6 +187,7 @@ export class Game {
     this.particles.emitExplosion(this.rocket.x, this.rocket.y);
 
     const runDuration = performance.now() - this.runStartTime;
+    if (this.ghosts) this.ghosts.submitGhost(localStorage.getItem('drunk_rocket_name') || 'PILOT', this.score, this.rocket.y);
     if (this.leaderboard) {
       this.leaderboard.show(this.score, runDuration);
     }
@@ -153,6 +199,18 @@ export class Game {
     this.particles.update(dt);
     this.starfield.update(dt, this.state === 'PLAYING' ? 1 : 0.2);
 
+        if (this.perks && this.perks.isDrafting) {
+      this.perks.update(dt);
+      return; // Freeze main action while drafting in Bullet Time
+    }
+
+    if (this.passiveChargeRate > 0) {
+      this.drunkMeter = Math.min(100, this.drunkMeter + this.passiveChargeRate * dt);
+    }
+
+    if (this.quantumTimer > 0) {
+      this.quantumTimer -= dt;
+    }
     const hasTap = this.input.consumeTap();
     const hasDoubleTap = this.input.consumeDoubleTap();
 
@@ -166,6 +224,7 @@ export class Game {
         this.rocket.thrust();
         this.audio.playThrust();
         this.particles.emitThrust(this.rocket.x, this.rocket.y, this.rocket.rotation);
+        if (this.hasQuantumDrift) this.quantumTimer = 0.3;
       }
     } else if (this.state === 'PLAYING') {
       // Overdrive Smash Trigger
@@ -189,10 +248,12 @@ export class Game {
         this.rocket.thrust();
         this.audio.playThrust();
         this.particles.emitThrust(this.rocket.x, this.rocket.y, this.rocket.rotation);
+        if (this.hasQuantumDrift) this.quantumTimer = 0.3;
       }
 
       this.rocket.update(dt);
       this.pillars.update(dt, this.rocket, this._onScore, this._onNearMiss);
+      if (this.ghosts) this.ghosts.update(dt, this.pillars.speed);
 
       // Boundary collision check
       if (this.rocket.y < 0 || this.rocket.y > this.height) {
@@ -201,11 +262,19 @@ export class Game {
       }
 
       // Pillar collision check (ignored if Smash is active)
-      if (!this.isSmashActive) {
+            if (!this.isSmashActive && this.quantumTimer <= 0) {
         const collided = this.pillars.checkCollision(this.rocket);
         if (collided) {
-          this._die();
-          return;
+          if (this.shieldActive) {
+            this.shieldActive = false;
+            collided.isDestroyed = true;
+            this.hud.triggerSmashEffects();
+            this.particles.emitPillarSmash(collided.x, collided.gapY);
+            this.audio.playSmash();
+          } else {
+            this._die();
+            return;
+          }
         }
       }
     } else if (this.state === 'GAMEOVER') {
@@ -232,8 +301,17 @@ export class Game {
 
     this.particles.draw(this.ctx);
 
+    if (this.ghosts) this.ghosts.draw(this.ctx);
     EntityRenderer.drawRocket(this.ctx, this.rocket);
+    if (this.shieldActive) {
+      this.ctx.strokeStyle = '#00f0ff';
+      this.ctx.lineWidth = 3;
+      this.ctx.beginPath();
+      this.ctx.arc(this.rocket.x, this.rocket.y, this.rocket.radius + 8, 0, Math.PI * 2);
+      this.ctx.stroke();
+    }
 
+    if (this.perks) this.perks.draw(this.ctx, this.width, this.height);
     this.hud.draw(
       this.ctx,
       this.state,
