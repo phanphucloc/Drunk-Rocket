@@ -119,7 +119,7 @@ export class Game {
 
   _onScore(pillar) {
     this.score += 1;
-    this.drunkMeter = Math.min(100, this.drunkMeter + 5); // +5% on normal pass
+    this.drunkMeter = Math.min(100, this.drunkMeter + 5);
     this.audio.playScore();
     this.particles.emitScoreSparkles(this.rocket.x + 20, this.rocket.y);
 
@@ -151,13 +151,12 @@ export class Game {
     if (this.drunkMeter < 100 || this.isSmashActive) return;
 
     this.isSmashActive = true;
-    this.smashDuration = 0.8; // 0.8s smash rush
-    this.drunkMeter = 0; // Consume energy
+    this.smashDuration = 0.8;
+    this.drunkMeter = 0;
 
     this.audio.playSmash();
     this.hud.triggerSmashEffects();
 
-    // Destroy closest pillar ahead
     for (let k = 0; k < this.smashChainCount; k++) {
       const smashed = this.pillars.destroyFrontPillar(this.rocket.x);
       if (smashed) {
@@ -174,6 +173,7 @@ export class Game {
   }
 
   _die() {
+    if (this.state === 'GAMEOVER') return;
     this.state = 'GAMEOVER';
     this.timeSinceDeath = 0;
     this.deathCount++;
@@ -181,10 +181,13 @@ export class Game {
 
     this.audio.playCrash();
     this.hud.triggerCrashEffects();
-    this.particles.emitExplosion(this.rocket.x, this.rocket.y);
+
+    const safeX = typeof this.rocket.x === 'number' && !isNaN(this.rocket.x) ? this.rocket.x : 100;
+    const safeY = typeof this.rocket.y === 'number' && !isNaN(this.rocket.y) ? Math.min(Math.max(this.rocket.y, 20), this.height - 20) : 350;
+    this.particles.emitExplosion(safeX, safeY);
 
     const runDuration = performance.now() - this.runStartTime;
-    if (this.ghosts) this.ghosts.submitGhost(localStorage.getItem('drunk_player_name') || 'ACE', this.score, this.rocket.y);
+    if (this.ghosts) this.ghosts.submitGhost(localStorage.getItem('drunk_player_name') || 'ACE', this.score, safeY);
     if (this.leaderboard) {
       this.leaderboard.show(this.score, runDuration);
     }
@@ -204,7 +207,7 @@ export class Game {
 
     if (this.perks && this.perks.isDrafting) {
       this.perks.update(dt);
-      return; // Freeze main action while drafting in Bullet Time
+      return;
     }
 
     if (this.passiveChargeRate > 0) {
@@ -230,15 +233,13 @@ export class Game {
         if (this.hasQuantumDrift) this.quantumTimer = 0.3;
       }
     } else if (this.state === 'PLAYING') {
-      // Overdrive Smash Trigger
       if (hasDoubleTap && this.drunkMeter >= 100) {
         this._triggerSupernovaSmash();
       }
 
-      // Handle Smash state timer
       if (this.isSmashActive) {
         this.smashDuration -= dt;
-        this.rocket.vx = 280; // Boost forward
+        this.rocket.vx = 280;
         this.particles.emitThrust(this.rocket.x, this.rocket.y, this.rocket.rotation, 6);
         if (this.smashDuration <= 0) {
           this.isSmashActive = false;
@@ -246,7 +247,6 @@ export class Game {
         }
       }
 
-      // Single Tap Thrust
       if (hasTap) {
         this.rocket.thrust();
         this.audio.playThrust();
@@ -258,22 +258,23 @@ export class Game {
       this.pillars.update(dt, this.rocket, this._onScore, this._onNearMiss);
       if (this.ghosts) this.ghosts.update(dt, this.pillars.speed);
 
-      // Boundary collision check
-      if (this.rocket.y < 0 || this.rocket.y > this.height) {
+      // Boundary collision check (ceiling or floor)
+      if (this.rocket.y - this.rocket.radius <= 0 || this.rocket.y + this.rocket.radius >= this.height) {
         this._die();
         return;
       }
 
-      // Pillar collision check (ignored if Smash is active or Quantum invulnerable)
+      // Pillar collision check
       if (!this.isSmashActive && this.quantumTimer <= 0) {
         const collided = this.pillars.checkCollision(this.rocket);
         if (collided) {
           if (this.shieldActive) {
-            this.shieldActive = false;
-            collided.isDestroyed = true;
+            this.shieldActive = false; // Khiên vỡ
+            collided.isDestroyed = true; // Cột bị phá hủy
             this.hud.triggerSmashEffects();
-            this.particles.emitPillarSmash(collided.x, collided.gapY);
+            this.particles.emitPillarSmash(collided.x + (collided.width || 52) / 2, collided.gapY || 350);
             this.audio.playSmash();
+            this.quantumTimer = 0.5; // Cho 0.5s bất tử sau khi vỡ khiên để tránh va chạm liên hoàn
           } else {
             this._die();
             return;
