@@ -110,6 +110,10 @@ export class PerkDraftManager {
       // UPGRADE: 1.0s pre-draft pause before showing cards
       this.isPreDraft = true;
       this.preDraftTimer = 1.0;
+      if (this.game && this.game.rocket) {
+        this.game.rocket.vx = 0;
+        this.game.rocket.vy = 0;
+      }
       if (this.game && this.game.audio) {
         this.game.audio.playMedal();
       }

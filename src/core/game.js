@@ -106,7 +106,6 @@ export class Game {
           this.perks.selectCard(cardIdx);
           this.input.consumeTap();
           this.input.consumeDoubleTap();
-          this.perkDraftCooldown = 0.5;
         }
       }
     });
@@ -126,7 +125,6 @@ export class Game {
           this.perks.selectCard(cardIdx);
           this.input.consumeTap();
           this.input.consumeDoubleTap();
-          this.perkDraftCooldown = 0.5;
         }
       }
     });
@@ -307,19 +305,15 @@ export class Game {
       this.justScoredTimer -= dt;
     }
 
-    // Freeze game loop during Pre-draft (1.0s), Drafting, and Post-draft (1.0s)
+    // 1. Freeze game loop during Pre-draft (1.0s), Drafting, and Post-draft (1.0s)
     if (this.perks && (this.perks.isPreDraft || this.perks.isDrafting || this.perks.isPostDraft)) {
+      // Freeze rocket velocity and orientation completely in mid-air
+      this.rocket.vx = 0;
+      this.rocket.vy = 0;
       this.input.consumeTap();
       this.input.consumeDoubleTap();
       this.perks.update(dt);
       return;
-    }
-
-    // Post-draft cooldown to prevent tap leaking into rocket thrust
-    if (this.perkDraftCooldown > 0) {
-      this.perkDraftCooldown -= dt;
-      this.input.consumeTap();
-      this.input.consumeDoubleTap();
     }
 
     if (this.passiveChargeRate > 0) {
