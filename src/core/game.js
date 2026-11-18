@@ -8,6 +8,7 @@ import { EntityRenderer } from '../graphics/renderer.js';
 import { AudioSynthesizer } from '../audio/audioSynth.js';
 import { HUD } from '../ui/hud.js';
 import { LeaderboardModal } from '../ui/leaderboardModal.js';
+import { ShareCard } from '../ui/shareCard.js';
 import { PerkDraftManager } from './perks.js';
 import { GhostManager } from '../entities/ghosts.js';
 import { getThemeForScore } from '../graphics/themes.js';
@@ -81,6 +82,16 @@ export class Game {
     this._onNearMiss = this._onNearMiss.bind(this);
     this._onCollectCell = this._onCollectCell.bind(this);
     this.loop = this.loop.bind(this);
+
+    // Kích hoạt sấm sét đồng bộ với chớp điện ảnh
+    if (this.starfield) {
+      this.starfield.onLightning = () => {
+        if (this.audio) this.audio.playThunderClap();
+      };
+    }
+
+    // Kết nối nút bấm thanh công cụ TOP, Âm thanh & Game Over
+    this._bindToolbarButtons();
 
     // Pointer move listener for card hover effects
     this.canvas.addEventListener('pointermove', (e) => {
@@ -197,6 +208,8 @@ export class Game {
       if (this.audio.stopLaserProximity) this.audio.stopLaserProximity();
       if (this.audio.stopAmbient) this.audio.stopAmbient();
     }
+    const gameoverActions = document.getElementById('gameover-actions');
+    if (gameoverActions) gameoverActions.classList.add('hidden');
     this.state = 'READY';
     this.timeSinceDeath = 0;
   }
@@ -344,6 +357,8 @@ export class Game {
 
     const runDuration = performance.now() - this.runStartTime;
     if (this.ghosts) this.ghosts.submitGhost(localStorage.getItem('drunk_player_name') || 'ACE', this.score, safeY);
+    const gameoverActions = document.getElementById('gameover-actions');
+    if (gameoverActions) gameoverActions.classList.remove('hidden');
     if (this.leaderboard) {
       this.leaderboard.show(this.score, runDuration);
     }
@@ -414,6 +429,11 @@ export class Game {
     const hasDoubleTap = this.input.consumeDoubleTap();
 
     if (this.state === 'READY') {
+      if (this.leaderboard && this.leaderboard.isOpen) {
+        this.input.consumeTap();
+        this.input.consumeDoubleTap();
+        return;
+      }
       this.rocket.y = 320 + Math.sin(this.totalTime * 4) * 8;
       this.rocket.rotation = Math.sin(this.totalTime * 3) * 0.1;
 
@@ -722,7 +742,77 @@ export class Game {
       this.currentTheme
     );
 
+    // Hiệu ứng ánh sáng điện ảnh (Cinematic Vignette & Lightning Flash Overlay)
+    if (this.starfield && this.starfield.drawOverlay) {
+      this.starfield.drawOverlay(this.ctx);
+    }
+
     this.ctx.restore();
+  }
+
+  _bindToolbarButtons() {
+    const btnTop = document.getElementById('btn-open-leaderboard');
+    if (btnTop) {
+      btnTop.addEventListener('pointerdown', (e) => e.stopPropagation());
+      btnTop.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (this.leaderboard) {
+          if (this.leaderboard.isOpen) {
+            this.leaderboard.hide();
+          } else {
+            this.leaderboard.show(0, 0);
+          }
+        }
+      });
+    }
+
+    const btnSound = document.getElementById('btn-toggle-sound');
+    if (btnSound) {
+      btnSound.addEventListener('pointerdown', (e) => e.stopPropagation());
+      btnSound.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (this.audio) {
+          const isMuted = this.audio.toggleMute();
+          btnSound.textContent = isMuted ? '🔇' : '🔊';
+          btnSound.title = isMuted ? 'Bật âm thanh' : 'Tắt âm thanh';
+          btnSound.classList.toggle('muted', isMuted);
+          if (!isMuted && this.currentTheme) {
+            this.audio.setAmbientTheme(this.currentTheme.ambientSound || 'birds', true);
+          }
+        }
+      });
+    }
+
+    const btnShare = document.getElementById('btn-share-challenge');
+    if (btnShare) {
+      btnShare.addEventListener('pointerdown', (e) => e.stopPropagation());
+      btnShare.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const res = await ShareCard.share(this.score, this.deathCount);
+        const toast = document.getElementById('toast');
+        if (toast) {
+          toast.textContent = res && res.method === 'clipboard' ? '✅ Đã sao chép lời thách đố!' : '🚀 Đang mở giao diện thách đố...';
+          toast.classList.remove('hidden');
+          setTimeout(() => toast.classList.add('hidden'), 2500);
+        }
+      });
+    }
+
+    const btnSaveScore = document.getElementById('btn-save-score');
+    if (btnSaveScore) {
+      btnSaveScore.addEventListener('pointerdown', (e) => e.stopPropagation());
+      btnSaveScore.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (this.leaderboard) {
+          const runDuration = performance.now() - this.runStartTime;
+          this.leaderboard.show(this.score, runDuration);
+        }
+      });
+    }
   }
 
   loop(timestamp) {

@@ -25,19 +25,46 @@ export class LeaderboardModal {
   }
 
   _bindEvents() {
+    if (this.modalEl) {
+      this.modalEl.addEventListener('pointerdown', (e) => e.stopPropagation());
+      this.modalEl.addEventListener('click', (e) => {
+        if (e.target === this.modalEl) {
+          this.hide();
+        }
+      });
+    }
     if (this.tabDaily) {
-      this.tabDaily.addEventListener('click', () => this.switchTab('daily'));
+      this.tabDaily.addEventListener('pointerdown', (e) => e.stopPropagation());
+      this.tabDaily.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.switchTab('daily');
+      });
     }
     if (this.tabAlltime) {
-      this.tabAlltime.addEventListener('click', () => this.switchTab('alltime'));
+      this.tabAlltime.addEventListener('pointerdown', (e) => e.stopPropagation());
+      this.tabAlltime.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.switchTab('alltime');
+      });
     }
     if (this.btnClose) {
-      this.btnClose.addEventListener('click', () => this.hide());
+      this.btnClose.addEventListener('pointerdown', (e) => e.stopPropagation());
+      this.btnClose.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.hide();
+      });
     }
     if (this.btnSubmit) {
-      this.btnSubmit.addEventListener('click', () => this.submitScore());
+      this.btnSubmit.addEventListener('pointerdown', (e) => e.stopPropagation());
+      this.btnSubmit.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.submitScore();
+      });
     }
     if (this.inputName) {
+      this.inputName.addEventListener('pointerdown', (e) => e.stopPropagation());
       this.inputName.value = localStorage.getItem('drunk_player_name') || 'ACE';
       this.inputName.addEventListener('input', (e) => {
         e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3);
