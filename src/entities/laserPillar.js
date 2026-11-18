@@ -163,8 +163,9 @@ export class LaserPillarManager {
     this.spawnTimer = 0;
     this.minGapY = 160;
     this.maxGapY = 520;
-    this.gapHeight = 145;       // Height of safe corridor
+    this.gapHeight = 148;       // Generous height of safe corridor
     this.currentScore = 0;
+    this.lastPillarGapY = 350;  // Anchor to smooth out consecutive height delta
   }
 
   reset() {
@@ -172,6 +173,7 @@ export class LaserPillarManager {
     this.speed = this.baseSpeed;
     this.spawnTimer = 0.5; // Quick first obstacle
     this.currentScore = 0;
+    this.lastPillarGapY = 350;
   }
 
   update(dt, rocket, onScore, onNearMiss, score = 0) {
@@ -208,18 +210,30 @@ export class LaserPillarManager {
   }
 
   /**
-   * Spawns a pillar with progressive difficulty tiers and theme colors:
-   * - Tier 1 (Score 0 - 5): Cột thẳng đứng cố định
-   * - Tier 2 (Score 6 - 11): Cột di chuyển dập dềnh lên xuống
-   * - Tier 3 (Score 12 - 18): Cột nghiêng góc cố định
-   * - Tier 4 (Score 19 - 26): Cột nghiêng góc VÀ di chuyển lên xuống
-   * - Tier 5 (Score 27 - 35): Cột nghiêng trái rồi nghiêng phải liên tục
-   * - Tier 6 (Score 36+): Cột vừa nghiêng trái phải VỪA di chuyển lên xuống
+   * Spawns a pillar with:
+   * 1. Fair Smooth Height Progression (Giảm độ lệch quá xa giữa 2 cột liên tiếp):
+   *    - Tier 1-2: maxDeltaY = 90px (dễ chịu, người chơi làm quen nhịp)
+   *    - Tier 3-4: maxDeltaY = 135px (thử thách nhưng hoàn toàn lách được)
+   *    - Tier 5-7: maxDeltaY = 175px (cao độ vừa vặn với độ dốc nhảy của tàu)
+   * 2. Progressive Movement Tiers
    */
   spawn(score = 0) {
-    const gapY = this.minGapY + Math.random() * (this.maxGapY - this.minGapY);
     const tier = getTierFromScore(score);
     const theme = getThemeForScore(score);
+
+    // Calculate maximum allowable vertical shift from previous column
+    let maxDeltaY = 90;
+    if (tier >= 5) {
+      maxDeltaY = 175;
+    } else if (tier >= 3) {
+      maxDeltaY = 135;
+    }
+
+    const rawDelta = (Math.random() * 2 - 1) * maxDeltaY;
+    let gapY = this.lastPillarGapY + rawDelta;
+    // Keep safely inside screen bounds
+    gapY = Math.max(this.minGapY, Math.min(this.maxGapY, gapY));
+    this.lastPillarGapY = gapY;
 
     let oscAmp = 0;
     let oscFreq = 0;
@@ -228,33 +242,33 @@ export class LaserPillarManager {
     let angleFreq = 0;
     let gapH = this.gapHeight;
 
-    if (tier === 6) {
-      // Tier 6: Vừa lắc lư nghiêng trái phải VỪA di chuyển lên xuống
-      angleAmp = 0.09 + Math.random() * 0.04; // ±5.2° đến ±7.5°
-      angleFreq = 1.5 + Math.random() * 0.4;  // Tần số lắc mượt mà ~3.5s/chu kỳ
+    if (tier >= 6) {
+      // Tier 6-7: Vừa nghiêng lắc trái phải VỪA di chuyển dập dềnh
+      angleAmp = 0.08 + Math.random() * 0.03; // ±4.5° đến ±6.5°
+      angleFreq = 1.4 + Math.random() * 0.4;
       baseAngle = 0;
-      oscAmp = 26 + Math.random() * 14;      // 26px đến 40px
-      oscFreq = 1.2 + Math.random() * 0.5;   // 1.2 đến 1.7 rad/s
-      gapH = 150; // Corridor 150px đảm bảo fair-play và lách được
+      oscAmp = 22 + Math.random() * 12;      // 22px đến 34px
+      oscFreq = 1.2 + Math.random() * 0.4;
+      gapH = 152;
     } else if (tier === 5) {
-      // Tier 5: Các cột nghiêng trái rồi nghiêng phải liên tục (Swaying pendulum)
-      angleAmp = 0.10 + Math.random() * 0.04; // ±5.8° đến ±8.0°
-      angleFreq = 1.6 + Math.random() * 0.4;
+      // Tier 5: Nghiêng lắc trái rồi nghiêng phải (Swaying pendulum)
+      angleAmp = 0.09 + Math.random() * 0.03; // ±5.2° đến ±7.0°
+      angleFreq = 1.5 + Math.random() * 0.4;
       baseAngle = 0;
-      gapH = 146;
+      gapH = 148;
     } else if (tier === 4) {
-      // Tier 4: Nghiêng góc cố định + Dập dềnh lên xuống
-      baseAngle = (Math.random() < 0.5 ? -1 : 1) * (0.06 + Math.random() * 0.04);
-      oscAmp = 26 + Math.random() * 16;
-      oscFreq = 1.3 + Math.random() * 0.6;
-      gapH = 146;
+      // Tier 4: Nghiêng góc cố định + Dập dềnh nhẹ
+      baseAngle = (Math.random() < 0.5 ? -1 : 1) * (0.05 + Math.random() * 0.03);
+      oscAmp = 24 + Math.random() * 14;
+      oscFreq = 1.2 + Math.random() * 0.5;
+      gapH = 148;
     } else if (tier === 3) {
       // Tier 3: Nghiêng góc cố định
-      baseAngle = (Math.random() < 0.5 ? -1 : 1) * (0.07 + Math.random() * 0.05); // ±4° đến ±7°
+      baseAngle = (Math.random() < 0.5 ? -1 : 1) * (0.06 + Math.random() * 0.04);
     } else if (tier === 2) {
-      // Tier 2: Dập dềnh lên xuống
-      oscAmp = 32 + Math.random() * 16;   // 32px đến 48px
-      oscFreq = 1.4 + Math.random() * 0.6; // 1.4 đến 2.0 rad/s
+      // Tier 2: Dập dềnh lên xuống êm dịu
+      oscAmp = 28 + Math.random() * 14;
+      oscFreq = 1.3 + Math.random() * 0.5;
     }
 
     const pillar = new LaserPillar(this.gameWidth + 30, gapY, gapH, 52, {
@@ -292,7 +306,6 @@ export class LaserPillarManager {
     const theme = getThemeForScore(this.currentScore);
     const tier = getTierFromScore(this.currentScore);
 
-    // If fewer pillars available in front, spawn them dynamically so player sees and smashes them
     while (candidates.length < count) {
       let nextX;
       let nextGapY;
@@ -312,7 +325,6 @@ export class LaserPillarManager {
       candidates.sort((a, b) => a.x - b.x);
     }
 
-    // Destroy target pillars in order from nearest to furthest
     for (let i = 0; i < count; i++) {
       const p = candidates[i];
       p.isDestroyed = true;
@@ -320,9 +332,7 @@ export class LaserPillarManager {
       destroyed.push(p);
     }
 
-    // Give safe recovery window after smash
     this.spawnTimer = this.spawnInterval + (count >= 2 ? 0.9 : 0.4);
-
     return destroyed;
   }
 }

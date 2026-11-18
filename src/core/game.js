@@ -35,6 +35,7 @@ export class Game {
     this.ghosts = new GhostManager();
     this.currentTheme = getThemeForScore(0);
     this.starfield.setTheme(this.currentTheme);
+    if (this.audio && this.audio.setAmbientTheme) this.audio.setAmbientTheme(this.currentTheme.ambientSound || 'birds');
 
     // Active Perk Modifiers
     this.shieldActive = false;
@@ -192,7 +193,10 @@ export class Game {
     this.particles.reset();
     this.currentTheme = getThemeForScore(0);
     if (this.starfield) this.starfield.setTheme(this.currentTheme);
-    if (this.audio && this.audio.stopLaserProximity) this.audio.stopLaserProximity();
+    if (this.audio) {
+      if (this.audio.stopLaserProximity) this.audio.stopLaserProximity();
+      if (this.audio.stopAmbient) this.audio.stopAmbient();
+    }
     this.state = 'READY';
     this.timeSinceDeath = 0;
   }
@@ -204,6 +208,9 @@ export class Game {
     this.currentTheme = getThemeForScore(this.score);
     if (this.currentTheme.tier !== prevTier) {
       this.starfield.setTheme(this.currentTheme);
+      if (this.audio && this.audio.setAmbientTheme) {
+        this.audio.setAmbientTheme(this.currentTheme.ambientSound || 'wind');
+      }
       this.hud.triggerSmashEffects();
     }
     // Regular pillar gives +10% Overdrive (10 pillars cleared = 100% Smash ready)
@@ -345,6 +352,9 @@ export class Game {
   update(dt) {
     this.totalTime += dt;
     this.hud.update(dt);
+    if (this.audio && this.audio.updateAmbientTick) {
+      this.audio.updateAmbientTick(dt);
+    }
     this.particles.update(dt);
     this.starfield.update(dt, this.state === 'PLAYING' ? 1 : 0.2);
 
@@ -412,6 +422,9 @@ export class Game {
         this.runStartTime = performance.now();
         this.rocket.thrust();
         this.audio.playThrust();
+        if (this.audio.setAmbientTheme && this.currentTheme) {
+          this.audio.setAmbientTheme(this.currentTheme.ambientSound || 'birds');
+        }
         this.particles.emitThrust(this.rocket.x, this.rocket.y, this.rocket.rotation);
       }
     } else if (this.state === 'PLAYING') {
@@ -467,7 +480,7 @@ export class Game {
         this.particles.emitThrust(this.rocket.x, this.rocket.y, this.rocket.rotation);
 
         if (this.hasQuantumDrift && this.quantumCooldownTimer <= 0) {
-          this.quantumTimer = 0.8;
+          this.quantumTimer = 1.8;
           this.quantumCooldownTimer = this.quantumMaxCooldown;
           this.rocket.isQuantum = true;
           this.audio.playMedal();
@@ -545,7 +558,7 @@ export class Game {
             this.hud.triggerSmashEffects();
             this.particles.emitPillarSmash(collided.x + (collided.width || 52) / 2, collided.gapY || 350);
             this.audio.playSmash();
-            this.quantumTimer = 0.6;
+            this.quantumTimer = 1.2;
             this.rocket.isQuantum = true;
           } else {
             this._die();

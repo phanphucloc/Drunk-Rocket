@@ -41,13 +41,13 @@ export const PERK_CATALOG = [
     id: 'quantum_drift',
     name: 'Quantum Drift',
     icon: '🌌',
-    desc: 'Tàng hình xuyên cột khi tap (Hiệu lực: qua 1 cột)',
+    desc: 'Tàng hình xuyên cột 1.8s sau mỗi cú tap (Hiệu lực: qua 2 cột)',
     group: 'defense',
-    durationPillars: 1,
+    durationPillars: 2,
     apply: (game) => {
       game.hasQuantumDrift = true;
       game.quantumCooldownTimer = 0;
-      game.perkDurations.quantum_drift = 1;
+      game.perkDurations.quantum_drift = 2;
     },
     remove: (game) => {
       game.hasQuantumDrift = false;
