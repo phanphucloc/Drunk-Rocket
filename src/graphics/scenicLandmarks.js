@@ -2520,11 +2520,11 @@ export class ScenicLandmarksManager {
     const h = this.height;
     ctx.save();
 
-    // 1. Mặt cầu dầm thép ngang (Bridge Deck)
+    // 1. MẶT CẦU DẦM THÉP ĐÀ NẴNG (Bridge Deck)
     ctx.fillStyle = '#161c28';
     ctx.fillRect(0, bridgeY, w, 14);
 
-    // Lan can trên mặt cầu với các đốm đèn LED
+    // Lan can trên mặt cầu với các điểm đèn LED
     ctx.strokeStyle = '#38bdf8';
     ctx.lineWidth = 1.2;
     ctx.strokeRect(0, bridgeY - 4, w, 4);
@@ -2542,7 +2542,7 @@ export class ScenicLandmarksManager {
 
     // 2. THÂN RỒNG VÀNG LƯỢN SÓNG (Double Tubular Steel Arch)
     const tailX = w * 0.11;
-    const headX = w * 0.65;
+    const headX = w * 0.64;
     const headY = bridgeY - 38;
 
     // A. ĐUÔI RỒNG XÒE HOA SEN CÁCH ĐIỆU (Bờ Tây)
@@ -2624,380 +2624,398 @@ export class ScenicLandmarksManager {
     }
     ctx.restore();
 
-    // D. ĐẦU RỒNG THỜI LÝ CHUẨN XÁC THEO HÌNH MẪU & PHUN LỬA HOÀNH TRÁNG
+    // D. ĐẦU RỒNG THỜI LÝ VÀ LUỒNG LỬA HOÀNH TRÁNG BÁM SÁT MẪU REFERENCE
     this._drawCinematicDragonHead(ctx, headX, headY);
-
-    // E. Đầu rồng phụ bên bờ Đông
-    this._drawSecondaryDragonHead(ctx, w * 0.78, bridgeY + 4);
 
     ctx.restore();
   }
 
-  // ĐẦU RỒNG THỜI LÝ CHUẨN XÁC THEO HÌNH MẪU & PHUN LỬA ĐIỆN ẢNH
+  // ĐẦU RỒNG THỜI LÝ VÀ PHUN LỬA VECTOR 2D NGHỆ THUẬT CHUẨN XÁC THEO MẪU
   _drawCinematicDragonHead(ctx, headX, headY) {
     ctx.save();
     ctx.translate(headX, headY);
-    // Độ nghiêng đầu rồng hướng lên trời đón luồng lửa
-    ctx.rotate(-0.16);
+    // Độ nghiêng vươn cao đón luồng lửa
+    ctx.rotate(-0.33);
 
-    // 1. CỔ ỐNG KÉP NỐI VÀO ĐẦU RỒNG
+    // 1. CỔ ỐNG KÉP VỚI GAI VẢY DƯỚI BỤNG (Underside Scale Spines & Tubes)
     ctx.save();
-    ctx.lineWidth = 4.6;
+    ctx.fillStyle = '#d97706';
+    const spinePoints = [
+      { x: -58, y: 40 },
+      { x: -46, y: 35 },
+      { x: -34, y: 29 },
+      { x: -22, y: 22 },
+      { x: -10, y: 15 }
+    ];
+    spinePoints.forEach(sp => {
+      ctx.beginPath();
+      ctx.moveTo(sp.x + 5, sp.y - 2);
+      ctx.lineTo(sp.x - 8, sp.y + 11);
+      ctx.lineTo(sp.x - 2, sp.y - 4);
+      ctx.closePath();
+      ctx.fill();
+    });
+
+    // Ống dưới
     ctx.strokeStyle = '#d97706';
+    ctx.lineWidth = 8;
+    ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(-28, 22);
-    ctx.quadraticCurveTo(-18, 14, -6, 12);
+    ctx.moveTo(-65, 40);
+    ctx.quadraticCurveTo(-35, 25, -8, 16);
+    ctx.stroke();
+
+    ctx.strokeStyle = '#f59e0b';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(-65, 38);
+    ctx.quadraticCurveTo(-35, 23, -8, 14);
+    ctx.stroke();
+
+    // Ống trên
+    ctx.strokeStyle = '#b45309';
+    ctx.lineWidth = 8.5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-65, 25);
+    ctx.quadraticCurveTo(-35, 10, -8, 2);
     ctx.stroke();
 
     ctx.strokeStyle = '#ffb703';
+    ctx.lineWidth = 5.5;
     ctx.beginPath();
-    ctx.moveTo(-28, 14);
-    ctx.quadraticCurveTo(-18, 6, -6, 4);
+    ctx.moveTo(-65, 24);
+    ctx.quadraticCurveTo(-35, 9, -8, 1);
     ctx.stroke();
 
+    ctx.strokeStyle = '#fef08a';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(-63, 22);
+    ctx.quadraticCurveTo(-35, 7, -8, 0);
+    ctx.stroke();
+
+    // Khớp đai nối ống
     ctx.fillStyle = '#78350f';
-    ctx.fillRect(-22, 12, 3, 10);
-    ctx.fillRect(-14, 6, 3, 9);
+    [-50, -37, -24].forEach(rx => {
+      ctx.fillRect(rx - 1.5, rx * 0.28 + 21, 3.2, 12);
+    });
     ctx.restore();
 
-    // 2. SỪNG MÂY UỐN LƯỢN SAU GÁY (The Undulating Cloud Horn)
+    // 2. SỪNG MÂY UỐN LƯỢN SAU GÁY (The Undulating Cloud Horn With Round Bulb Curl)
     ctx.save();
-    ctx.fillStyle = '#f59e0b';
+    ctx.fillStyle = '#b45309';
     ctx.beginPath();
-    ctx.moveTo(-10, -14);
-    ctx.bezierCurveTo(-22, -26, -34, -24, -40, -18);
-    // Vòng cuộn tròn đặc trưng ở chóp sừng
-    ctx.arc(-36, -11, 7.0, -Math.PI * 0.7, Math.PI * 0.9, false);
-    ctx.quadraticCurveTo(-26, -2, -18, -6);
-    ctx.quadraticCurveTo(-12, -8, -6, -6);
+    ctx.moveTo(-6, -8);
+    ctx.bezierCurveTo(-18, -22, -34, -20, -44, -12);
+    ctx.bezierCurveTo(-50, -4, -46, 6, -36, 4);
+    ctx.bezierCurveTo(-28, 2, -30, -6, -38, -6);
+    ctx.bezierCurveTo(-41, -6, -42, -3, -40, -1);
+    ctx.bezierCurveTo(-38, 2, -43, 0, -41, -4);
+    ctx.bezierCurveTo(-38, -10, -28, -14, -16, -5);
     ctx.closePath();
     ctx.fill();
 
-    // Viền phản quang trên sống sừng
-    ctx.strokeStyle = '#fef08a';
-    ctx.lineWidth = 1.6;
+    ctx.fillStyle = '#f59e0b';
     ctx.beginPath();
-    ctx.moveTo(-8, -12);
-    ctx.quadraticCurveTo(-20, -22, -32, -20);
+    ctx.moveTo(-4, -9);
+    ctx.bezierCurveTo(-16, -23, -32, -21, -42, -13);
+    ctx.arc(-36, -7, 8, -Math.PI * 0.7, Math.PI * 0.9, false);
+    ctx.quadraticCurveTo(-23, 1, -12, -3);
+    ctx.closePath();
+    ctx.fill();
+
+    // Chấm lõi búp sừng mây
+    ctx.fillStyle = '#b45309';
+    ctx.beginPath();
+    ctx.arc(-36, -7, 3.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = '#fef08a';
+    ctx.lineWidth = 2.0;
+    ctx.beginPath();
+    ctx.moveTo(-2, -10);
+    ctx.bezierCurveTo(-15, -23, -30, -21, -38, -14);
     ctx.stroke();
     ctx.restore();
 
-    // 3. VÀNH BỜM RỰC LỬA 3 TẦNG (Layered Flaming Mane Tufts)
-    // Lớp tối phía sau (#b45309)
+    // 3. VÀNH BỜM RỒNG RỰC LỬA 3 TẦNG (Layered Flaming Mane Tufts)
+    // Tầng ngoài tối (#b45309)
     ctx.fillStyle = '#b45309';
-    const tuftsDark = [
-      { bx: -8, by: -12, tx: -28, ty: -16 },
-      { bx: -10, by: -4, tx: -34, ty: -6 },
-      { bx: -10, by: 4, tx: -32, ty: 4 },
-      { bx: -8, by: 12, tx: -28, ty: 14 },
-      { bx: -4, by: 18, tx: -22, ty: 24 },
-      { bx: 2, by: 22, tx: -12, ty: 30 },
-      { bx: 10, by: 24, tx: 0, ty: 32 }
+    const maneA = [
+      [-10, -14, -38, -18, 7.5],
+      [-13, -5,  -45, -7,  8],
+      [-13, 4,   -43, 6,   8],
+      [-11, 13,  -36, 17,  7.5],
+      [-7,  21,  -28, 27,  7],
+      [-1,  28,  -17, 36,  6.5],
+      [7,   32,  -5,  40,  6]
     ];
-    tuftsDark.forEach(t => {
+    maneA.forEach(([bx, by, tx, ty, w]) => {
       ctx.beginPath();
-      ctx.moveTo(t.bx - 3, t.by - 3);
-      ctx.quadraticCurveTo(t.tx * 0.6, t.ty * 0.7, t.tx, t.ty);
-      ctx.quadraticCurveTo(t.tx * 0.7 + 3, t.ty * 0.6 + 3, t.bx + 3, t.by + 3);
+      ctx.moveTo(bx - w * 0.5, by - w * 0.3);
+      ctx.quadraticCurveTo(tx * 0.6, ty * 0.7, tx, ty);
+      ctx.quadraticCurveTo(tx * 0.7 + w * 0.4, ty * 0.6 + w * 0.4, bx + w * 0.5, by + w * 0.3);
       ctx.closePath();
       ctx.fill();
     });
 
-    // Lớp vàng rực ở giữa (#f59e0b)
+    // Tầng giữa vàng kim (#f59e0b)
     ctx.fillStyle = '#f59e0b';
-    const tuftsMid = [
-      { bx: -4, by: -10, tx: -22, ty: -12 },
-      { bx: -6, by: -2, tx: -28, ty: -4 },
-      { bx: -6, by: 6, tx: -26, ty: 4 },
-      { bx: -4, by: 12, tx: -22, ty: 12 },
-      { bx: 0, by: 16, tx: -16, ty: 20 },
-      { bx: 6, by: 18, tx: -8, ty: 24 },
-      { bx: 14, by: 18, tx: 2, ty: 24 }
+    const maneB = [
+      [-6, -11, -30, -14, 6.5],
+      [-9, -3,  -36, -5,  7],
+      [-9, 6,   -34, 5,   7],
+      [-7, 14,  -28, 14,  6.5],
+      [-3, 21,  -20, 23,  6],
+      [3,  25,  -9,  29,  5.5],
+      [11, 28,   3,  32,  5]
     ];
-    tuftsMid.forEach(t => {
+    maneB.forEach(([bx, by, tx, ty, w]) => {
       ctx.beginPath();
-      ctx.moveTo(t.bx - 2.5, t.by - 2.5);
-      ctx.quadraticCurveTo(t.tx * 0.6, t.ty * 0.7, t.tx, t.ty);
-      ctx.quadraticCurveTo(t.tx * 0.7 + 2.5, t.ty * 0.6 + 2.5, t.bx + 2.5, t.by + 2.5);
+      ctx.moveTo(bx - w * 0.5, by - w * 0.3);
+      ctx.quadraticCurveTo(tx * 0.6, ty * 0.7, tx, ty);
+      ctx.quadraticCurveTo(tx * 0.7 + w * 0.4, ty * 0.6 + w * 0.4, bx + w * 0.5, by + w * 0.3);
       ctx.closePath();
       ctx.fill();
     });
 
-    // Lớp vàng tươi phía trước (#fde047)
+    // Tầng trước vàng tươi (#fde047)
     ctx.fillStyle = '#fde047';
-    const tuftsLight = [
-      { bx: 0, by: -6, tx: -16, ty: -8 },
-      { bx: -2, by: 2, tx: -18, ty: 0 },
-      { bx: -2, by: 8, tx: -16, ty: 6 },
-      { bx: 2, by: 14, tx: -10, ty: 14 },
-      { bx: 8, by: 16, tx: -2, ty: 16 }
+    const maneC = [
+      [-2, -9,  -22, -11, 5.5],
+      [-5, -1,  -26, -3,  6],
+      [-5, 7,   -24, 5,   6],
+      [-3, 15,  -18, 13,  5.5],
+      [1,  19,  -10, 20,  5],
+      [7,  22,   0,  24,  4.5]
     ];
-    tuftsLight.forEach(t => {
+    maneC.forEach(([bx, by, tx, ty, w]) => {
       ctx.beginPath();
-      ctx.moveTo(t.bx - 2, t.by - 2);
-      ctx.quadraticCurveTo(t.tx * 0.6, t.ty * 0.7, t.tx, t.ty);
-      ctx.quadraticCurveTo(t.tx * 0.7 + 2, t.ty * 0.6 + 2, t.bx + 2, t.by + 2);
+      ctx.moveTo(bx - w * 0.5, by - w * 0.3);
+      ctx.quadraticCurveTo(tx * 0.6, ty * 0.7, tx, ty);
+      ctx.quadraticCurveTo(tx * 0.7 + w * 0.4, ty * 0.6 + w * 0.4, bx + w * 0.5, by + w * 0.3);
       ctx.closePath();
       ctx.fill();
     });
 
-    // 4. KHỐI ĐẦU & MÕM RỒNG (Dragon Face, Snout & Mouth)
+    // 4. KHỐI ĐẦU, MÕM GỢN MÂY & HÀM GẦM PHUN LỬA
     ctx.fillStyle = '#ffb703';
     ctx.beginPath();
     ctx.moveTo(-6, 12);
-    ctx.lineTo(8, 10);
-    // Vùng trán rồng
-    ctx.quadraticCurveTo(12, -4, 18, -6);
-    // Sống mũi có 3 gờ mào mây lượn sóng
-    ctx.quadraticCurveTo(22, -14, 26, -12); // gờ 1
-    ctx.quadraticCurveTo(30, -15, 34, -10); // gờ 2
-    ctx.quadraticCurveTo(38, -14, 44, -6);  // đầu mũi bo tròn
-    // Mép hàm trên
-    ctx.quadraticCurveTo(45, 0, 38, 4);
-    // Khóe miệng sâu
-    ctx.lineTo(24, 6);
-    // Hàm dưới mở to
-    ctx.lineTo(32, 16);
-    ctx.quadraticCurveTo(34, 20, 28, 22);
-    // Vảy râu cằm
-    ctx.quadraticCurveTo(22, 26, 14, 18);
-    ctx.quadraticCurveTo(6, 14, -6, 14);
+    ctx.lineTo(6, 10);
+    ctx.lineTo(12, 1);
+    ctx.quadraticCurveTo(14, -7, 18, -9);
+    // 3 gờ mào mây lượn sóng trên sống mũi
+    ctx.quadraticCurveTo(21, -17, 26, -15);
+    ctx.quadraticCurveTo(30, -18, 35, -13);
+    ctx.quadraticCurveTo(39, -17, 46, -9); // Mũi bo tròn
+    ctx.quadraticCurveTo(48, -3, 43, 2);
+    ctx.lineTo(26, 4);
+    ctx.lineTo(24, 7);
+    ctx.lineTo(34, 15);
+    ctx.quadraticCurveTo(36, 19, 30, 21);
+    ctx.quadraticCurveTo(24, 26, 18, 19);
+    ctx.quadraticCurveTo(10, 15, -6, 12);
     ctx.closePath();
     ctx.fill();
 
-    // Khoang miệng tối
-    ctx.fillStyle = '#4a1505';
+    // Hốc miệng tối màu hạt dẻ
+    ctx.fillStyle = '#3b0704';
     ctx.beginPath();
-    ctx.moveTo(38, 4);
-    ctx.lineTo(24, 6);
-    ctx.lineTo(32, 16);
-    ctx.quadraticCurveTo(35, 10, 38, 4);
+    ctx.moveTo(43, 2);
+    ctx.lineTo(26, 4);
+    ctx.lineTo(24, 7);
+    ctx.lineTo(34, 15);
+    ctx.quadraticCurveTo(39, 8, 43, 2);
     ctx.closePath();
     ctx.fill();
 
-    // Viền sống mũi
+    // Răng nanh trắng sắc nhọn
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(42, 1);
+    ctx.lineTo(41, 6.5);
+    ctx.lineTo(38, 2.5);
+    ctx.lineTo(36, 6.5);
+    ctx.lineTo(33, 3.2);
+    ctx.lineTo(28, 4);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(33, 14);
+    ctx.lineTo(32, 9.5);
+    ctx.lineTo(29, 13);
+    ctx.closePath();
+    ctx.fill();
+
+    // Viền sống mũi sáng
     ctx.strokeStyle = '#fef08a';
-    ctx.lineWidth = 1.4;
+    ctx.lineWidth = 1.8;
     ctx.beginPath();
-    ctx.moveTo(18, -6);
-    ctx.quadraticCurveTo(22, -14, 26, -12);
-    ctx.quadraticCurveTo(30, -15, 34, -10);
-    ctx.quadraticCurveTo(38, -14, 44, -6);
+    ctx.moveTo(18, -9);
+    ctx.quadraticCurveTo(21, -17, 26, -15);
+    ctx.quadraticCurveTo(30, -18, 35, -13);
+    ctx.quadraticCurveTo(39, -17, 46, -9);
     ctx.stroke();
 
-    // Răng nanh trắng
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.moveTo(35, 4);
-    ctx.lineTo(37, 9);
-    ctx.lineTo(39, 5);
-    ctx.closePath();
-    ctx.fill();
+    // 5. MẮT RỒNG ĐÈN PHA OVAL PHÁT SÁNG NGHIÊNG THEO ĐẦU
+    ctx.save();
+    ctx.translate(18, -3.5);
+    ctx.rotate(0.24);
 
-    // 5. MẮT RỒNG ĐÈN PHA TRÒN TRẮNG RỰC SÁNG
-    const eyeX = 16;
-    const eyeY = -2;
-    const eyeR = 4.8;
-
-    ctx.fillStyle = '#b45309';
+    ctx.fillStyle = '#92400e';
     ctx.beginPath();
-    ctx.arc(eyeX, eyeY, eyeR + 1.2, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, 6.5, 5.2, 0, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.fillStyle = '#ffffff';
+    ctx.shadowColor = '#fef08a';
+    ctx.shadowBlur = 9;
     ctx.beginPath();
-    ctx.arc(eyeX, eyeY, eyeR, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, 5.0, 3.9, 0, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
 
-    // 6. LUỒNG LỬA PHUN BỐC CAO (The Great Flame Plume)
-    this._drawCinematicFlamePlume(ctx, 34, 7);
+    // 6. LUỒNG LỬA VECTOR 2D NGHỆ THUẬT PHUN BỐC CAO
+    this._drawCinematicFlamePlume(ctx, 39, 5);
 
     ctx.restore();
   }
 
-  // LUỒNG LỬA PHUN ĐIỆN ẢNH CHUẨN THEO HÌNH MẪU
+  // LUỒNG LỬA PHUN VECTOR 2D CHUẨN XÁC THEO MẪU REFERENCE
   _drawCinematicFlamePlume(ctx, mx, my) {
     ctx.save();
 
-    const t = this.animTimer;
-    const fPulse = Math.sin(t * 12) * 4.0;
-    const fWave1 = Math.cos(t * 9) * 3.5;
-    const fWave2 = Math.sin(t * 14 + 1) * 4.0;
+    const t = this.animTimer || 0;
+    const fWave = Math.sin(t * 8) * 1.5;
 
-    // A. Vòi lửa trắng-vàng phụt mạnh từ trong họng rồng
-    ctx.save();
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.moveTo(mx - 4, my - 3);
-    ctx.lineTo(mx + 20, my - 10 + fWave1 * 0.3);
-    ctx.lineTo(mx + 26, my - 2);
-    ctx.lineTo(mx + 18, my + 6 + fWave2 * 0.3);
-    ctx.lineTo(mx - 4, my + 3);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-
-    // B. KHỐI MÂY LỬA PHỒNG CUỒN CUỘN
-    // 1. Lớp vỏ ngoài đỏ cam (#ea580c / #dc2626)
+    // 1. LỚP VỎ LỬA ĐỎ CAM NGOÀI CÙNG VỚI CÁC ĐẦU LƯỠI LỬA SẮC BÉN
     ctx.save();
     ctx.shadowColor = '#ea580c';
     ctx.shadowBlur = 14;
+    ctx.fillStyle = '#ea580c';
+
+    ctx.beginPath();
+    ctx.moveTo(mx, my);
+    ctx.quadraticCurveTo(mx + 20, my + 6, mx + 42, my + 10);
+    ctx.quadraticCurveTo(mx + 68, my + 16, mx + 94, my + 11);
+    ctx.quadraticCurveTo(mx + 118, my + 5, mx + 128, my - 13);
+    ctx.quadraticCurveTo(mx + 135, my - 30, mx + 120, my - 46 + fWave);
+    // Các đỉnh lưỡi lửa cuộn cao phía trên
+    ctx.quadraticCurveTo(mx + 112, my - 42, mx + 104, my - 53);
+    ctx.quadraticCurveTo(mx + 92, my - 46, mx + 82, my - 56);
+    ctx.quadraticCurveTo(mx + 70, my - 48, mx + 57, my - 52);
+    ctx.quadraticCurveTo(mx + 46, my - 42, mx + 36, my - 44);
+    ctx.quadraticCurveTo(mx + 25, my - 25, mx + 12, my - 10);
+    ctx.quadraticCurveTo(mx + 4, my - 4, mx, my);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    // Chóp lửa đỏ thắm trên các ngọn cao nhất
     ctx.fillStyle = '#dc2626';
-
-    ctx.beginPath();
-    ctx.moveTo(mx + 8, my - 4);
-    ctx.quadraticCurveTo(mx + 18, my - 16, mx + 32, my - 20);
-    ctx.quadraticCurveTo(mx + 46, my - 36 + fWave1, mx + 70, my - 34); // Đỉnh vòm lửa cao nhất
-    ctx.quadraticCurveTo(mx + 92, my - 28, mx + 102, my - 10);
-    ctx.quadraticCurveTo(mx + 106 + fPulse, my + 10, mx + 88, my + 20);
-    ctx.quadraticCurveTo(mx + 68, my + 26, mx + 50, my + 20);
-    ctx.quadraticCurveTo(mx + 30, my + 16, mx + 16, my + 8);
-    ctx.closePath();
-    ctx.fill();
-
-    // Các khối mây lửa phồng tròn trên viền
-    const outerBlobs = [
-      { x: mx + 34, y: my - 18, r: 12 },
-      { x: mx + 54, y: my - 28, r: 16 },
-      { x: mx + 76, y: my - 24, r: 18 },
-      { x: mx + 94, y: my - 10, r: 16 },
-      { x: mx + 88, y: my + 10, r: 16 },
-      { x: mx + 68, y: my + 18, r: 15 },
-      { x: mx + 46, y: my + 14, r: 13 },
-      { x: mx + 26, y: my + 8, r: 10 }
+    const redTips = [
+      [mx + 102, my - 53, mx + 106, my - 56, mx + 97, my - 45],
+      [mx + 80,  my - 56, mx + 84,  my - 59, mx + 75, my - 48],
+      [mx + 56,  my - 52, mx + 59,  my - 55, mx + 50, my - 44],
+      [mx + 122, my - 46, mx + 128, my - 48, mx + 116, my - 36],
+      [mx + 127, my - 13, mx + 131, my - 11, mx + 119, my - 3]
     ];
-    outerBlobs.forEach(b => {
+    redTips.forEach(([x1, y1, x2, y2, x3, y3]) => {
       ctx.beginPath();
-      ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
-      ctx.fill();
-    });
-    ctx.restore();
-
-    // 2. Lớp thân vàng cam ở giữa (#f59e0b)
-    ctx.save();
-    ctx.fillStyle = '#f59e0b';
-    ctx.beginPath();
-    ctx.moveTo(mx + 8, my - 3);
-    ctx.quadraticCurveTo(mx + 18, my - 12, mx + 30, my - 14);
-    ctx.quadraticCurveTo(mx + 42, my - 24, mx + 62, my - 22);
-    ctx.quadraticCurveTo(mx + 80, my - 18, mx + 86, my - 6);
-    ctx.quadraticCurveTo(mx + 90, my + 6, mx + 76, my + 14);
-    ctx.quadraticCurveTo(mx + 58, my + 18, mx + 44, my + 14);
-    ctx.quadraticCurveTo(mx + 28, my + 12, mx + 14, my + 6);
-    ctx.closePath();
-    ctx.fill();
-
-    const midBlobs = [
-      { x: mx + 28, y: my - 12, r: 9 },
-      { x: mx + 46, y: my - 18, r: 13 },
-      { x: mx + 66, y: my - 14, r: 14 },
-      { x: mx + 78, y: my - 2, r: 13 },
-      { x: mx + 70, y: my + 8, r: 12 },
-      { x: mx + 52, y: my + 12, r: 12 },
-      { x: mx + 34, y: my + 8, r: 9 }
-    ];
-    midBlobs.forEach(b => {
-      ctx.beginPath();
-      ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
-      ctx.fill();
-    });
-    ctx.restore();
-
-    // 3. Lớp lõi vàng kem & trắng sáng (#fde047 / #ffffff)
-    ctx.fillStyle = '#fde047';
-    ctx.beginPath();
-    ctx.arc(mx + 20, my - 2, 8, 0, Math.PI * 2);
-    ctx.arc(mx + 38, my - 4, 12, 0, Math.PI * 2);
-    ctx.arc(mx + 56, my - 2, 11, 0, Math.PI * 2);
-    ctx.arc(mx + 68, my + 2, 8, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.arc(mx + 16, my - 1, 5, 0, Math.PI * 2);
-    ctx.arc(mx + 32, my - 3, 8, 0, Math.PI * 2);
-    ctx.arc(mx + 46, my - 2, 7, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 4. Các mảnh tàn lửa hình cánh hoa & tia lửa bay tỏa ra
-    const sparks = [
-      { x: mx + 20, y: my - 22 + fWave1, s: 4, rot: 0.6, c: '#fef08a' },
-      { x: mx + 38, y: my - 34 + fWave2, s: 5, rot: 0.4, c: '#f59e0b' },
-      { x: mx + 62, y: my - 42 + fPulse, s: 6, rot: 0.2, c: '#ea580c' },
-      { x: mx + 84, y: my - 36 + fWave1, s: 5, rot: -0.1, c: '#f59e0b' },
-      { x: mx + 104, y: my - 24 + fWave2, s: 4, rot: -0.3, c: '#fef08a' },
-      { x: mx + 24, y: my + 18 - fWave1, s: 4, rot: -0.5, c: '#fef08a' },
-      { x: mx + 48, y: my + 26 - fWave2, s: 5, rot: -0.2, c: '#f59e0b' },
-      { x: mx + 74, y: my + 28 - fPulse, s: 6, rot: 0.2, c: '#ea580c' },
-      { x: mx + 96, y: my + 20 - fWave1, s: 4, rot: 0.4, c: '#f59e0b' },
-      { x: mx + 112, y: my - 6 + fPulse, s: 5, rot: 0.1, c: '#ffffff' },
-      { x: mx + 122, y: my + 4 + fWave1, s: 4, rot: -0.2, c: '#fde047' },
-      { x: mx + 130, y: my + 14 + fWave2, s: 5, rot: -0.4, c: '#ea580c' }
-    ];
-
-    sparks.forEach(sp => {
-      ctx.save();
-      ctx.translate(sp.x, sp.y);
-      ctx.rotate(sp.rot);
-      ctx.fillStyle = sp.c;
-      ctx.beginPath();
-      ctx.moveTo(0, -sp.s * 0.5);
-      ctx.quadraticCurveTo(sp.s * 0.4, 0, 0, sp.s * 0.5);
-      ctx.quadraticCurveTo(-sp.s * 0.4, 0, 0, -sp.s * 0.5);
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.lineTo(x3, y3);
       ctx.closePath();
       ctx.fill();
-      ctx.restore();
     });
 
-    ctx.restore();
-  }
-
-  // ĐẦU RỒNG PHỤ BÊN BỜ ĐÔNG (Góc phải dưới)
-  _drawSecondaryDragonHead(ctx, x, y) {
-    ctx.save();
-    ctx.translate(x, y);
-
-    // Bờm rồng phụ phía sau
-    ctx.fillStyle = '#d97706';
+    // 2. THÂN LỬA VÀNG CAM RỰC RỠ (#f59e0b)
+    ctx.fillStyle = '#f59e0b';
     ctx.beginPath();
-    ctx.moveTo(-8, 8);
-    ctx.lineTo(-20, 2);
-    ctx.lineTo(-14, -6);
-    ctx.lineTo(-24, -14);
-    ctx.lineTo(-10, -18);
-    ctx.lineTo(2, -12);
+    ctx.moveTo(mx + 2, my - 1);
+    ctx.quadraticCurveTo(mx + 22, my + 4, mx + 44, my + 6);
+    ctx.quadraticCurveTo(mx + 70, my + 10, mx + 95, my + 4);
+    ctx.quadraticCurveTo(mx + 116, my - 4, mx + 120, my - 23);
+    ctx.quadraticCurveTo(mx + 122, my - 38, mx + 110, my - 42);
+    ctx.quadraticCurveTo(mx + 100, my - 36, mx + 90, my - 46);
+    ctx.quadraticCurveTo(mx + 80, my - 40, mx + 70, my - 44);
+    ctx.quadraticCurveTo(mx + 54, my - 38, mx + 44, my - 36);
+    ctx.quadraticCurveTo(mx + 27, my - 19, mx + 13, my - 6);
     ctx.closePath();
     ctx.fill();
 
-    // Thân đầu rồng phụ thời Lý
-    ctx.fillStyle = '#ffb703';
+    // 3. LÕI LỬA VÀNG CHANH TƯƠI SÁNG (#fde047)
+    ctx.fillStyle = '#fde047';
     ctx.beginPath();
-    ctx.moveTo(-6, 10);
-    ctx.lineTo(6, 6);
-    ctx.lineTo(16, -2);
-    ctx.quadraticCurveTo(24, -6, 28, -3);
-    ctx.quadraticCurveTo(32, -8, 34, -2);
-    ctx.lineTo(26, 6);
-    ctx.lineTo(14, 8);
-    ctx.lineTo(22, 14);
-    ctx.lineTo(12, 18);
-    ctx.lineTo(-6, 14);
+    ctx.moveTo(mx + 2, my);
+    ctx.quadraticCurveTo(mx + 19, my + 2, mx + 38, my + 2);
+    ctx.quadraticCurveTo(mx + 58, my + 4, mx + 80, my - 2);
+    ctx.quadraticCurveTo(mx + 98, my - 10, mx + 100, my - 25);
+    ctx.quadraticCurveTo(mx + 98, my - 34, mx + 86, my - 34);
+    ctx.quadraticCurveTo(mx + 76, my - 30, mx + 66, my - 36);
+    ctx.quadraticCurveTo(mx + 50, my - 30, mx + 40, my - 26);
+    ctx.quadraticCurveTo(mx + 21, my - 13, mx + 9, my - 4);
     ctx.closePath();
     ctx.fill();
 
-    // Mắt rồng phụ
+    // 4. TIA LỬA TRẮNG NÓNG PHUN TỪ CUỐNG HỌNG (#ffffff)
     ctx.fillStyle = '#ffffff';
+    ctx.shadowColor = '#ffffff';
+    ctx.shadowBlur = 10;
     ctx.beginPath();
-    ctx.arc(14, -1, 3.2, 0, Math.PI * 2);
+    ctx.moveTo(mx - 2, my);
+    ctx.lineTo(mx + 17, my - 4);
+    ctx.quadraticCurveTo(mx + 32, my - 6, mx + 48, my - 10);
+    ctx.quadraticCurveTo(mx + 63, my - 14, mx + 71, my - 18);
+    ctx.quadraticCurveTo(mx + 56, my - 21, mx + 42, my - 19);
+    ctx.quadraticCurveTo(mx + 25, my - 13, mx + 13, my - 5);
+    ctx.lineTo(mx - 2, my - 1);
+    ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = '#f59e0b';
-    ctx.lineWidth = 0.8;
-    ctx.stroke();
 
+    // Khối phát sáng trắng thứ hai trong bụng lửa
+    ctx.beginPath();
+    ctx.ellipse(mx + 50, my - 14, 15, 7.5, -0.25, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // 5. TÀN LỬA VÀ TIA LỬA HÌNH VỆT BAY TẢN MÁC
+    ctx.save();
+    ctx.fillStyle = '#fef08a';
+    const embers = [
+      [mx + 23, my - 28, 6.5, 2.2, -0.6],
+      [mx + 39, my - 40, 7.5, 2.2, -0.7],
+      [mx + 60, my - 54, 9.5, 2.4, -0.5],
+      [mx + 80, my - 64, 8.5, 2.4, -0.4],
+      [mx + 98, my - 60, 6.5, 2.2, -0.2],
+      [mx + 118, my - 54, 5.5, 2.2, 0.2],
+      [mx + 133, my - 40, 6.5, 2.6, 0.4],
+      [mx + 139, my - 22, 8.5, 2.6, 0.6],
+      [mx + 135, my - 3,  7.5, 2.4, 0.7],
+      [mx + 122, my + 13, 6.5, 2.2, 0.8],
+      // Đốm lửa nhỏ bay xa
+      [mx + 52, my - 61, 3.8, 3.8, 0],
+      [mx + 72, my - 71, 4.2, 4.2, 0],
+      [mx + 90, my - 73, 3.5, 3.5, 0],
+      [mx + 111, my - 69, 3.8, 3.8, 0],
+      [mx + 131, my - 59, 4.2, 4.2, 0],
+      [mx + 147, my - 36, 4.8, 4.8, 0],
+      [mx + 151, my - 14, 4.2, 4.2, 0],
+      [mx + 141, my + 9, 3.8, 3.8, 0]
+    ];
+    embers.forEach(([ex, ey, ew, eh, er]) => {
+      ctx.save();
+      ctx.translate(ex, ey);
+      ctx.rotate(er);
+      ctx.fillRect(-ew * 0.5, -eh * 0.5, ew, eh);
+      ctx.restore();
+    });
     ctx.restore();
   }
 
-    // PHẢN CHIẾU ÁNH VÀNG KIM THÂN RỒNG & ÁNH LỬA CUỒN CUỘN TRÊN SÔNG HÀN
   _drawDragonWaterReflections(ctx, bridgeY) {
     const w = this.width;
     const h = this.height;
