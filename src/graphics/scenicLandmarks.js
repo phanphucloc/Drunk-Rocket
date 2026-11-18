@@ -144,145 +144,448 @@ export class ScenicLandmarksManager {
 
   // ==========================================
   // PANEL 1: SA PA (Fansipan, Cáp treo, Ruộng bậc thang)
+  
+  // ==========================================
+  // PANEL 1: SA PA (Bản nâng cấp chuẩn Vector 2D Art)
   // ==========================================
   _drawSapa(ctx) {
     ctx.save();
+    const w = this.width;
+    const h = this.height;
 
-    // 1. Sky Gradient
-    const sky = ctx.createLinearGradient(0, 0, 0, this.height * 0.55);
-    sky.addColorStop(0, '#718f9e');
-    sky.addColorStop(0.6, '#a4c0cf');
-    sky.addColorStop(1, '#d0dfe7');
+    // 1. Bầu trời (Sky Gradient)
+    const sky = ctx.createLinearGradient(0, 0, 0, h * 0.55);
+    sky.addColorStop(0, '#6a8596');
+    sky.addColorStop(0.5, '#9ab4c4');
+    sky.addColorStop(1, '#d4e3ec');
     ctx.fillStyle = sky;
-    ctx.fillRect(0, 0, this.width, this.height * 0.55);
+    ctx.fillRect(0, 0, w, h * 0.55);
 
-    // 2. Far Mountain Peaks & Fansipan
-    ctx.fillStyle = '#657f91';
+    // 2. Lớp mây nền phía xa
+    this._drawSoftClouds(ctx, h * 0.28, 0.35, 4);
+
+    // 3. Đỉnh Fansipan Hùng Vĩ (Bên phải)
+    const peakX = w * 0.72;
+    const peakY = h * 0.255;
+
+    // Thân núi chính
+    ctx.fillStyle = '#5c7285';
     ctx.beginPath();
-    ctx.moveTo(0, 220);
-    ctx.lineTo(80, 120);
-    ctx.lineTo(170, 75); // Fansipan Summit
-    ctx.lineTo(260, 140);
-    ctx.lineTo(340, 110);
-    ctx.lineTo(this.width, 180);
-    ctx.lineTo(this.width, 360);
-    ctx.lineTo(0, 360);
+    ctx.moveTo(w * 0.25, h * 0.48);
+    ctx.lineTo(w * 0.52, h * 0.35);
+    ctx.lineTo(peakX, peakY);
+    ctx.lineTo(w * 0.88, h * 0.34);
+    ctx.lineTo(w, h * 0.40);
+    ctx.lineTo(w, h * 0.52);
+    ctx.lineTo(w * 0.25, h * 0.52);
+    ctx.closePath();
     ctx.fill();
 
-    // Fansipan Snowy Peak & Red Flag
-    ctx.fillStyle = '#e8f1f5';
+    // Mảng tối tạo khối 3D cho sườn núi phải
+    ctx.fillStyle = '#4b5f70';
     ctx.beginPath();
-    ctx.moveTo(150, 95);
-    ctx.lineTo(170, 75);
-    ctx.lineTo(190, 100);
+    ctx.moveTo(peakX, peakY);
+    ctx.lineTo(w * 0.76, h * 0.35);
+    ctx.lineTo(w * 0.69, h * 0.42);
+    ctx.lineTo(w * 0.85, h * 0.48);
+    ctx.lineTo(w, h * 0.40);
+    ctx.lineTo(w * 0.88, h * 0.34);
+    ctx.closePath();
     ctx.fill();
 
-    // Vietnam Flag on Fansipan
-    ctx.strokeStyle = '#222';
+    // Tuyết phủ trên đỉnh Fansipan (Răng cưa tự nhiên)
+    ctx.fillStyle = '#eef5f9';
+    ctx.beginPath();
+    ctx.moveTo(peakX, peakY);
+    ctx.lineTo(peakX - 36, peakY + 26);
+    ctx.lineTo(peakX - 22, peakY + 22);
+    ctx.lineTo(peakX - 12, peakY + 33);
+    ctx.lineTo(peakX, peakY + 23);
+    ctx.lineTo(peakX + 14, peakY + 34);
+    ctx.lineTo(peakX + 22, peakY + 25);
+    ctx.lineTo(peakX + 35, peakY + 28);
+    ctx.closePath();
+    ctx.fill();
+
+    // Bóng đổ trên tuyết (Bên phải)
+    ctx.fillStyle = '#cad8e2';
+    ctx.beginPath();
+    ctx.moveTo(peakX, peakY);
+    ctx.lineTo(peakX, peakY + 23);
+    ctx.lineTo(peakX + 14, peakY + 34);
+    ctx.lineTo(peakX + 22, peakY + 25);
+    ctx.lineTo(peakX + 35, peakY + 28);
+    ctx.closePath();
+    ctx.fill();
+
+    // 4. Lá cờ Việt Nam tung bay trên đỉnh Fansipan
+    ctx.strokeStyle = '#2b3540';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(peakX, peakY);
+    ctx.lineTo(peakX, peakY - 22);
+    ctx.stroke();
+
+    const flagWave = Math.sin(this.animTimer * 5) * 2.5;
+    ctx.fillStyle = '#da251d';
+    ctx.beginPath();
+    ctx.moveTo(peakX, peakY - 22);
+    ctx.quadraticCurveTo(peakX + 9, peakY - 24 + flagWave, peakX + 18, peakY - 21 + flagWave * 0.5);
+    ctx.lineTo(peakX + 18, peakY - 10 + flagWave * 0.5);
+    ctx.quadraticCurveTo(peakX + 9, peakY - 13 + flagWave, peakX, peakY - 10);
+    ctx.closePath();
+    ctx.fill();
+
+    // Ngôi sao vàng 5 cánh
+    this._drawStar(ctx, peakX + 9, peakY - 16 + flagWave * 0.6, 3.2, '#ffbe0b');
+
+    // 5. Dãy núi đá sắc nhọn tiền cảnh (Bên trái & giữa)
+    ctx.fillStyle = '#3d4f60';
+    ctx.beginPath();
+    ctx.moveTo(0, h * 0.43);
+    ctx.lineTo(w * 0.14, h * 0.38);
+    ctx.lineTo(w * 0.23, h * 0.41);
+    ctx.lineTo(w * 0.36, h * 0.34); // Đỉnh nhọn
+    ctx.lineTo(w * 0.48, h * 0.41);
+    ctx.lineTo(w * 0.58, h * 0.37);
+    ctx.lineTo(w * 0.70, h * 0.45);
+    ctx.lineTo(w * 0.83, h * 0.37);
+    ctx.lineTo(w, h * 0.43);
+    ctx.lineTo(w, h * 0.56);
+    ctx.lineTo(0, h * 0.56);
+    ctx.closePath();
+    ctx.fill();
+
+    // Đổ bóng vách đá núi tiền cảnh
+    ctx.fillStyle = '#2f3e4d';
+    ctx.beginPath();
+    ctx.moveTo(w * 0.36, h * 0.34);
+    ctx.lineTo(w * 0.41, h * 0.45);
+    ctx.lineTo(w * 0.48, h * 0.41);
+    ctx.closePath();
+    ctx.fill();
+
+    // 6. Biển mây mù giăng ngang thung lũng (Hiệu ứng trôi bồng bềnh)
+    this._drawValleyMist(ctx, h * 0.46, 'rgba(222, 233, 240, 0.55)', 0.7);
+    this._drawValleyMist(ctx, h * 0.53, 'rgba(232, 241, 246, 0.78)', -0.5);
+
+    // 7. Hệ thống Cáp Treo Fansipan (2 dây cáp song song & Cabin chi tiết)
+    const cStartY1 = h * 0.255, cEndY1 = h * 0.365;
+    const cStartY2 = h * 0.263, cEndY2 = h * 0.373;
+
+    ctx.strokeStyle = 'rgba(35, 48, 60, 0.7)';
     ctx.lineWidth = 1.2;
     ctx.beginPath();
-    ctx.moveTo(170, 75);
-    ctx.lineTo(170, 60);
-    ctx.stroke();
-    ctx.fillStyle = '#da251d';
-    ctx.fillRect(170, 60, 9, 6);
-    ctx.fillStyle = '#ff0';
-    ctx.fillRect(173, 62, 3, 2);
-
-    // Mid mountain range
-    ctx.fillStyle = '#4e6576';
-    ctx.beginPath();
-    ctx.moveTo(0, 260);
-    ctx.lineTo(90, 200);
-    ctx.lineTo(190, 230);
-    ctx.lineTo(300, 175);
-    ctx.lineTo(this.width, 240);
-    ctx.lineTo(this.width, 420);
-    ctx.lineTo(0, 420);
-    ctx.fill();
-
-    // Cable car cables
-    ctx.strokeStyle = 'rgba(40, 55, 70, 0.65)';
-    ctx.lineWidth = 1.0;
-    ctx.beginPath();
-    ctx.moveTo(0, 140);
-    ctx.lineTo(this.width, 260);
-    ctx.moveTo(0, 160);
-    ctx.lineTo(this.width, 280);
+    ctx.moveTo(0, cStartY1);
+    ctx.lineTo(w, cEndY1);
+    ctx.moveTo(0, cStartY2);
+    ctx.lineTo(w, cEndY2);
     ctx.stroke();
 
-    // Sliding Cable Cars
     const cabins = [
-      { color: '#e63946', offset: 0.18 },
-      { color: '#ffd13b', offset: 0.48 },
-      { color: '#ff6b35', offset: 0.82 }
+      { bodyCol: '#f5a623', bottomCol: '#d98200', offset: 0.22, wire: 1 },
+      { bodyCol: '#38a3a5', bottomCol: '#22577a', offset: 0.38, wire: 2 },
+      { bodyCol: '#c94a6a', bottomCol: '#8c2d46', offset: 0.68, wire: 2 }
     ];
+
     cabins.forEach(c => {
       const p = (this.cableCarPhase + c.offset) % 1.0;
-      const cx = p * this.width;
-      const cy = 140 + p * 120;
-      // Arm
-      ctx.strokeStyle = '#333';
-      ctx.lineWidth = 1.0;
-      ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.lineTo(cx, cy + 8);
-      ctx.stroke();
-      // Cabin
-      ctx.fillStyle = c.color;
-      ctx.fillRect(cx - 5, cy + 8, 10, 8);
-      // Window
-      ctx.fillStyle = '#d0f4ff';
-      ctx.fillRect(cx - 3, cy + 10, 6, 3);
+      const cx = p * w;
+      const cy = (c.wire === 1 ? cStartY1 : cStartY2) + p * (cEndY1 - cStartY1);
+      this._drawDetailedCabin(ctx, cx, cy, c.bodyCol, c.bottomCol);
     });
 
-    // 3. Ruộng bậc thang (Grand Terraced Rice Fields flowing down)
-    const terraces = [
-      { y: 310, col: '#8ec03f', h: 35 },
-      { y: 340, col: '#7ca938', h: 42 },
-      { y: 375, col: '#e5c138', h: 46 }, // Golden ripe harvest
-      { y: 415, col: '#d4aa28', h: 52 },
-      { y: 460, col: '#82b534', h: 58 },
-      { y: 510, col: '#6d9c28', h: 65 },
-      { y: 565, col: '#ffd13b', h: 75 },
-      { y: 630, col: '#50751b', h: 80 }
+    // 8. RUỘNG BẬC THANG MÙ CANG CHẢI (Chia 2 sườn đồi giao nhau, có độ dày thành ruộng 3D)
+    // Sườn đồi bên phải (Xếp lớp từ trên xuống)
+    const rightTerraces = [
+      { y: h * 0.57, rx: w * 0.52, rw: w * 0.55, rh: 24, top: '#a7c947', side: '#657a24' },
+      { y: h * 0.59, rx: w * 0.46, rw: w * 0.60, rh: 28, top: '#bad44b', side: '#738926' },
+      { y: h * 0.61, rx: w * 0.40, rw: w * 0.65, rh: 32, top: '#d6cf46', side: '#897d22' },
+      { y: h * 0.64, rx: w * 0.35, rw: w * 0.70, rh: 36, top: '#b8cc43', side: '#6b7b21' },
+      { y: h * 0.67, rx: w * 0.30, rw: w * 0.75, rh: 40, top: '#e2be36', side: '#94741b' }
     ];
-
-    terraces.forEach((t, i) => {
-      ctx.fillStyle = t.col;
-      ctx.beginPath();
-      const wave = Math.sin(i * 1.1) * 22;
-      ctx.moveTo(0, t.y + wave);
-      ctx.bezierCurveTo(this.width * 0.35, t.y - 14 + wave, this.width * 0.7, t.y + 20 - wave, this.width, t.y + wave);
-      ctx.lineTo(this.width, this.height);
-      ctx.lineTo(0, this.height);
-      ctx.fill();
-
-      // Terrace ridge lip
-      ctx.strokeStyle = '#42331c';
-      ctx.lineWidth = 1.8;
-      ctx.stroke();
+    rightTerraces.forEach(t => {
+      this._drawTerraceStep(ctx, t.rx, t.y, t.rw, t.rh, t.top, t.side, false);
     });
 
-    // Mountain rock outcroppings & wildflowers
-    ctx.fillStyle = '#444d56';
-    ctx.beginPath();
-    ctx.ellipse(350, 480, 45, 25, 0.2, 0, Math.PI * 2);
-    ctx.fill();
+    // Sườn đồi bên trái (Uốn lượn đè lên sườn phải)
+    const leftTerraces = [
+      { y: h * 0.59, lx: -w * 0.05, lw: w * 0.45, lh: 26, top: '#9ec242', side: '#5f7822' },
+      { y: h * 0.62, lx: -w * 0.05, lw: w * 0.52, lh: 30, top: '#c6cf45', side: '#7d8022' },
+      { y: h * 0.65, lx: -w * 0.05, lw: w * 0.58, lh: 34, top: '#e5be38', side: '#96721c' },
+      { y: h * 0.68, lx: -w * 0.05, lw: w * 0.64, lh: 38, top: '#b8ca40', side: '#6d7c21' },
+      { y: h * 0.72, lx: -w * 0.05, lw: w * 0.70, lh: 44, top: '#deb435', side: '#8f691b' }
+    ];
+    leftTerraces.forEach(t => {
+      this._drawTerraceStep(ctx, t.lx, t.y, t.lw, t.lh, t.top, t.side, true);
+    });
 
-    // Wildflower dots (rhododendrons / dã quỳ)
-    for (let f = 0; f < 12; f++) {
-      ctx.fillStyle = f % 2 === 0 ? '#ff4d6d' : '#ffd13b';
-      ctx.beginPath();
-      ctx.arc(330 + (f * 7) % 55, 470 + (f * 5) % 30, 2, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    // Các thảm ruộng lớn tiền cảnh phía dưới cùng (Uốn cong chữ S mềm mại)
+    const bottomTerraces = [
+      { y: h * 0.75, top: '#f0ca43', side: '#a37b1f', thick: 16, curve: 1 },
+      { y: h * 0.80, top: '#c2cf46', side: '#788424', thick: 18, curve: -1 },
+      { y: h * 0.85, top: '#e6b835', side: '#966c1a', thick: 20, curve: 1 },
+      { y: h * 0.91, top: '#9bbd3e', side: '#59721e', thick: 22, curve: -1 },
+      { y: h * 0.96, top: '#ecc642', side: '#99751d', thick: 24, curve: 1 }
+    ];
+    bottomTerraces.forEach(b => {
+      this._drawFullWaveTerrace(ctx, b.y, b.top, b.side, b.thick, b.curve);
+    });
+
+    // 9. Chòi gỗ canh lúa (Wooden Stilt Huts)
+    this._drawWoodenHut(ctx, w * 0.83, h * 0.56, 0.75); // Chòi nhỏ đồi phải
+    this._drawWoodenHut(ctx, w * 0.16, h * 0.71, 1.0);  // Chòi lớn đồi trái
+
+    // 10. Cụm đá tảng & Hoa dại Tây Bắc (Góc phải bên dưới)
+    this._drawRockAndFlowers(ctx, w * 0.78, h * 0.73);
 
     ctx.restore();
   }
 
   // ==========================================
-  // PANEL 2: HÀ NỘI (Liễu rủ, Tháp Rùa & Cầu Long Biên)
+  // CÁC HÀM PHỤ TRỢ VẼ CHI TIẾT SA PA
+  // ==========================================
+
+  // Vẽ ngôi sao vàng trên cờ
+  _drawStar(ctx, cx, cy, radius, color) {
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    for (let i = 0; i < 5; i++) {
+      const angle = (i * 4 * Math.PI) / 5 - Math.PI / 2;
+      const x = cx + Math.cos(angle) * radius;
+      const y = cy + Math.sin(angle) * radius;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Vẽ cabin cáp treo bo tròn hiện đại
+  _drawDetailedCabin(ctx, cx, cy, bodyCol, bottomCol) {
+    ctx.save();
+    // Bánh xe trượt trên cáp
+    ctx.fillStyle = '#222';
+    ctx.fillRect(cx - 4, cy - 1.5, 8, 3);
+
+    // Cần treo chữ L
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx, cy + 12);
+    ctx.stroke();
+
+    // Thân cabin
+    const cw = 18, ch = 15;
+    const rx = cx - cw / 2, ry = cy + 12;
+
+    // Nửa trên cabin
+    ctx.fillStyle = bodyCol;
+    ctx.beginPath();
+    if (ctx.roundRect) {
+      ctx.roundRect(rx, ry, cw, ch, 4);
+    } else {
+      ctx.rect(rx, ry, cw, ch);
+    }
+    ctx.fill();
+
+    // Nửa dưới cabin (Đậm màu hơn)
+    ctx.fillStyle = bottomCol;
+    ctx.beginPath();
+    if (ctx.roundRect) {
+      ctx.roundRect(rx, ry + ch * 0.55, cw, ch * 0.45, [0, 0, 4, 4]);
+    } else {
+      ctx.rect(rx, ry + ch * 0.55, cw, ch * 0.45);
+    }
+    ctx.fill();
+
+    // 3 ô cửa kính phản quang
+    ctx.fillStyle = '#cde8f6';
+    ctx.fillRect(rx + 2, ry + 3, 3.5, 5.5);
+    ctx.fillRect(rx + 6.8, ry + 3, 4.4, 5.5);
+    ctx.fillRect(rx + 12.5, ry + 3, 3.5, 5.5);
+    ctx.restore();
+  }
+
+  // Vẽ từng bậc thang lúa có vách đất 3D
+  _drawTerraceStep(ctx, x, y, w, h, topCol, sideCol, isLeft) {
+    ctx.save();
+    const cx = isLeft ? x + w : x;
+
+    // Vách đất dựng đứng (Side lip)
+    ctx.fillStyle = sideCol;
+    ctx.beginPath();
+    ctx.ellipse(cx, y + 9, w, h, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Mặt ruộng lúa phía trên (Top surface)
+    ctx.fillStyle = topCol;
+    ctx.beginPath();
+    ctx.ellipse(cx, y, w, h * 0.88, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Đường viền bờ ruộng sắc nét
+    ctx.strokeStyle = 'rgba(60, 45, 20, 0.35)';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Vẽ thảm ruộng bậc thang tiền cảnh chảy tràn màn hình
+  _drawFullWaveTerrace(ctx, y, topCol, sideCol, thick, dir) {
+    const w = this.width;
+    const h = this.height;
+    ctx.save();
+
+    // Vách đất
+    ctx.fillStyle = sideCol;
+    ctx.beginPath();
+    ctx.moveTo(0, y + thick);
+    ctx.bezierCurveTo(w * 0.35, y + thick - 28 * dir, w * 0.65, y + thick + 28 * dir, w, y + thick - 10 * dir);
+    ctx.lineTo(w, h);
+    ctx.lineTo(0, h);
+    ctx.closePath();
+    ctx.fill();
+
+    // Mặt lúa
+    ctx.fillStyle = topCol;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.bezierCurveTo(w * 0.35, y - 28 * dir, w * 0.65, y + 28 * dir, w, y - 10 * dir);
+    ctx.lineTo(w, y + thick - 10 * dir);
+    ctx.bezierCurveTo(w * 0.65, y + thick + 28 * dir, w * 0.35, y + thick - 28 * dir, 0, y + thick);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Vẽ nhà sàn / chòi gỗ trên ruộng bậc thang
+  _drawWoodenHut(ctx, x, y, scale) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+
+    // Bóng đổ dưới đất
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
+    ctx.beginPath();
+    ctx.ellipse(0, 12, 22, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Cột nhà sàn
+    ctx.fillStyle = '#3d2616';
+    ctx.fillRect(-13, 3, 2.5, 9);
+    ctx.fillRect(-4, 4, 2.5, 8);
+    ctx.fillRect(5, 4, 2.5, 8);
+    ctx.fillRect(12, 3, 2.5, 9);
+
+    // Vách gỗ
+    ctx.fillStyle = '#7c5333';
+    ctx.fillRect(-15, -10, 30, 14);
+    ctx.fillStyle = '#5c3b22'; // Vách hông tối hơn
+    ctx.fillRect(4, -10, 11, 14);
+
+    // Ô cửa tối
+    ctx.fillStyle = '#29170b';
+    ctx.fillRect(-8, -5, 6, 9);
+
+    // Mái tranh / Mái gỗ
+    ctx.fillStyle = '#4a301c';
+    ctx.beginPath();
+    ctx.moveTo(-20, -9);
+    ctx.lineTo(-4, -20);
+    ctx.lineTo(19, -20);
+    ctx.lineTo(6, -9);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#362112';
+    ctx.beginPath();
+    ctx.moveTo(6, -9);
+    ctx.lineTo(19, -20);
+    ctx.lineTo(22, -9);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  // Vẽ cụm đá tảng góc cạnh và thảm hoa dại
+  _drawRockAndFlowers(ctx, x, y) {
+    ctx.save();
+    ctx.translate(x, y);
+
+    const drawPolyRock = (pts, col) => {
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      pts.forEach((p, idx) => idx === 0 ? ctx.moveTo(p[0], p[1]) : ctx.lineTo(p[0], p[1]));
+      ctx.closePath();
+      ctx.fill();
+    };
+
+    // Các khối đá xếp chồng
+    drawPolyRock([[-45, 18], [-32, -8], [-8, -12], [12, 18]], '#4a4e52');
+    drawPolyRock([[-8, -12], [15, -22], [38, -5], [25, 20], [12, 18]], '#34373b');
+    drawPolyRock([[-25, 22], [-10, 2], [18, 4], [30, 25]], '#5a5f63');
+    drawPolyRock([[5, 25], [20, 5], [45, 8], [52, 28]], '#2b2d30');
+
+    // Khóm cỏ xanh dưới chân đá
+    ctx.fillStyle = '#3a6629';
+    [[-35, 18], [-10, 22], [18, 25], [38, 26], [8, 2]].forEach(([gx, gy]) => {
+      ctx.beginPath();
+      ctx.arc(gx, gy, 8, Math.PI, 0);
+      ctx.fill();
+    });
+
+    // Hoa dại nhiều màu (Hồng, Vàng, Trắng, Tím)
+    const flowers = [
+      [-38, 16, '#ff4d6d'], [-32, 14, '#ffd166'], [-14, 20, '#ff4d6d'],
+      [-6, 19, '#ffffff'], [14, 22, '#ff4d6d'], [22, 24, '#ffd166'],
+      [35, 23, '#b5838d'], [42, 25, '#ff4d6d'], [6, 0, '#ff4d6d'], [11, -2, '#ffd166']
+    ];
+    flowers.forEach(([fx, fy, col]) => {
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      ctx.arc(fx, fy, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    ctx.restore();
+  }
+
+  // Vẽ mây nền tròn trịa
+  _drawSoftClouds(ctx, baseY, alpha, count) {
+    ctx.save();
+    ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+    for (let i = 0; i < count; i++) {
+      const cx = ((i * 130 + this.scrollX * 0.25) % (this.width + 160)) - 80;
+      const cy = baseY + (i % 2) * 18;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 28, 0, Math.PI * 2);
+      ctx.arc(cx + 22, cy - 8, 34, 0, Math.PI * 2);
+      ctx.arc(cx + 48, cy, 26, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // Vẽ dải sương mù thung lũng trôi nhẹ
+  _drawValleyMist(ctx, y, color, speedMult) {
+    ctx.save();
+    ctx.fillStyle = color;
+    const shift = Math.sin(this.animTimer * speedMult) * 25;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.bezierCurveTo(this.width * 0.3 + shift, y - 22, this.width * 0.7 - shift, y + 22, this.width, y - 8);
+    ctx.lineTo(this.width, y + 65);
+    ctx.lineTo(0, y + 65);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
   // ==========================================
   _drawHanoi(ctx) {
     ctx.save();
