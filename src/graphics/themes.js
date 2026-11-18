@@ -1,128 +1,183 @@
 /**
- * Visual Atmosphere & Sky Weather Themes for Drunk Rocket 2.5
- * 7 Biomes / Sky Atmospheres matching score progression:
- * 1. Bình Minh (Dawn): Hồng cam tím mờ ảo, đàn chim én bay qua, tiếng chim hót buổi sớm.
- * 2. Trời Nắng (Sunny / Clear Day): Xanh da trời rực rỡ, ánh mặt trời chói chang, tiếng sóng biển vỗ bờ dào dạt.
- * 3. Âm U (Overcast / Cloudy): Xám chì u ám, mây cuộn dập dờn.
- * 4. Trời Mưa (Rainy): Mưa rơi xiên, sương mù, tiếng mưa rào êm êm.
- * 5. Mưa Giông (Thunderstorm): Mưa nặng hạt, chớp sét rạch ngang trời, tiếng sấm ầm ầm giòn tan!
- * 6. Hoàng Hôn (Sunset): Đỏ cam hoàng hôn tím lịm, đàn chim bay về tổ.
- * 7. Trời Tối (Starry Night / Cosmic Void): Đêm sao lấp lánh huyền bí, tiếng dế đêm / sấm xa.
+ * 8 Iconic Landmark Tiers for Drunk Rocket (Matching Vietnam Panorama Expedition)
+ * Tier 1: SA PA (Fansipan & Ruộng bậc thang)
+ * Tier 2: HÀ NỘI (Hồ Gươm, Tháp Rùa & Cầu Long Biên)
+ * Tier 3: HUẾ (Đại Nội Ngọ Môn & Cầu Tràng Tiền)
+ * Tier 4: ĐÀ NẴNG (Cầu Rồng phun lửa & Sông Hàn)
+ * Tier 5: HỘI AN (Chùa Cầu & Phố cổ đèn lồng)
+ * Tier 6: ĐÀ LẠT (Đồi thông, Nhà thờ & Hoa cẩm tú cầu)
+ * Tier 7: TP. HCM (Landmark 81 hoa sen neon & Bitexco)
+ * Tier 8: MIỀN TÂY (Cầu Cần Thơ & Chợ nổi Cái Răng)
  */
-export const SKY_THEMES = {
+export const TIER_THEMES = {
   1: {
     tier: 1,
-    name: 'BÌNH MINH',
-    subName: 'DAWN HORIZON',
-    skyTop: '#3b2d54',
-    skyBottom: '#ff9e79',
+    id: 'sapa',
+    name: 'SA PA',
+    subName: 'TÂY BẮC HÙNG VĨ',
+    badgeText: 'TIER 1 • SA PA',
+    skyTop: '#718f9e',
+    skyBottom: '#d0dfe7',
     laserColor: '#ff4d6d',
     laserGlow: 'rgba(255, 77, 109, 0.45)',
     laserCore: '#ffffff',
-    emitterCore: '#ffcf77',
-    badgeText: 'TIER 1 • BÌNH MINH',
-    weather: 'birds',
-    ambientSound: 'birds'
+    emitterCore: '#ff9e79',
+    ambientSound: 'wind',
+    weather: 'clouds',
+    pointsRequired: 5,
+    baseScore: 0,
+    editorialIssue: 'EXPEDITION N° 01 • TÂY BẮC',
+    editorialDesc: 'SA PA — THE TERRACED KINGDOM & FANSIPAN PEAK'
   },
   2: {
     tier: 2,
-    name: 'TRỜI NẮNG',
-    subName: 'SUNNY CYAN',
-    skyTop: '#0a4b78',
-    skyBottom: '#48cae4',
-    laserColor: '#00f0ff',
-    laserGlow: 'rgba(0, 240, 255, 0.48)',
+    id: 'hanoi',
+    name: 'HÀ NỘI',
+    subName: 'THỦ ĐÔ NGHÌN NĂM',
+    badgeText: 'TIER 2 • HÀ NỘI',
+    skyTop: '#43344e',
+    skyBottom: '#e69f88',
+    laserColor: '#e63946',
+    laserGlow: 'rgba(230, 57, 70, 0.45)',
     laserCore: '#ffffff',
     emitterCore: '#ffd13b',
-    badgeText: 'TIER 2 • TRỜI NẮNG',
-    weather: 'sun',
-    ambientSound: 'ocean'
+    ambientSound: 'birds',
+    weather: 'birds',
+    pointsRequired: 7,
+    baseScore: 5,
+    editorialIssue: 'EXPEDITION N° 02 • ĐỒNG BẰNG BẮC BỘ',
+    editorialDesc: 'HÀ NỘI — SWORD LAKE & THE ANCIENT TURTLE TOWER'
   },
   3: {
     tier: 3,
-    name: 'ÂM U',
-    subName: 'OVERCAST HAZE',
-    skyTop: '#1b263b',
-    skyBottom: '#5c677d',
-    laserColor: '#ffd13b',
-    laserGlow: 'rgba(255, 209, 59, 0.48)',
+    id: 'hue',
+    name: 'HUẾ',
+    subName: 'CỐ ĐÔ HOÀNG GIA',
+    badgeText: 'TIER 3 • HUẾ',
+    skyTop: '#1b122e',
+    skyBottom: '#4d3460',
+    laserColor: '#d946ef',
+    laserGlow: 'rgba(217, 70, 239, 0.50)',
     laserCore: '#ffffff',
-    emitterCore: '#ffffff',
-    badgeText: 'TIER 3 • ÂM U',
-    weather: 'clouds',
-    ambientSound: 'wind'
+    emitterCore: '#c77dff',
+    ambientSound: 'ocean',
+    weather: 'stars',
+    pointsRequired: 8,
+    baseScore: 12,
+    editorialIssue: 'EXPEDITION N° 03 • CỐ ĐÔ TRIỀU NGUYỄN',
+    editorialDesc: 'HUẾ — IMPERIAL CITADEL & TRÀNG TIỀN RAINBOW'
   },
   4: {
     tier: 4,
-    name: 'TRỜI MƯA',
-    subName: 'NEON RAIN',
-    skyTop: '#0d1b2a',
-    skyBottom: '#274060',
-    laserColor: '#05ffa1',
-    laserGlow: 'rgba(5, 255, 161, 0.50)',
+    id: 'danang',
+    name: 'ĐÀ NẴNG',
+    subName: 'CẦU RỒNG BIỂN XANH',
+    badgeText: 'TIER 4 • ĐÀ NẴNG',
+    skyTop: '#081329',
+    skyBottom: '#18315b',
+    laserColor: '#ffd13b',
+    laserGlow: 'rgba(255, 209, 59, 0.50)',
     laserCore: '#ffffff',
     emitterCore: '#00f0ff',
-    badgeText: 'TIER 4 • TRỜI MƯA',
-    weather: 'rain',
-    ambientSound: 'rain'
+    ambientSound: 'ocean',
+    weather: 'stars',
+    pointsRequired: 9,
+    baseScore: 20,
+    editorialIssue: 'EXPEDITION N° 04 • DUYÊN HẢI MIỀN TRUNG',
+    editorialDesc: 'ĐÀ NẴNG — DRAGON BRIDGE & HAN RIVER SKYLINE'
   },
   5: {
     tier: 5,
-    name: 'MƯA GIÔNG',
-    subName: 'THUNDERSTORM',
-    skyTop: '#0b091a',
-    skyBottom: '#1f1638',
-    laserColor: '#e0aaff',
-    laserGlow: 'rgba(224, 170, 255, 0.55)',
+    id: 'hoian',
+    name: 'HỘI AN',
+    subName: 'PHỐ CỔ ĐÈN LỒNG',
+    badgeText: 'TIER 5 • HỘI AN',
+    skyTop: '#091024',
+    skyBottom: '#1a233d',
+    laserColor: '#ff0054',
+    laserGlow: 'rgba(255, 0, 84, 0.50)',
     laserCore: '#ffffff',
-    emitterCore: '#c77dff',
-    badgeText: 'TIER 5 • MƯA GIÔNG',
-    weather: 'storm',
-    ambientSound: 'thunder'
+    emitterCore: '#ffd166',
+    ambientSound: 'night',
+    weather: 'stars',
+    pointsRequired: 10,
+    baseScore: 29,
+    editorialIssue: 'EXPEDITION N° 05 • DI SẢN VĂN HÓA',
+    editorialDesc: 'HỘI AN — LANTERN HERITAGE & JAPANESE BRIDGE'
   },
   6: {
     tier: 6,
-    name: 'HOÀNG HÔN',
-    subName: 'TWILIGHT SUNSET',
-    skyTop: '#240046',
-    skyBottom: '#ff5400',
-    laserColor: '#ff0054',
-    laserGlow: 'rgba(255, 0, 84, 0.55)',
+    id: 'dalat',
+    name: 'ĐÀ LẠT',
+    subName: 'XỨ SỞ NGÀN HOA',
+    badgeText: 'TIER 6 • ĐÀ LẠT',
+    skyTop: '#252538',
+    skyBottom: '#828fa6',
+    laserColor: '#a8dadc',
+    laserGlow: 'rgba(168, 218, 220, 0.50)',
     laserCore: '#ffffff',
-    emitterCore: '#ffbd00',
-    badgeText: 'TIER 6 • HOÀNG HÔN',
-    weather: 'birds_sunset',
-    ambientSound: 'birds'
+    emitterCore: '#e0aaff',
+    ambientSound: 'wind',
+    weather: 'clouds',
+    pointsRequired: 11,
+    baseScore: 39,
+    editorialIssue: 'EXPEDITION N° 06 • CAO NGUYÊN LÂM VIÊN',
+    editorialDesc: 'ĐÀ LẠT — PINE MIST & HYDRANGEA BLOSSOMS'
   },
   7: {
     tier: 7,
-    name: 'TRỜI TỐI',
-    subName: 'DEEP NIGHT COSMOS',
-    skyTop: '#05070d',
-    skyBottom: '#101426',
-    laserColor: '#ff0077',
-    laserGlow: 'rgba(255, 0, 119, 0.60)',
+    id: 'hcm',
+    name: 'TP. HCM',
+    subName: 'HÒN NGỌC VIỄN ĐÔNG',
+    badgeText: 'TIER 7 • TP. HCM',
+    skyTop: '#070514',
+    skyBottom: '#1c1038',
+    laserColor: '#00f0ff',
+    laserGlow: 'rgba(0, 240, 255, 0.55)',
     laserCore: '#ffffff',
-    emitterCore: '#00f0ff',
-    badgeText: 'TIER 7 • ĐÊM VÔ TẬN',
+    emitterCore: '#ff0077',
+    ambientSound: 'night',
     weather: 'stars',
-    ambientSound: 'night'
+    pointsRequired: 13,
+    baseScore: 50,
+    editorialIssue: 'EXPEDITION N° 07 • ĐÔ THỊ PHỒN HOA',
+    editorialDesc: 'TP. HCM — LANDMARK 81 & NEON METROPOLIS'
+  },
+  8: {
+    tier: 8,
+    id: 'mientay',
+    name: 'MIỀN TÂY',
+    subName: 'ĐỒNG BẰNG SÔNG NƯỚC',
+    badgeText: 'TIER 8 • MIỀN TÂY',
+    skyTop: '#0d2532',
+    skyBottom: '#35716a',
+    laserColor: '#05ffa1',
+    laserGlow: 'rgba(5, 255, 161, 0.55)',
+    laserCore: '#ffffff',
+    emitterCore: '#ffcf77',
+    ambientSound: 'ocean',
+    weather: 'clouds',
+    pointsRequired: 15,
+    baseScore: 63,
+    editorialIssue: 'EXPEDITION N° 08 • ĐỒNG BẰNG SÔNG CỬU LONG',
+    editorialDesc: 'MIỀN TÂY — CẦN THƠ SPAN & CÁI RĂNG FLOATING MARKET'
   }
 };
 
-export const TIER_THEMES = SKY_THEMES;
+export const SKY_THEMES = TIER_THEMES;
 
 export function getTierFromScore(score) {
-  if (score >= 42) return 7; // Trời tối
-  if (score >= 34) return 6; // Hoàng hôn
-  if (score >= 26) return 5; // Mưa giông
-  if (score >= 18) return 4; // Trời mưa
-  if (score >= 11) return 3; // Âm u
-  if (score >= 5)  return 2; // Trời nắng
-  return 1;                  // Bình minh (0 - 4 điểm)
+  if (score >= 63) return 8; // Miền Tây
+  if (score >= 50) return 7; // TP. HCM
+  if (score >= 39) return 6; // Đà Lạt
+  if (score >= 29) return 5; // Hội An
+  if (score >= 20) return 4; // Đà Nẵng
+  if (score >= 12) return 3; // Huế
+  if (score >= 5)  return 2; // Hà Nội
+  return 1;                  // Sa Pa (0 - 4 điểm)
 }
 
 export function getThemeForScore(score) {
   const tier = getTierFromScore(score);
-  return SKY_THEMES[tier] || SKY_THEMES[1];
+  return TIER_THEMES[tier] || TIER_THEMES[1];
 }

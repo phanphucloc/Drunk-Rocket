@@ -375,7 +375,7 @@ export class Game {
     }
     this.particles.update(dt);
     this.starfield.update(dt, this.state === 'PLAYING' ? 1 : 0.2);
-    if (this.scenic) this.scenic.update(dt, this.score);
+    if (this.scenic) this.scenic.update(dt, this.currentTheme ? this.currentTheme.tier : 1);
 
     if (this.leaderboard && this.leaderboard.isOpen) {
       this.input.consumeTap();
