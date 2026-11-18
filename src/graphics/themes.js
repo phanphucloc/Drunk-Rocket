@@ -2,7 +2,7 @@
  * Visual Atmosphere & Sky Weather Themes for Drunk Rocket 2.5
  * 7 Biomes / Sky Atmospheres matching score progression:
  * 1. Bình Minh (Dawn): Hồng cam tím mờ ảo, đàn chim én bay qua, tiếng chim hót buổi sớm.
- * 2. Trời Nắng (Sunny / Clear Day): Xanh da trời rực rỡ, ánh mặt trời chói chang, gió nhẹ.
+ * 2. Trời Nắng (Sunny / Clear Day): Xanh da trời rực rỡ, ánh mặt trời chói chang, tiếng sóng biển vỗ bờ dào dạt.
  * 3. Âm U (Overcast / Cloudy): Xám chì u ám, mây cuộn dập dờn.
  * 4. Trời Mưa (Rainy): Mưa rơi xiên, sương mù, tiếng mưa rào êm êm.
  * 5. Mưa Giông (Thunderstorm): Mưa nặng hạt, chớp sét rạch ngang trời, tiếng sấm ầm ầm giòn tan!
@@ -36,7 +36,7 @@ export const SKY_THEMES = {
     emitterCore: '#ffd13b',
     badgeText: 'TIER 2 • TRỜI NẮNG',
     weather: 'sun',
-    ambientSound: 'wind'
+    ambientSound: 'ocean'
   },
   3: {
     tier: 3,

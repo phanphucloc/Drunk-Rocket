@@ -15,6 +15,7 @@ export class AudioSynthesizer {
     this.ambientGainNode = null;
     this.ambientRainSrc = null;
     this.ambientWindSrc = null;
+    this.ambientSources = [];
     this.thunderTimer = 0;
     this.birdTimer = 0;
     this._bindUnlock();
@@ -668,6 +669,46 @@ export class AudioSynthesizer {
         if (ambientType === 'thunder') {
           this.thunderTimer = 1.2; // First thunder roll starts shortly after entering storm
         }
+      } else if (ambientType === 'ocean' || ambientType === 'waves') {
+        if (noise) {
+          const oceanSrc = this.ctx.createBufferSource();
+          oceanSrc.buffer = noise;
+          oceanSrc.loop = true;
+
+          // Bộ lọc lowpass tạo âm sắc dải trầm và trung cho tiếng sóng biển dạt dào
+          const oceanFilter = this.ctx.createBiquadFilter();
+          oceanFilter.type = 'lowpass';
+          oceanFilter.frequency.setValueAtTime(540, now);
+          oceanFilter.Q.setValueAtTime(1.5, now);
+
+          // LFO dao động tần số thấp (~0.23Hz = 4.3s mỗi chu kỳ một con sóng vỗ bờ)
+          const lfo = this.ctx.createOscillator();
+          lfo.type = 'sine';
+          lfo.frequency.setValueAtTime(0.23, now);
+
+          // Điều tần (Filter Sweep): Sóng dâng trào lên tần số ~920Hz rồi rút êm dịu về ~180Hz
+          const lfoFilterGain = this.ctx.createGain();
+          lfoFilterGain.gain.setValueAtTime(370, now);
+          lfo.connect(lfoFilterGain);
+          lfoFilterGain.connect(oceanFilter.frequency);
+
+          // Điều biên (Volume Swell): Âm lượng sóng biển dào dạt tương đương trời mưa (đạt đỉnh 1.0)
+          const waveGain = this.ctx.createGain();
+          waveGain.gain.setValueAtTime(0.72, now);
+          const lfoGainMod = this.ctx.createGain();
+          lfoGainMod.gain.setValueAtTime(0.28, now);
+          lfo.connect(lfoGainMod);
+          lfoGainMod.connect(waveGain.gain);
+
+          oceanSrc.connect(oceanFilter);
+          oceanFilter.connect(waveGain);
+          waveGain.connect(this.ambientGainNode);
+
+          oceanSrc.start(now);
+          lfo.start(now);
+          if (!this.ambientSources) this.ambientSources = [];
+          this.ambientSources.push(oceanSrc, lfo);
+        }
       } else if (ambientType === 'wind') {
         if (noise) {
           const windSrc = this.ctx.createBufferSource();
@@ -814,6 +855,13 @@ export class AudioSynthesizer {
       try {
         this.ambientGainNode.gain.setTargetAtTime(0, this.ctx.currentTime, 0.2);
       } catch (e) {}
+    }
+    if (this.ambientSources && this.ambientSources.length > 0) {
+      const now = this.ctx ? this.ctx.currentTime : 0;
+      this.ambientSources.forEach(s => {
+        try { s.stop(now + 0.2); } catch (e) {}
+      });
+      this.ambientSources = [];
     }
     this.currentAmbient = null;
   }
