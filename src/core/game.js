@@ -35,7 +35,7 @@ export class Game {
     this.ghosts = new GhostManager();
     this.currentTheme = getThemeForScore(0);
     this.starfield.setTheme(this.currentTheme);
-    if (this.audio && this.audio.setAmbientTheme) this.audio.setAmbientTheme(this.currentTheme.ambientSound || 'birds');
+    if (this.audio && this.audio.setAmbientTheme) this.audio.setAmbientTheme(this.currentTheme.ambientSound || 'birds', true);
 
     // Active Perk Modifiers
     this.shieldActive = false;

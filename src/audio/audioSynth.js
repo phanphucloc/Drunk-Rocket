@@ -24,7 +24,13 @@ export class AudioSynthesizer {
     const unlock = () => {
       this._ensureContext();
       if (this.ctx && this.ctx.state === 'suspended') {
-        this.ctx.resume();
+        this.ctx.resume().then(() => {
+          if (this.currentAmbient && !this.ambientGainNode) {
+            this.setAmbientTheme(this.currentAmbient, true);
+          }
+        }).catch(() => {});
+      } else if (this.currentAmbient && !this.ambientGainNode) {
+        this.setAmbientTheme(this.currentAmbient, true);
       }
     };
     if (typeof window !== 'undefined') {
@@ -612,14 +618,14 @@ export class AudioSynthesizer {
 
   /**
    * Sets and updates environmental ambient soundscape according to weather theme:
-   * - birds (bình minh / hoàng hôn): Tiếng chim hót ríu rít tự nhiên
-   * - wind (nắng / âm u): Tiếng gió thoảng êm dịu
-   * - rain (trời mưa): Tiếng mưa rào rả rích
+   * - birds (bình minh / hoàng hôn): Tiếng chim hót ríu rít tự nhiên, âm lượng to rõ
+   * - wind (nắng / âm u): Tiếng gió thoảng êm dịu, sống động
+   * - rain (trời mưa): Tiếng mưa rào dào dạt
    * - thunder (mưa giông): Tiếng mưa dồn dập + tiếng sấm sét rền vang giòn giã
    * - night (trời tối): Tiếng đêm vũ trụ huyền bí
    */
-  setAmbientTheme(ambientType) {
-    if (this.currentAmbient === ambientType) return;
+  setAmbientTheme(ambientType, force = false) {
+    if (!force && this.currentAmbient === ambientType && this.ambientGainNode) return;
     this.currentAmbient = ambientType;
     if (this.isMuted) return;
     this._ensureContext();
@@ -629,43 +635,67 @@ export class AudioSynthesizer {
       const now = this.ctx.currentTime;
       // Fade out previous ambient if exists
       if (this.ambientGainNode) {
-        this.ambientGainNode.gain.setTargetAtTime(0, now, 0.5);
+        try {
+          this.ambientGainNode.gain.cancelScheduledValues(now);
+          this.ambientGainNode.gain.setTargetAtTime(0, now, 0.35);
+        } catch (e) {}
       }
 
       this.ambientGainNode = this.ctx.createGain();
       this.ambientGainNode.gain.setValueAtTime(0, now);
-      this.ambientGainNode.gain.linearRampToValueAtTime(0.24, now + 0.8);
+      // Khuếch đại âm lượng nền bầu trời: 0.65 (so với 0.24 trước đây)
+      this.ambientGainNode.gain.linearRampToValueAtTime(0.65, now + 0.5);
       this.ambientGainNode.connect(this.ctx.destination);
 
       const noise = this._getNoiseBuffer();
-      if (!noise) return;
 
       if (ambientType === 'rain' || ambientType === 'thunder') {
-        // Continuous rain hiss filter
-        const rainSrc = this.ctx.createBufferSource();
-        rainSrc.buffer = noise;
-        rainSrc.loop = true;
+        if (noise) {
+          const rainSrc = this.ctx.createBufferSource();
+          rainSrc.buffer = noise;
+          rainSrc.loop = true;
 
-        const rainFilter = this.ctx.createBiquadFilter();
-        rainFilter.type = 'bandpass';
-        rainFilter.frequency.setValueAtTime(ambientType === 'thunder' ? 1400 : 950, now);
-        rainFilter.Q.setValueAtTime(0.8, now);
+          const rainFilter = this.ctx.createBiquadFilter();
+          rainFilter.type = 'bandpass';
+          rainFilter.frequency.setValueAtTime(ambientType === 'thunder' ? 1500 : 1100, now);
+          rainFilter.Q.setValueAtTime(0.7, now);
 
-        rainSrc.connect(rainFilter);
-        rainFilter.connect(this.ambientGainNode);
-        rainSrc.start(now);
+          rainSrc.connect(rainFilter);
+          rainFilter.connect(this.ambientGainNode);
+          rainSrc.start(now);
+          this.ambientRainSrc = rainSrc;
+        }
+        if (ambientType === 'thunder') {
+          this.thunderTimer = 1.2; // First thunder roll starts shortly after entering storm
+        }
       } else if (ambientType === 'wind') {
-        const windSrc = this.ctx.createBufferSource();
-        windSrc.buffer = noise;
-        windSrc.loop = true;
+        if (noise) {
+          const windSrc = this.ctx.createBufferSource();
+          windSrc.buffer = noise;
+          windSrc.loop = true;
 
-        const windFilter = this.ctx.createBiquadFilter();
-        windFilter.type = 'lowpass';
-        windFilter.frequency.setValueAtTime(320, now);
+          const windFilter = this.ctx.createBiquadFilter();
+          windFilter.type = 'lowpass';
+          windFilter.frequency.setValueAtTime(480, now);
 
-        windSrc.connect(windFilter);
-        windFilter.connect(this.ambientGainNode);
-        windSrc.start(now);
+          windSrc.connect(windFilter);
+          windFilter.connect(this.ambientGainNode);
+          windSrc.start(now);
+          this.ambientWindSrc = windSrc;
+        }
+      } else if (ambientType === 'birds') {
+        // Gặp bình minh hoặc hoàng hôn: chim hót chào đón ngay lập tức!
+        this.playBirdChirp();
+        this.birdTimer = 2.0;
+      } else if (ambientType === 'night') {
+        const drone = this.ctx.createOscillator();
+        const dGain = this.ctx.createGain();
+        drone.type = 'sine';
+        drone.frequency.setValueAtTime(80, now);
+        dGain.gain.setValueAtTime(0.35, now);
+        drone.connect(dGain);
+        dGain.connect(this.ambientGainNode);
+        drone.start(now);
       }
     } catch (e) {}
   }
@@ -680,19 +710,22 @@ export class AudioSynthesizer {
       this.birdTimer -= dt;
       if (this.birdTimer <= 0) {
         this.playBirdChirp();
-        this.birdTimer = 2.5 + Math.random() * 3.5;
+        // Líu lo ríu rít đều đặn mỗi 2s - 3.5s
+        this.birdTimer = 2.0 + Math.random() * 1.5;
       }
     } else if (this.currentAmbient === 'thunder') {
       this.thunderTimer -= dt;
       if (this.thunderTimer <= 0) {
         this.playThunderClap();
-        this.thunderTimer = 4.0 + Math.random() * 5.0;
+        // Giông bão sấm rền mỗi 3.5s - 6s
+        this.thunderTimer = 3.5 + Math.random() * 2.5;
       }
     }
   }
 
   /**
    * Procedural morning/twilight bird chirping ("líu lo ríu rít")
+   * Âm lượng to rõ (0.42), trong trẻo, sinh động
    */
   playBirdChirp() {
     if (this.isMuted) return;
@@ -700,29 +733,37 @@ export class AudioSynthesizer {
     if (!this.ctx) return;
     try {
       const now = this.ctx.currentTime;
-      const notes = [2200, 2750, 2400];
-      notes.forEach((freq, idx) => {
+      // Chuỗi 4 nốt chim hót líu lo thanh thót
+      const notes = [
+        { f: 2637, d: 0.08, g: 0.40 }, // E7
+        { f: 3136, d: 0.09, g: 0.48 }, // G7
+        { f: 3520, d: 0.09, g: 0.44 }, // A7
+        { f: 2793, d: 0.12, g: 0.36 }  // F7
+      ];
+
+      notes.forEach((note, idx) => {
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
         osc.type = 'sine';
 
-        const st = now + idx * 0.08;
-        osc.frequency.setValueAtTime(freq, st);
-        osc.frequency.exponentialRampToValueAtTime(freq * 1.35, st + 0.06);
+        const st = now + idx * 0.075;
+        osc.frequency.setValueAtTime(note.f, st);
+        osc.frequency.exponentialRampToValueAtTime(note.f * 1.35, st + note.d * 0.65);
 
-        gain.gain.setValueAtTime(0.08, st);
-        gain.gain.exponentialRampToValueAtTime(0.001, st + 0.07);
+        gain.gain.setValueAtTime(note.g, st);
+        gain.gain.exponentialRampToValueAtTime(0.001, st + note.d);
 
         osc.connect(gain);
         gain.connect(this.ctx.destination);
         osc.start(st);
-        osc.stop(st + 0.07);
+        osc.stop(st + note.d);
       });
     } catch (e) {}
   }
 
   /**
-   * Procedural rolling thunder boom ("sấm sét rền vang")
+   * Procedural rolling thunder boom ("sấm sét rền vang rung chuyển không gian")
+   * Âm lượng uy lực (0.85), sét đánh đanh và tiếng sấm rền dội dài
    */
   playThunderClap() {
     if (this.isMuted) return;
@@ -730,47 +771,49 @@ export class AudioSynthesizer {
     if (!this.ctx) return;
     try {
       const now = this.ctx.currentTime;
-      // 1. Initial sharp crackle
+      // 1. Initial explosive lightning crackle
       const noise = this._getNoiseBuffer();
       if (noise) {
         const crackleSrc = this.ctx.createBufferSource();
         crackleSrc.buffer = noise;
         const crackleFilter = this.ctx.createBiquadFilter();
         crackleFilter.type = 'bandpass';
-        crackleFilter.frequency.setValueAtTime(650, now);
-        crackleFilter.frequency.exponentialRampToValueAtTime(180, now + 0.3);
+        crackleFilter.frequency.setValueAtTime(1200, now);
+        crackleFilter.frequency.exponentialRampToValueAtTime(220, now + 0.4);
 
         const crackleGain = this.ctx.createGain();
-        crackleGain.gain.setValueAtTime(0.35, now);
-        crackleGain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+        crackleGain.gain.setValueAtTime(0.75, now);
+        crackleGain.gain.exponentialRampToValueAtTime(0.01, now + 0.45);
 
         crackleSrc.connect(crackleFilter);
         crackleFilter.connect(crackleGain);
         crackleGain.connect(this.ctx.destination);
         crackleSrc.start(now);
-        crackleSrc.stop(now + 0.35);
+        crackleSrc.stop(now + 0.45);
       }
 
-      // 2. Rolling deep sub-rumble
+      // 2. Rolling deep sub-rumble boom
       const boom = this.ctx.createOscillator();
       const bGain = this.ctx.createGain();
-      boom.type = 'triangle';
-      boom.frequency.setValueAtTime(110, now + 0.1);
-      boom.frequency.exponentialRampToValueAtTime(32, now + 1.6);
+      boom.type = 'sawtooth';
+      boom.frequency.setValueAtTime(140, now + 0.05);
+      boom.frequency.exponentialRampToValueAtTime(28, now + 2.2);
 
-      bGain.gain.setValueAtTime(0.42, now + 0.1);
-      bGain.gain.exponentialRampToValueAtTime(0.001, now + 1.6);
+      bGain.gain.setValueAtTime(0.85, now + 0.05);
+      bGain.gain.exponentialRampToValueAtTime(0.001, now + 2.2);
 
       boom.connect(bGain);
       bGain.connect(this.ctx.destination);
-      boom.start(now + 0.1);
-      boom.stop(now + 1.6);
+      boom.start(now + 0.05);
+      boom.stop(now + 2.2);
     } catch (e) {}
   }
 
   stopAmbient() {
     if (this.ambientGainNode && this.ctx) {
-      this.ambientGainNode.gain.setTargetAtTime(0, this.ctx.currentTime, 0.2);
+      try {
+        this.ambientGainNode.gain.setTargetAtTime(0, this.ctx.currentTime, 0.2);
+      } catch (e) {}
     }
     this.currentAmbient = null;
   }
