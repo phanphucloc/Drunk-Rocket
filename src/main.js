@@ -8,7 +8,7 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   const game = new Game(canvas);
-  game.start();
+  game.start();\n  window.game = game;
 
   console.log('🚀 Drunk Rocket Engine v1.0.0 started. Target: 60 FPS.');
 });
