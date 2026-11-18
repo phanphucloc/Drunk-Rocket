@@ -131,13 +131,14 @@ export class ScenicLandmarksManager {
   _drawLandmarkByTier(ctx, tier) {
     switch (tier) {
       case 1: this._drawSapa(ctx); break;
-      case 2: this._drawHanoi(ctx); break;
-      case 3: this._drawHue(ctx); break;
-      case 4: this._drawDaNang(ctx); break;
-      case 5: this._drawHoiAn(ctx); break;
-      case 6: this._drawDaLat(ctx); break;
-      case 7: this._drawHoChiMinh(ctx); break;
-      case 8: this._drawMienTay(ctx); break;
+      case 2: this._drawNinhBinh(ctx); break;
+      case 3: this._drawHanoi(ctx); break;
+      case 4: this._drawHue(ctx); break;
+      case 5: this._drawDaNang(ctx); break;
+      case 6: this._drawHoiAn(ctx); break;
+      case 7: this._drawDaLat(ctx); break;
+      case 8: this._drawHoChiMinh(ctx); break;
+      case 9: this._drawMienTay(ctx); break;
       default: this._drawSapa(ctx); break;
     }
   }
@@ -583,6 +584,367 @@ export class ScenicLandmarksManager {
     ctx.lineTo(0, y + 65);
     ctx.closePath();
     ctx.fill();
+    ctx.restore();
+  }
+
+
+  // ==========================================
+  // PANEL 2: NINH BÌNH (Tràng An - Tam Cốc Bích Động)
+  // ==========================================
+  _drawNinhBinh(ctx) {
+    ctx.save();
+    const w = this.width;
+    const h = this.height;
+
+    // 1. Bầu trời (Warm Sunlight & Soft Gradient)
+    const sky = ctx.createLinearGradient(0, 0, 0, h * 0.55);
+    sky.addColorStop(0, '#fefae0'); // Nắng vàng nhạt phía trên
+    sky.addColorStop(0.35, '#fde1b1');
+    sky.addColorStop(0.7, '#f4cf9a');
+    sky.addColorStop(1, '#e2efeb'); // Mờ dần khi xuống gần thung lũng
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, w, h * 0.55);
+
+    // 2. Mây bồng bềnh sau núi
+    this._drawSoftNBMistyClouds(ctx, h * 0.32, 0.28, 3);
+
+    // 3. Những cánh chim bay (Cảnh sắc Tràng An tự nhiên)
+    this._drawFlockOfBirds(ctx);
+
+    // 4. Quần thể núi đá vôi trùng điệp (Núi phía xa)
+    ctx.fillStyle = '#6b7a5a'; // Núi xa nhất (Đồng màu sương)
+    ctx.beginPath();
+    ctx.moveTo(w * 0.2, h * 0.48);
+    ctx.lineTo(w * 0.45, h * 0.32);
+    ctx.lineTo(w * 0.52, h * 0.42);
+    ctx.lineTo(w * 0.61, h * 0.28);
+    ctx.lineTo(w * 0.72, h * 0.45);
+    ctx.lineTo(w, h * 0.3);
+    ctx.lineTo(w, h * 0.52);
+    ctx.lineTo(w * 0.2, h * 0.52);
+    ctx.closePath();
+    ctx.fill();
+
+    // Dãy núi đá vôi hùng vĩ trung cảnh (Tầng núi chính)
+    ctx.fillStyle = '#415a45'; // Tông xanh lá sẫm tự nhiên của thảm thực vật ôm núi
+    ctx.beginPath();
+    ctx.moveTo(0, h * 0.44);
+    ctx.lineTo(w * 0.12, h * 0.36);
+    ctx.lineTo(w * 0.22, h * 0.34);
+    ctx.lineTo(w * 0.36, h * 0.43);
+    ctx.lineTo(w * 0.48, h * 0.29);
+    ctx.lineTo(w * 0.58, h * 0.45);
+    ctx.lineTo(w * 0.7, h * 0.31);
+    ctx.lineTo(w * 0.85, h * 0.27); // Ngọn núi nhô cao bên phải
+    ctx.lineTo(w * 0.95, h * 0.38);
+    ctx.lineTo(w, h * 0.32);
+    ctx.lineTo(w, h * 0.6);
+    ctx.lineTo(0, h * 0.6);
+    ctx.closePath();
+    ctx.fill();
+
+    // Tạo khối đá cho các ngọn núi trung cảnh (Vách đá tối & sáng)
+    ctx.fillStyle = '#314234'; // Bóng vách tối
+    ctx.beginPath();
+    ctx.moveTo(w * 0.12, h * 0.36);
+    ctx.lineTo(w * 0.18, h * 0.44);
+    ctx.lineTo(w * 0.28, h * 0.39);
+    ctx.lineTo(w * 0.36, h * 0.43);
+    ctx.lineTo(w * 0.48, h * 0.29);
+    ctx.lineTo(w * 0.44, h * 0.4);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#5c7f55'; // Sườn núi nhận sáng nắng vàng
+    ctx.beginPath();
+    ctx.moveTo(w * 0.7, h * 0.31);
+    ctx.lineTo(w * 0.85, h * 0.27);
+    ctx.lineTo(w * 0.81, h * 0.42);
+    ctx.closePath();
+    ctx.fill();
+
+    // 5. Cổng tam quan đền đài cổ (Góc trái bờ sông)
+    this._drawAncientTempleGate(ctx, w * 0.24, h * 0.63, 0.85);
+
+    // 6. Dòng sông Ngô Đồng (Sông xanh biếc, hiền hòa, trù phú)
+    const riverY = h * 0.62;
+    const rivGrad = ctx.createLinearGradient(0, riverY, 0, h);
+    rivGrad.addColorStop(0, '#2a9d8f'); // Xanh ngọc bích Tràng An
+    rivGrad.addColorStop(0.5, '#264653');
+    rivGrad.addColorStop(1, '#1b3438');
+    ctx.fillStyle = rivGrad;
+    ctx.fillRect(0, riverY, w, h - riverY);
+
+    // Vệt nước lấp lánh tự nhiên trên sông
+    this._drawWaterRipples(ctx, riverY);
+
+    // Dòng sông uốn lượn hình chữ S
+    ctx.strokeStyle = '#327f71';
+    ctx.lineWidth = 14;
+    ctx.beginPath();
+    ctx.moveTo(w * 0.5, riverY);
+    ctx.bezierCurveTo(w * 0.35, h * 0.72, w * 0.75, h * 0.84, w * 0.45, h);
+    ctx.stroke();
+
+    // 7. Thuyền nan mộc mạc và người lái thuyền (Floating on Ngo Dong River)
+    const boats = [
+      { x: w * 0.38, y: h * 0.71, scale: 0.6, oarPhase: 0 },
+      { x: w * 0.62, y: h * 0.76, scale: 0.55, oarPhase: 1.5 },
+      { x: w * 0.48, y: h * 0.85, scale: 0.7, oarPhase: 0.8 },
+      { x: w * 0.53, y: h * 0.91, scale: 0.65, oarPhase: 2.1 }
+    ];
+    boats.forEach((b, idx) => {
+      const bob = Math.sin(this.animTimer * 2.5 + idx) * 3;
+      this._drawNinhBinhRowboat(ctx, b.x, b.y + bob, b.scale, b.oarPhase);
+    });
+
+    // 8. Rặng cây, thảm cỏ, lau sậy rậm rạp hai bên bờ
+    this._drawLushFoliagePlanks(ctx, 0, h * 0.60, 1);
+    this._drawLushFoliagePlanks(ctx, w, h * 0.65, -1);
+
+    // 9. Cây bụi lớn rậm rạp sẫm màu tiền cảnh phía dưới
+    this._drawForegroundRiverside(ctx, w * 0.05, h * 0.81);
+
+    ctx.restore();
+  }
+
+  // ==========================================
+  // CÁC HÀM PHỤ TRỢ CHI TIẾT NINH BÌNH
+  // ==========================================
+
+  // Vẽ đàn chim bay (Flock of Birds)
+  _drawFlockOfBirds(ctx) {
+    ctx.save();
+    ctx.strokeStyle = '#3d4a36';
+    ctx.lineWidth = 1.2;
+    const birds = [
+      { x: this.width * 0.68, y: this.height * 0.28, size: 6 },
+      { x: this.width * 0.74, y: this.height * 0.26, size: 5 },
+      { x: this.width * 0.62, y: this.height * 0.32, size: 7 },
+      { x: this.width * 0.54, y: this.height * 0.36, size: 6.5 },
+      { x: this.width * 0.49, y: this.height * 0.34, size: 5.5 }
+    ];
+    birds.forEach((bird, idx) => {
+      const swing = Math.sin(this.animTimer * 6 + idx) * 2;
+      const bx = bird.x - (this.animTimer * 10) % 250; // Trôi nhẹ qua trái
+      const by = bird.y;
+
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.quadraticCurveTo(bx + bird.size * 0.5, by - bird.size * 0.4 + swing, bx + bird.size, by);
+      ctx.quadraticCurveTo(bx + bird.size * 1.5, by - bird.size * 0.4 + swing, bx + bird.size * 2, by);
+      ctx.stroke();
+    });
+    ctx.restore();
+  }
+
+  // Vẽ cổng tam quan đá cổ kính ẩn hiện (Ancient Temple Gate)
+  _drawAncientTempleGate(ctx, x, y, scale) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+
+    // Mái ngói đền cổ màu đỏ sẫm bám rêu
+    ctx.fillStyle = '#4a2318';
+    // Mái tầng trên
+    ctx.beginPath();
+    ctx.moveTo(-15, -18);
+    ctx.quadraticCurveTo(0, -28, 15, -18);
+    ctx.lineTo(12, -14);
+    ctx.quadraticCurveTo(0, -22, -12, -14);
+    ctx.closePath();
+    ctx.fill();
+
+    // Mái tầng dưới rộng hơn
+    ctx.beginPath();
+    ctx.moveTo(-28, -6);
+    ctx.quadraticCurveTo(0, -14, 28, -6);
+    ctx.lineTo(24, -2);
+    ctx.quadraticCurveTo(0, -8, -24, -2);
+    ctx.closePath();
+    ctx.fill();
+
+    // Thân tháp và cột trụ đá phong rêu
+    ctx.fillStyle = '#5c5247'; // Đá xám phong rêu
+    ctx.fillRect(-18, -14, 36, 12);
+    // Cổng chính
+    ctx.fillRect(-24, -2, 48, 18);
+
+    // Vòm cổng tam quan (Cổng đá cũ)
+    ctx.fillStyle = '#171513';
+    ctx.beginPath();
+    ctx.arc(0, 16, 8, Math.PI, 0, false);
+    ctx.lineTo(8, 16);
+    ctx.lineTo(-8, 16);
+    ctx.closePath();
+    ctx.fill();
+
+    // Cổng phụ hai bên
+    ctx.beginPath();
+    ctx.arc(-16, 16, 4, Math.PI, 0, false);
+    ctx.lineTo(-12, 16);
+    ctx.lineTo(-20, 16);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(16, 16, 4, Math.PI, 0, false);
+    ctx.lineTo(20, 16);
+    ctx.lineTo(12, 16);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  // Vẽ chiếc thuyền nan và người chèo (Thuyền nan mộc mạc)
+  _drawNinhBinhRowboat(ctx, x, y, scale, oarPhase) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+
+    // Thân thuyền nan mộc bằng tre đan/gỗ
+    ctx.fillStyle = '#a68058';
+    ctx.beginPath();
+    ctx.moveTo(-18, 0);
+    ctx.quadraticCurveTo(0, 6, 18, 0);
+    ctx.quadraticCurveTo(0, -4, -18, 0);
+    ctx.closePath();
+    ctx.fill();
+
+    // Lớp gỗ lót sẫm màu phía trong thuyền
+    ctx.fillStyle = '#7a5a3a';
+    ctx.beginPath();
+    ctx.moveTo(-14, 0);
+    ctx.quadraticCurveTo(0, 4, 14, 0);
+    ctx.quadraticCurveTo(0, -2, -14, 0);
+    ctx.closePath();
+    ctx.fill();
+
+    // Người row (Mặc quần áo sẫm, đội nón lá)
+    ctx.fillStyle = '#264653';
+    ctx.fillRect(-6, -8, 5, 8); // Áo bà ba sẫm
+    ctx.fillStyle = '#f4a261'; // Nón lá mộc mạc
+    ctx.beginPath();
+    ctx.moveTo(-10, -8);
+    ctx.lineTo(-4, -15);
+    ctx.lineTo(2, -8);
+    ctx.closePath();
+    ctx.fill();
+
+    // Du khách ngắm cảnh (Phía trước)
+    ctx.fillStyle = '#e76f51';
+    ctx.fillRect(4, -6, 5, 6);
+    ctx.fillStyle = '#e9c46a'; // Nón lá/Mũ du khách
+    ctx.beginPath();
+    ctx.moveTo(1, -6);
+    ctx.lineTo(6, -11);
+    ctx.lineTo(11, -6);
+    ctx.closePath();
+    ctx.fill();
+
+    // Mái chèo nhấp nhô dưới sông (Animated Oars)
+    const oarSway = Math.sin(this.animTimer * 2 + oarPhase) * 6;
+    ctx.strokeStyle = '#4a2f18';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(-3, -2);
+    ctx.lineTo(-10 + oarSway, 8);
+    ctx.moveTo(-3, -2);
+    ctx.lineTo(4 - oarSway, 8);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  // Vẽ rặng lau sậy & cây cối rậm rạp hai bên sườn núi
+  _drawLushFoliagePlanks(ctx, startX, startY, dir) {
+    ctx.save();
+    ctx.fillStyle = '#1e3822'; // Màu bụi cỏ sẫm
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.quadraticCurveTo(startX + dir * 68, startY + 60, startX + dir * 52, this.height);
+    ctx.lineTo(startX, this.height);
+    ctx.closePath();
+    ctx.fill();
+
+    // Vẽ lá cọ, xum xuê thực vật (tropical palms / lau sậy)
+    ctx.strokeStyle = '#2d4a22';
+    ctx.lineWidth = 2.0;
+    for (let p = 0; p < 9; p++) {
+      const py = startY + 25 + p * 38;
+      ctx.beginPath();
+      ctx.moveTo(startX, py);
+      ctx.quadraticCurveTo(startX + dir * 62, py - 18, startX + dir * 78, py + 12);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // Vẽ cảnh bụi cây rực rỡ và lau sậy tự nhiên ở mặt nước (Bên trái dưới cùng)
+  _drawForegroundRiverside(ctx, startX, startY) {
+    ctx.save();
+    ctx.translate(startX, startY);
+
+    // Cây bụi lớn rậm rạp màu xanh sẫm
+    ctx.fillStyle = '#0f241a';
+    ctx.beginPath();
+    ctx.arc(-20, 45, 32, 0, Math.PI * 2);
+    ctx.arc(8, 32, 28, 0, Math.PI * 2);
+    ctx.arc(38, 52, 24, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Lá cọ và cỏ dại nhô cao lấp lánh
+    ctx.strokeStyle = '#1d3f23';
+    ctx.lineWidth = 2.2;
+    for (let c = 0; c < 8; c++) {
+      const cy = 40 + c * 8;
+      const cx = -10 + c * 6;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.quadraticCurveTo(cx - 15, cy - 36, cx - 28, cy - 42);
+      ctx.stroke();
+    }
+
+    // Các cụm lau sậy nhỏ
+    ctx.fillStyle = '#d4a373'; // Màu bông lau vàng nhạt
+    for (let r = 0; r < 5; r++) {
+      const rx = 12 + r * 6;
+      const ry = 42 - r * 3;
+      ctx.fillRect(rx, ry, 2.5, 3.5);
+    }
+    ctx.restore();
+  }
+
+  // Vẽ mây sương nhạt trên đồi núi (Misty Clouds)
+  _drawSoftNBMistyClouds(ctx, baseY, alpha, count) {
+    ctx.save();
+    ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+    for (let i = 0; i < count; i++) {
+      const cx = ((i * 150 + this.scrollX * 0.18) % (this.width + 180)) - 90;
+      const cy = baseY + (i % 2) * 14;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 32, 0, Math.PI * 2);
+      ctx.arc(cx + 25, cy - 10, 38, 0, Math.PI * 2);
+      ctx.arc(cx + 52, cy, 30, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // Vẽ vệt lấp lánh gợn nước sông tự nhiên
+  _drawWaterRipples(ctx, startY) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.lineWidth = 1.0;
+    for (let i = 0; i < 15; i++) {
+      const ry = startY + 22 + i * 26;
+      const rx = ((this.scrollX * 0.8 + i * 85) % this.width);
+      ctx.beginPath();
+      ctx.moveTo(rx, ry);
+      ctx.lineTo(rx + 42, ry);
+      ctx.stroke();
+    }
     ctx.restore();
   }
 
