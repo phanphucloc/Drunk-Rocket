@@ -948,144 +948,258 @@ export class ScenicLandmarksManager {
     ctx.restore();
   }
 
+
+  // ==========================================
+  // PANEL 3: HÀ NỘI (Tháp Rùa Hồ Gươm & Cầu Long Biên)
   // ==========================================
   _drawHanoi(ctx) {
     ctx.save();
+    const w = this.width;
+    const h = this.height;
 
-    // 1. Sunset Dusk Sky
-    const sky = ctx.createLinearGradient(0, 0, 0, this.height * 0.6);
-    sky.addColorStop(0, '#3b2844');
-    sky.addColorStop(0.35, '#6a4058');
-    sky.addColorStop(0.7, '#ba6868');
-    sky.addColorStop(1, '#f7b08d');
+    // 1. Bầu trời hoàng hôn / chập tối (Sunset Dusk Sky)
+    const sky = ctx.createLinearGradient(0, 0, 0, h * 0.58);
+    sky.addColorStop(0, '#382b4a'); // Tím tối trên cao
+    sky.addColorStop(0.35, '#5e3e56');
+    sky.addColorStop(0.65, '#9e5554');
+    sky.addColorStop(0.9, '#e48a68');
+    sky.addColorStop(1, '#fbd9ad'); // Cam nhạt sát chân trời
     ctx.fillStyle = sky;
-    ctx.fillRect(0, 0, this.width, this.height * 0.6);
+    ctx.fillRect(0, 0, w, h * 0.58);
 
-    // 2. Long Biên Bridge spanning in the background
-    const bY = 280;
-    ctx.strokeStyle = 'rgba(75, 45, 60, 0.75)';
-    ctx.lineWidth = 1.4;
-    // Deck
-    ctx.beginPath();
-    ctx.moveTo(0, bY);
-    ctx.lineTo(this.width, bY);
-    ctx.stroke();
+    // 2. Mây chiều lãng đãng và mặt trăng, đàn chim
+    this._drawSoftHNMistyClouds(ctx, h * 0.28, 0.22, 3);
+    this._drawTinyMoon(ctx, w * 0.62, h * 0.12);
+    this._drawHanoiBirds(ctx);
 
-    // Cantilever steel truss spans
-    for (let lx = 0; lx < this.width; lx += 42) {
-      ctx.strokeRect(lx, bY - 16, 38, 16);
+    // 3. Cầu Long Biên lịch sử (Cantilever Steel Truss Bridge in background)
+    const bridgeY = h * 0.52;
+    ctx.fillStyle = '#1e1a29'; // Màu bóng thép cũ của cầu
+    ctx.fillRect(0, bridgeY, w, 8); // Mặt cầu
+
+    // Các nhịp cầu thép uốn lượn (Truss spans)
+    ctx.strokeStyle = '#1e1a29';
+    ctx.lineWidth = 1.5;
+    const spanWidth = 84;
+    const numSpans = Math.ceil(w / spanWidth) + 1;
+    for (let i = 0; i < numSpans; i++) {
+      const sx = i * spanWidth - 40;
       ctx.beginPath();
-      ctx.moveTo(lx, bY);
-      ctx.lineTo(lx + 19, bY - 16);
-      ctx.lineTo(lx + 38, bY);
+      // Nhịp giàn thép chữ V ngược kiểu Long Biên
+      ctx.moveTo(sx, bridgeY);
+      ctx.lineTo(sx + spanWidth * 0.5, bridgeY - 32);
+      ctx.lineTo(sx + spanWidth, bridgeY);
       ctx.stroke();
-      // Glowing streetlight dot
-      ctx.fillStyle = '#ffe6a7';
-      ctx.fillRect(lx + 18, bY - 18, 3, 3);
+
+      // Các giằng thép chéo bên trong
+      ctx.beginPath();
+      ctx.moveTo(sx + spanWidth * 0.25, bridgeY);
+      ctx.lineTo(sx + spanWidth * 0.5, bridgeY - 32);
+      ctx.lineTo(sx + spanWidth * 0.75, bridgeY);
+      ctx.moveTo(sx, bridgeY);
+      ctx.lineTo(sx + spanWidth * 0.5, bridgeY - 16);
+      ctx.lineTo(sx + spanWidth, bridgeY);
+      ctx.stroke();
+
+      // Các cột trụ cầu đỡ nhịp dưới nước
+      ctx.fillStyle = '#1e1a29';
+      ctx.fillRect(sx, bridgeY, 8, 28);
+      ctx.fillRect(sx + spanWidth - 8, bridgeY, 8, 28);
+
+      // Điểm sáng đèn đường li ti (Golden Bridge lights)
+      ctx.fillStyle = '#ffbe0b';
+      ctx.beginPath();
+      ctx.arc(sx + spanWidth * 0.5, bridgeY - 3, 2, 0, Math.PI * 2);
+      ctx.fill();
     }
 
-    // 3. Hoàn Kiếm Lake Water (Sông Hồng / Hồ Gươm)
-    const waterY = 320;
-    const waterGrad = ctx.createLinearGradient(0, waterY, 0, this.height);
-    waterGrad.addColorStop(0, '#2b3a4a');
-    waterGrad.addColorStop(0.5, '#172738');
-    waterGrad.addColorStop(1, '#0c1622');
+    // 4. Mặt nước Hồ Gươm / Sông Hồng (Glow reflection)
+    const waterY = bridgeY + 22;
+    const waterGrad = ctx.createLinearGradient(0, waterY, 0, h);
+    waterGrad.addColorStop(0, '#262942');
+    waterGrad.addColorStop(0.4, '#1b1d30');
+    waterGrad.addColorStop(1, '#0e0f1c');
     ctx.fillStyle = waterGrad;
-    ctx.fillRect(0, waterY, this.width, this.height - waterY);
+    ctx.fillRect(0, waterY, w, h - waterY);
 
-    // Long Biên Bridge water reflection
-    ctx.fillStyle = 'rgba(247, 176, 141, 0.15)';
-    ctx.fillRect(0, waterY, this.width, 24);
+    // Bóng phản chiếu cầu Long Biên nhạt nhòa trên sông
+    ctx.fillStyle = 'rgba(247, 176, 141, 0.08)';
+    ctx.fillRect(0, waterY, w, 32);
 
-    // 4. Đảo Rùa & Tháp Rùa (Centerpiece)
-    const isleX = this.width * 0.5;
-    const isleY = 460;
+    // 5. Đảo ngọc Tháp Rùa cổ kính rực sáng (Turtle Tower & Isle in Center)
+    const isleX = w * 0.61;
+    const isleY = h * 0.71;
 
-    // Grass Islet
-    ctx.fillStyle = '#1c3d25';
+    // Thảm cỏ đảo ngọc xanh ngời dưới ánh đèn đêm
+    const grdn = ctx.createRadialGradient(isleX, isleY + 12, 10, isleX, isleY + 12, 120);
+    grdn.addColorStop(0, '#527942'); // Sáng rực bên trong
+    grdn.addColorStop(0.6, '#354a2a');
+    grdn.addColorStop(1, 'rgba(23, 43, 20, 0)'); // Chìm vào mặt nước tối
+    ctx.fillStyle = grdn;
     ctx.beginPath();
-    ctx.ellipse(isleX, isleY + 28, 75, 18, 0, 0, Math.PI * 2);
+    ctx.ellipse(isleX, isleY + 12, 105, 18, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // Weeping willow shrubs on island
-    ctx.fillStyle = '#2d5a37';
+    // Rặng cây, bụi cỏ nhỏ ven bờ đảo ngọc
+    ctx.fillStyle = '#21331c';
     ctx.beginPath();
-    ctx.arc(isleX - 52, isleY + 18, 20, 0, Math.PI * 2);
-    ctx.arc(isleX + 52, isleY + 18, 22, 0, Math.PI * 2);
+    ctx.arc(isleX - 70, isleY + 6, 10, 0, Math.PI * 2);
+    ctx.arc(isleX - 45, isleY + 4, 13, 0, Math.PI * 2);
+    ctx.arc(isleX + 45, isleY + 3, 14, 0, Math.PI * 2);
+    ctx.arc(isleX + 68, isleY + 5, 11, 0, Math.PI * 2);
     ctx.fill();
 
-    // Tháp Rùa 3 Tầng Cổ Kính
-    // Tier 1 (Base)
-    ctx.fillStyle = '#9e8c6c';
-    ctx.fillRect(isleX - 32, isleY - 10, 64, 38);
-    // Tier 2
-    ctx.fillRect(isleX - 22, isleY - 36, 44, 26);
-    // Tier 3
-    ctx.fillRect(isleX - 12, isleY - 56, 24, 20);
+    // VẼ THÁP RÙA 3 TẦNG CỔ KÍNH
+    this._drawDetailedTurtleTower(ctx, isleX, isleY);
 
-    // Roofs
-    ctx.fillStyle = '#6b2024';
-    ctx.fillRect(isleX - 38, isleY - 12, 76, 5);
-    ctx.fillRect(isleX - 26, isleY - 38, 52, 4);
-    ctx.fillRect(isleX - 15, isleY - 58, 30, 4);
+    // 6. Cành liễu rủ thơ mộng (Trôi từ mép trên hai bên bờ)
+    this._drawCascadingWillow(ctx, 0, 0, 1);
+    this._drawCascadingWillow(ctx, w, 0, -1);
 
-    // Arched Windows & Doors (Glowing warm amber)
-    ctx.fillStyle = '#ffeaa7';
-    ctx.fillRect(isleX - 6, isleY + 4, 12, 18);
-    ctx.fillRect(isleX - 24, isleY + 8, 8, 14);
-    ctx.fillRect(isleX + 16, isleY + 8, 8, 14);
-    ctx.fillRect(isleX - 4, isleY - 26, 8, 10);
-    ctx.fillRect(isleX - 3, isleY - 50, 6, 8);
+    // 7. Chi tiết lan can đá Hồ Gươm & Biển báo xưa cũ (Góc trái tiền cảnh)
+    this._drawLakePromenade(ctx, w * 0.02, h * 0.81);
 
-    // Tháp Rùa Water Reflection (Detailed mirror ripples)
-    ctx.save();
-    ctx.globalAlpha = 0.35;
-    ctx.fillStyle = '#9e8c6c';
-    for (let r = 0; r < 8; r++) {
-      const ry = isleY + 48 + r * 6;
-      const rw = (54 - r * 5) + Math.sin(this.animTimer * 3 + r) * 6;
-      ctx.fillRect(isleX - rw / 2, ry, rw, 3.5);
-    }
-    ctx.restore();
-
-    // 5. Cành Liễu Rủ (Weeping Willow Draping from Top Corners)
-    this._drawWillowBranch(ctx, 0, 0, 1);
-    this._drawWillowBranch(ctx, this.width, 0, -1);
+    // Gợn nước đêm gợn nhẹ và phản chiếu lung linh
+    this._drawNightWaterRipples(ctx, waterY, isleX, isleY);
 
     ctx.restore();
   }
 
-  _drawWillowBranch(ctx, startX, startY, dir) {
-    ctx.save();
-    ctx.strokeStyle = '#382b1d';
-    ctx.lineWidth = 2.0;
+  // ==========================================
+  // CÁC HÀM PHỤ TRỢ CHI TIẾT HÀ NỘI
+  // ==========================================
 
-    // Main branches
+  // Vẽ Tháp Rùa cổ kính rực sáng tự nhiên
+  _drawDetailedTurtleTower(ctx, x, y) {
+    ctx.save();
+    ctx.translate(x, y);
+
+    // Ánh hào quang tỏa ra từ tháp
+    const thapGlow = ctx.createRadialGradient(0, -25, 5, 0, -25, 75);
+    thapGlow.addColorStop(0, 'rgba(255, 190, 11, 0.38)');
+    thapGlow.addColorStop(0.5, 'rgba(255, 150, 0, 0.12)');
+    thapGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = thapGlow;
+    ctx.beginPath();
+    ctx.arc(0, -25, 75, 0, Math.PI * 2);
+    ctx.fill();
+
+    // TẦNG 1 (Dưới cùng)
+    ctx.fillStyle = '#6b5e4c'; // Đá xám nâu cổ
+    ctx.fillRect(-34, -18, 68, 22);
+    ctx.fillStyle = '#4a3f31'; // Mảng tối bên phải tạo khối
+    ctx.fillRect(10, -18, 24, 22);
+
+    // Tầng mái 1
+    ctx.fillStyle = '#3a201c';
+    ctx.beginPath();
+    ctx.moveTo(-38, -18);
+    ctx.quadraticCurveTo(0, -23, 38, -18);
+    ctx.lineTo(34, -14);
+    ctx.quadraticCurveTo(0, -18, -34, -14);
+    ctx.closePath();
+    ctx.fill();
+
+    // Các vòm cửa Tầng 1 (Ánh sáng rực ấm từ bên trong)
+    ctx.fillStyle = '#ffd166';
+    ctx.beginPath();
+    ctx.arc(-22, -2, 5, Math.PI, 0, false); ctx.lineTo(-17, 4); ctx.lineTo(-27, 4); ctx.fill();
+    ctx.beginPath();
+    ctx.arc(0, -5, 7, Math.PI, 0, false); ctx.lineTo(7, 4); ctx.lineTo(-7, 4); ctx.fill();
+    ctx.beginPath();
+    ctx.arc(22, -2, 5, Math.PI, 0, false); ctx.lineTo(27, 4); ctx.lineTo(17, 4); ctx.fill();
+
+    // TẦNG 2 (Giữa)
+    ctx.fillStyle = '#7a6c58';
+    ctx.fillRect(-24, -40, 48, 22);
+    ctx.fillStyle = '#5c5040';
+    ctx.fillRect(4, -40, 20, 22);
+
+    // Tầng mái 2
+    ctx.fillStyle = '#3a201c';
+    ctx.beginPath();
+    ctx.moveTo(-28, -40);
+    ctx.quadraticCurveTo(0, -45, 28, -40);
+    ctx.lineTo(24, -36);
+    ctx.quadraticCurveTo(0, -40, -24, -36);
+    ctx.closePath();
+    ctx.fill();
+
+    // Các vòm cửa Tầng 2 (Nhỏ hơn)
+    ctx.fillStyle = '#ffd166';
+    ctx.beginPath();
+    ctx.arc(-14, -26, 3.5, Math.PI, 0, false); ctx.lineTo(-10.5, -18); ctx.lineTo(-17.5, -18); ctx.fill();
+    ctx.beginPath();
+    ctx.arc(0, -28, 4.5, Math.PI, 0, false); ctx.lineTo(4.5, -18); ctx.lineTo(-4.5, -18); ctx.fill();
+    ctx.beginPath();
+    ctx.arc(14, -26, 3.5, Math.PI, 0, false); ctx.lineTo(17.5, -18); ctx.lineTo(10.5, -18); ctx.fill();
+
+    // TẦNG 3 & ĐỈNH THÁP (Trên cùng)
+    ctx.fillStyle = '#8c7d67';
+    ctx.fillRect(-12, -56, 24, 16);
+    ctx.fillStyle = '#6b5e4c';
+    ctx.fillRect(2, -56, 10, 16);
+
+    // Vòm cửa Tầng 3
+    ctx.fillStyle = '#ffd166';
+    ctx.beginPath();
+    ctx.arc(0, -48, 3, Math.PI, 0, false); ctx.lineTo(3, -40); ctx.lineTo(-3, -40); ctx.fill();
+
+    // Mái chóp nhỏ trên cùng (Kiểu lầu vọng)
+    ctx.fillStyle = '#4a2318';
+    ctx.beginPath();
+    ctx.moveTo(-15, -56);
+    ctx.quadraticCurveTo(0, -66, 15, -56);
+    ctx.lineTo(12, -52);
+    ctx.quadraticCurveTo(0, -60, -12, -52);
+    ctx.closePath();
+    ctx.fill();
+
+    // Đỉnh chóp có trang trí mái rồng cách điệu
+    ctx.fillStyle = '#ffbe0b';
+    ctx.beginPath();
+    ctx.moveTo(-1, -66);
+    ctx.lineTo(1, -66);
+    ctx.lineTo(0, -71);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  // Vẽ cành liễu rủ đung đưa gió (Cascading Weeping Willow)
+  _drawCascadingWillow(ctx, startX, startY, dir) {
+    ctx.save();
+    ctx.strokeStyle = '#241a12';
+    ctx.lineWidth = 2.5;
+
+    // Thân cành chính vươn ra từ góc khuất
     ctx.beginPath();
     ctx.moveTo(startX, startY);
-    ctx.bezierCurveTo(startX + dir * 60, startY + 40, startX + dir * 110, startY + 70, startX + dir * 140, startY + 110);
+    ctx.bezierCurveTo(startX + dir * 65, startY + 38, startX + dir * 110, startY + 58, startX + dir * 145, startY + 98);
     ctx.stroke();
 
-    // Hanging slender vines with leaves
-    const vineEnds = [40, 75, 105, 135];
-    vineEnds.forEach((vx, vi) => {
-      const bx = startX + dir * vx;
-      const by = startY + 20 + vi * 22;
-      const vineLen = 70 + (vi % 2) * 35;
-      const sway = Math.sin(this.animTimer * 2 + vi) * 8;
+    // Nhánh phụ và lá liễu mềm mại rủ xuống
+    const points = [35, 70, 105, 135];
+    points.forEach((offset, idx) => {
+      const bx = startX + dir * offset;
+      const by = startY + 22 + idx * 18;
+      const length = 85 + (idx % 2) * 35;
+      const sway = Math.sin(this.animTimer * 1.5 + idx) * 8; // Đung đưa nhẹ
 
-      ctx.strokeStyle = 'rgba(56, 102, 65, 0.75)';
+      // Sợi dây lá liễu
+      ctx.strokeStyle = 'rgba(46, 82, 51, 0.72)';
       ctx.lineWidth = 1.0;
       ctx.beginPath();
       ctx.moveTo(bx, by);
-      ctx.bezierCurveTo(bx + dir * 10, by + vineLen * 0.5, bx + sway, by + vineLen * 0.8, bx + sway, by + vineLen);
+      ctx.bezierCurveTo(bx + dir * 10, by + length * 0.4, bx + sway, by + length * 0.7, bx + sway, by + length);
       ctx.stroke();
 
-      // Willow leaves
-      ctx.fillStyle = '#588157';
-      for (let ly = by + 12; ly < by + vineLen; ly += 10) {
+      // Những cụm lá liễu mảnh nhỏ song song
+      ctx.fillStyle = '#3a5f3e';
+      for (let ly = by + 12; ly < by + length; ly += 9) {
         ctx.beginPath();
-        ctx.ellipse(bx + sway * 0.5, ly, 4, 1.8, 0.4 * dir, 0, Math.PI * 2);
+        ctx.ellipse(bx + (sway * (ly - by) / length) * 0.6, ly, 3.5, 1.5, 0.5 * dir, 0, Math.PI * 2);
         ctx.fill();
       }
     });
@@ -1093,9 +1207,147 @@ export class ScenicLandmarksManager {
     ctx.restore();
   }
 
-  // ==========================================
-  // PANEL 3: HUẾ (Đại Nội Ngọ Môn & Cầu Tràng Tiền)
-  // ==========================================
+  // Vẽ bờ lan can đá, biển báo cũ & khóm cây (Góc trái tiền cảnh)
+  _drawLakePromenade(ctx, startX, startY) {
+    ctx.save();
+    ctx.translate(startX, startY);
+
+    // Lan can đá cũ rêu phong (Balustrade)
+    ctx.fillStyle = '#2f353a'; // Đá xám đậm
+    ctx.fillRect(0, 48, 92, 10); // Tay vịn lan can
+    ctx.fillRect(0, 75, 92, 6);  // Chân đỡ
+
+    // Các con tiện lan can chẵn cách
+    for (let i = 0; i < 5; i++) {
+      ctx.fillRect(10 + i * 16, 58, 6, 17);
+    }
+    // Trụ đá lan can lớn ở đầu
+    ctx.fillStyle = '#42494f';
+    ctx.fillRect(74, 40, 12, 45);
+
+    // Biển báo & Cột biển báo cũ mang dấu ấn Hà Nội
+    ctx.fillStyle = '#171513';
+    ctx.fillRect(36, 12, 3, 40); // Cột biển
+    ctx.fillStyle = '#1b2d35';  // Khung biển báo xanh sẫm
+    ctx.fillRect(12, 18, 28, 8);
+    ctx.fillRect(40, 24, 26, 8);
+
+    // Viền trắng mảnh của biển báo cũ
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 0.5;
+    ctx.strokeRect(13, 19, 26, 6);
+    ctx.strokeRect(41, 25, 24, 6);
+
+    // Rặng lau sậy & Cọ lùn ven bờ hồ tối
+    ctx.fillStyle = '#0f1f14'; // Bụi cây đậm bóng đêm
+    ctx.beginPath();
+    ctx.arc(-22, 52, 36, 0, Math.PI * 2);
+    ctx.arc(12, 45, 28, 0, Math.PI * 2);
+    ctx.arc(42, 62, 22, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Lá dừa/Cỏ dại xum xuê nhô lên
+    ctx.strokeStyle = '#1e3822';
+    ctx.lineWidth = 2.0;
+    for (let c = 0; c < 9; c++) {
+      const cy = 45 + c * 7;
+      const cx = -12 + c * 5;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.quadraticCurveTo(cx - 18, cy - 32, cx - 28, cy - 38);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
+  // Vẽ bóng tháp và gợn sóng Hồ Gươm lung linh đêm
+  _drawNightWaterRipples(ctx, startY, thapX, thapY) {
+    ctx.save();
+    // Bóng nước rực rỡ từ Tháp Rùa
+    ctx.globalAlpha = 0.32;
+    ctx.fillStyle = '#ffd166';
+    for (let r = 0; r < 8; r++) {
+      const ry = thapY + 22 + r * 6;
+      const rw = (58 - r * 4.5) + Math.sin(this.animTimer * 2.8 + r) * 6;
+      ctx.fillRect(thapX - rw * 0.5, ry, rw, 2.5);
+    }
+
+    // Sóng nước li ti tự nhiên
+    ctx.globalAlpha = 1.0;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.lineWidth = 0.8;
+    for (let i = 0; i < 12; i++) {
+      const ry = startY + 35 + i * 28;
+      const rx = ((this.scrollX * 0.55 + i * 95) % this.width);
+      ctx.beginPath();
+      ctx.moveTo(rx, ry);
+      ctx.lineTo(rx + 36, ry);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // Mây Hà Nội đêm bồng bềnh
+  _drawSoftHNMistyClouds(ctx, baseY, alpha, count) {
+    ctx.save();
+    ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+    for (let i = 0; i < count; i++) {
+      const cx = ((i * 160 + this.scrollX * 0.15) % (this.width + 160)) - 80;
+      const cy = baseY + (i % 2) * 12;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 28, 0, Math.PI * 2);
+      ctx.arc(cx + 22, cy - 6, 35, 0, Math.PI * 2);
+      ctx.arc(cx + 48, cy, 24, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // Mặt trăng treo cao
+  _drawTinyMoon(ctx, cx, cy) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 10, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Ánh hào quang mờ nhạt của trăng
+    const glow = ctx.createRadialGradient(cx, cy, 2, cx, cy, 25);
+    glow.addColorStop(0, 'rgba(255, 255, 255, 0.25)');
+    glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 25, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Đàn chim đêm bay muộn
+  _drawHanoiBirds(ctx) {
+    ctx.save();
+    ctx.strokeStyle = '#2b2438';
+    ctx.lineWidth = 1.0;
+    const birds = [
+      { x: this.width * 0.48, y: this.height * 0.24, size: 5.5 },
+      { x: this.width * 0.53, y: this.height * 0.22, size: 4.5 },
+      { x: this.width * 0.43, y: this.height * 0.27, size: 5 }
+    ];
+    birds.forEach((bird, idx) => {
+      const swing = Math.sin(this.animTimer * 5 + idx) * 1.8;
+      const bx = bird.x - (this.animTimer * 7.5) % 200;
+      const by = bird.y;
+
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.quadraticCurveTo(bx + bird.size * 0.5, by - bird.size * 0.4 + swing, bx + bird.size, by);
+      ctx.quadraticCurveTo(bx + bird.size * 1.5, by - bird.size * 0.4 + swing, bx + bird.size * 2, by);
+      ctx.stroke();
+    });
+    ctx.restore();
+  }
+
+    // ==========================================
   _drawHue(ctx) {
     ctx.save();
 
