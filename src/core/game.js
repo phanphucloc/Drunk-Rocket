@@ -21,9 +21,6 @@ export class Game {
     this.height = 700;
     this.scale = 1;
 
-    this.currentTheme = getThemeForScore(0);
-    this.starfield.setTheme(this.currentTheme);
-    if (this.audio && this.audio.stopLaserProximity) this.audio.stopLaserProximity();
     this.state = 'READY';
 
     this.input = new InputManager(this.canvas);
@@ -193,6 +190,9 @@ export class Game {
     this.pillars.reset();
     this.energyCells.reset();
     this.particles.reset();
+    this.currentTheme = getThemeForScore(0);
+    if (this.starfield) this.starfield.setTheme(this.currentTheme);
+    if (this.audio && this.audio.stopLaserProximity) this.audio.stopLaserProximity();
     this.state = 'READY';
     this.timeSinceDeath = 0;
   }
