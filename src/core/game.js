@@ -3,6 +3,7 @@ import { Rocket } from '../entities/rocket.js';
 import { LaserPillarManager } from '../entities/laserPillar.js';
 import { EnergyCellManager } from '../entities/energyCell.js';
 import { Starfield } from '../graphics/starfield.js';
+import { ScenicLandmarksManager } from '../graphics/scenicLandmarks.js';
 import { ParticleSystem } from '../graphics/particles.js';
 import { EntityRenderer } from '../graphics/renderer.js';
 import { AudioSynthesizer } from '../audio/audioSynth.js';
@@ -27,6 +28,7 @@ export class Game {
     this.input = new InputManager(this.canvas);
     this.audio = new AudioSynthesizer();
     this.starfield = new Starfield(this.width, this.height);
+    this.scenic = new ScenicLandmarksManager(this.width, this.height);
     this.particles = new ParticleSystem();
     this.pillars = new LaserPillarManager(this.width, this.height);
     this.energyCells = new EnergyCellManager(this.width, this.height);
@@ -167,6 +169,7 @@ export class Game {
 
     this.canvas.width = this.width;
     this.canvas.height = this.height;
+    if (this.scenic) this.scenic.resize(this.width, this.height);
   }
 
   start() {
@@ -372,6 +375,7 @@ export class Game {
     }
     this.particles.update(dt);
     this.starfield.update(dt, this.state === 'PLAYING' ? 1 : 0.2);
+    if (this.scenic) this.scenic.update(dt, this.score);
 
     if (this.leaderboard && this.leaderboard.isOpen) {
       this.input.consumeTap();
@@ -601,6 +605,7 @@ export class Game {
     this.ctx.translate(shake.x, shake.y);
 
     this.starfield.draw(this.ctx);
+    if (this.scenic) this.scenic.draw(this.ctx);
 
     for (const p of this.pillars.pillars) {
       if (!p.isDestroyed) {
