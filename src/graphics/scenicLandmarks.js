@@ -71,10 +71,6 @@ export class ScenicLandmarksManager {
   }
 
   setTier(tier) {
-    if (this.currentTier === 5 || this.prevTier === 5) {
-      this._updateDaNangFx(dt);
-    }
-
     if (tier !== this.currentTier) {
       this.prevTier = this.currentTier;
       this.currentTier = tier;
@@ -83,6 +79,9 @@ export class ScenicLandmarksManager {
   }
 
   update(dt, tier = 1) {
+    if (this.currentTier === 5 || this.prevTier === 5) {
+      this._updateDaNangFx(dt);
+    }
     this.animTimer += dt;
     this.dragonFlameTimer += dt;
     this.cableCarPhase = (this.cableCarPhase + dt * 0.35) % 1.0;
