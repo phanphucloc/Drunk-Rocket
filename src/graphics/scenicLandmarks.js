@@ -17,6 +17,12 @@
  *    - Tier 8 (Miền Tây): Bright tropical morning, Cầu Cần Thơ cable-stayed bridge, lush coconut palm groves on both sides, Cái Răng floating market with wooden boats loaded with fruits and merchants in conical hats.
  */
 
+// Hằng số khung vẽ gốc Đà Lạt
+const DALAT_W = 1600;  // Chiều rộng khung vẽ gốc
+const DALAT_H = 1200;  // Chiều cao khung vẽ gốc
+const DALAT_PAD = 40;  // Lề thừa hai bên để các lớp đồi dịch chuyển theo chiều sâu
+const DALAT_HZ = 660;  // Đường chân trời (nơi mặt hồ bắt đầu)
+
 export class ScenicLandmarksManager {
   constructor(width = 400, height = 700) {
     this.width = width;
@@ -4378,894 +4384,848 @@ export class ScenicLandmarksManager {
   // ==========================================
   // ==========================================
   // ==========================================
-  // PANEL 7: ĐÀ LẠT (Hồ Xuân Hương, Tháp Chuông Nhà Thờ Con Gà & Đồi Hoa Cẩm Tú Cầu Bạt Ngàn)
-  // MASTERPIECE VECTOR 2D ART - KHỚP 100% CONCEPT ART & REFERENCE
+  // ==========================================
+    // ==========================================
+  // PANEL 7: ĐÀ LẠT (Hồ Xuân Hương & Rừng Thông Thung Lũng)
+  // CHUẨN 100% DEMO CANVAS MỚI NHẤT VỚI HỆ THỐNG MULTI-LAYER OFFCANVAS 60FPS
   // ==========================================
   _drawDaLat(ctx) {
     ctx.save();
     const w = this.width;
     const h = this.height;
-    const s = Math.max(0.55, Math.min(1.4, w / 700));
+    const t = (this.animTimer || 0) * 1000;  // Thời gian (ms) cho các chuyển động
+    const px = this.dalatParallax || 0;      // -1..1: độ lệch chiều sâu theo chuột (mặc định 0)
+    const scene = this._getDalatScene();     // Các lớp tranh được vẽ sẵn một lần rồi lưu lại
+    const layer = (img, depth) => ctx.drawImage(img, -DALAT_PAD + px * depth, 0);
 
-    // 1. Bầu trời sớm mai cao nguyên mờ sương (Highland Misty Dawn Sky)
-    this._drawDalatSkyAndAtmosphere(ctx, w, h, s);
+    // Co giãn khung 1600x1200 phủ vừa panel (cover) và cắt phần thừa
+    const s = Math.max(w / DALAT_W, h / DALAT_H);
+    ctx.beginPath();
+    ctx.rect(0, 0, w, h);
+    ctx.clip();
+    ctx.translate((w - DALAT_W * s) / 2, (h - DALAT_H * s) / 2);
+    ctx.scale(s, s);
 
-    // 2. Mây núi sớm mai, cánh chim cao nguyên trôi nhẹ (Clouds & Birds)
-    this._drawSoftHighlandClouds(ctx, h * 0.20, 0.28, 4, s);
-    this._drawDalatBirds(ctx, s);
+    // 1. Bầu trời hoàng hôn tím hồng
+    ctx.drawImage(scene.sky, -DALAT_PAD, 0);
 
-    // 3. Rừng thông trùng điệp xếp lớp trong thung lũng sương mù (Misty Pine Hills)
-    // Các lớp đồi thông lót mờ ảo xa xăm (Foggy Pine Hills in valley)
-    this._drawMistyPineHills(ctx, h * 0.33, '#434c64', 15, 0.85 * s); // Lớp đồi xa nhất
-    this._drawMistyPineHills(ctx, h * 0.39, '#2a354c', 18, 1.05 * s); // Lớp đồi giữa
+    // 2. Mây núi trôi nhẹ, đàn chim cao nguyên
+    this._drawDalatSoftClouds(ctx, scene.clouds, t, px);
+    this._drawDalatBirds(ctx, scene.birds, t);
 
-    // Đồi thông chính tươi sẫm ôm trọn hai bên sườn thung lũng
-    this._drawMainPineSlopes(ctx, w, h, s);
+    // 3. Đồi xa, Hồ Xuân Hương phẳng lặng sương giăng
+    layer(scene.far, 4);
+    this._drawDalatMist(ctx, scene.fog, t, DALAT_HZ - 18, 6, 0.55, 1.6, 4);
+    layer(scene.water, 4);
+    this._drawLakeRipples(ctx, t);
+    this._drawDalatMist(ctx, scene.fog, t, DALAT_HZ + 40, -8, 0.35, 1.3, 4);
 
-    // Hồ Xuân Hương phẳng lặng sương giăng (Xuan Huong Lake in the valley)
-    const lakeY = h * 0.47;
-    this._drawXuanHuongLake(ctx, w, h, s, lakeY);
+    // 4. Rừng thông trùng điệp, tháp chuông và thủy tạ
+    layer(scene.left, 8);
+    layer(scene.right, 8);
+    this._drawDalatMist(ctx, scene.fog, t, 600, 5, 0.5, 1.5, 4);
+    this._drawDalatMist(ctx, scene.fog, t, 700, -6, 0.4, 1.8, 4);
+    layer(scene.leftNear, 12);
 
-    // Thủy tạ nhỏ / Tháp Gazebo bên mép hồ (Scenic Lakeside Pavilion)
-    this._drawLakeGazebo(ctx, w * 0.60, lakeY + 4 * s, 1.05 * s);
+    // 5. Đồi hoa cẩm tú cầu bạt ngàn
+    layer(scene.meadowFar, 16);
+    this._drawDalatMist(ctx, scene.fog, t, 820, 7, 0.35, 1.6, 4);
+    layer(scene.meadow, 24);
+    this._drawDalatCattails(ctx, scene.cats, t, px);
 
-    // Dải sương mù lững lờ trôi bồng bềnh trên mặt hồ và thung lũng (Floating Mist Ribbons)
-    this._drawDalatValleyMists(ctx, lakeY + 12 * s, 'rgba(235, 241, 248, 0.48)', 0.5, s);
-    this._drawDalatValleyMists(ctx, lakeY + 24 * s, 'rgba(242, 247, 253, 0.62)', -0.35, s);
+    // 6. Nhánh thông, dương xỉ, cỏ và hoa dại tiền cảnh
+    layer(scene.fore, 34);
 
-    // Hàng thông kim trên đồi
-    this._drawDetailedPineTrees(ctx, h * 0.44, '#15212e', s);
+    // 7. Đom đóm phát sáng trên đồi hoa
+    this._drawDalatFireflies(ctx, scene.flies, t, px);
 
-    // 4. NHÀ THỜ CON GÀ ĐÀ LẠT VƯƠN CAO KIÊU HÃNH (Dalat Cathedral / Romanesque Bell Tower)
-    // Tòa tháp chuông đồ sộ, nổi bật rực rỡ trên sườn đồi phải đón ánh bình minh
-    const churchX = w * 0.79;
-    const churchBaseY = h * 0.48;
-    this._drawDalatBellTower(ctx, churchX, churchBaseY, 1.35 * s);
-
-    // 5. ĐỒI HOA CẨM TÚ CẦU BẠT NGÀN (Rolling Hills of Blooming Hydrangeas - Masterpiece)
-    // Các triền đồi thoải lượn sóng phủ kín hàng trăm đóa cẩm tú cầu 3D nở bung xum xuê
-    const meadowY = h * 0.54;
-    this._drawRollingHydrangeaHills(ctx, meadowY, s);
-
-    // 6. KHÓM CÂY CỎ & NHÁNH THÔNG TIỀN CẢNH GÓC TRÁI VÀ GÓC PHẢI DƯỚI MÀN HÌNH
-    // Khung cảnh tiền cảnh hoành tráng theo đúng hình ảnh concept:
-    // Góc trái: Nhánh thông kim sắc nét, bụi cọ/dương xỉ nhiệt đới, thảm cỏ rậm & hoa dại
-    this._drawDalatLeftForeground(ctx, w, h, s);
-
-    // Góc phải: Rặng thông kim rủ, rặng cỏ đuôi mèo/cỏ lau nhung nâu cao vút & dương xỉ hoang dã
-    this._drawDalatRightForeground(ctx, w, h, s);
-
-    // Gợn sóng nhỏ li ti phẳng lặng trên hồ sương
-    this._drawLakeRipples(ctx, lakeY, s);
+    // 8. Viền tối nhẹ và tiêu đề
+    this._drawDalatVignette(ctx);
+    this._drawDalatTitle(ctx);
 
     ctx.restore();
   }
 
   // ==========================================
-  // CÁC HÀM PHỤ TRỢ CHI TIẾT CHO ĐÀ LẠT
+  // CÁC HÀM PHỤ TRỢ CHI TIẾT
   // ==========================================
 
-  // 1. Bầu trời sớm mai cao nguyên với vầng hồng bình minh ấm áp
-  _drawDalatSkyAndAtmosphere(ctx, w, h, s) {
-    ctx.save();
-    const skyH = h * 0.54;
-    const sky = ctx.createLinearGradient(0, 0, 0, skyH);
-    sky.addColorStop(0, '#151826');    // Tím than sẫm lạnh thiên đỉnh
-    sky.addColorStop(0.24, '#272d42'); // Xanh chàm xám
-    sky.addColorStop(0.52, '#4d5571'); // Lam khói cao nguyên
-    sky.addColorStop(0.75, '#808aa6'); // Xám xanh mờ sương
-    sky.addColorStop(0.88, '#b6bfd4'); // Mờ sương rạng đông
-    sky.addColorStop(1.0, '#dae1ee');  // Sương sớm thung lũng
-    ctx.fillStyle = sky;
-    ctx.fillRect(0, 0, w, skyH);
+  // Dựng toàn bộ các lớp tranh một lần duy nhất (thứ tự gọi quyết định số ngẫu nhiên, không đổi thứ tự)
+  _getDalatScene() {
+    if (this._dalatScene) return this._dalatScene;
+    this._dalatSeed = 11;  // Hạt giống cố định để tranh luôn giống nhau
+    const scene = {};
 
-    // Vầng hào quang bình minh ửng hồng cam dịu dàng phía chân trời (Sunrise Haze)
-    const dawnGlow = ctx.createRadialGradient(w * 0.65, skyH * 0.82, 20 * s, w * 0.65, skyH * 0.82, w * 0.65);
-    dawnGlow.addColorStop(0, 'rgba(255, 215, 202, 0.55)');
-    dawnGlow.addColorStop(0.35, 'rgba(245, 185, 180, 0.32)');
-    dawnGlow.addColorStop(0.7, 'rgba(210, 175, 202, 0.14)');
-    dawnGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.fillStyle = dawnGlow;
-    ctx.fillRect(0, skyH * 0.35, w, skyH * 0.65);
+    scene.fog = this._makeDalatFogSprite();
+    scene.sky = this._dalatLayer(g => this._drawDalatSkyLayer(g));
+    scene.far = this._dalatLayer(g => this._drawDalatFarHills(g));
+    scene.water = this._dalatLayer(g => this._drawDalatLakeLayer(g, scene.far));
+    scene.left = this._dalatLayer(g => this._drawDalatLeftHills(g));
+    scene.right = this._dalatLayer(g => this._drawDalatRightHills(g));
+    scene.leftNear = this._dalatLayer(g => this._drawDalatNearPineHills(g));
+    scene.meadowFar = this._dalatLayer(g => this._drawDalatFarMeadow(g));
+    scene.meadow = this._dalatLayer(g => this._drawDalatHydrangeaHills(g));
+    scene.fore = this._dalatLayer(g => this._drawDalatFoliages(g));
 
-    ctx.restore();
-  }
+    // [rộng, cao, màu, x, y, tốc độ]
+    scene.clouds = [
+      [560, 190, '205,200,225', -20, 150, 6],
+      [520, 170, '220,214,232', 330, 330, 4],
+      [640, 200, '230,222,238', 1020, 40, 5],
+      [560, 170, '226,218,236', 1000, 260, 3],
+      [380, 120, '215,208,230', 700, 230, 7],
+      [700, 140, '240,215,215', 520, 420, 2]
+    ].map(([cw, ch, col, x, y, sp]) => ({ img: this._makeDalatCloudSprite(cw, ch, col), w: cw, x, y, sp }));
 
-  // 2. Mây núi sớm mai trôi bồng bềnh ửng sắc hồng phấn
-  _drawSoftHighlandClouds(ctx, baseY, alpha, count, s) {
-    ctx.save();
-    const scale = s || 1;
-    const w = this.width;
-    const t = this.animTimer || 0;
-
-    for (let i = 0; i < count; i++) {
-      const cx = ((i * (w / count * 1.15) + t * 4 + (this.scrollX || 0) * 0.08) % (w + 240 * scale)) - 120 * scale;
-      const cy = baseY + Math.sin(i * 1.8 + t * 0.2) * (18 * scale);
-      const cw = (135 + (i % 3) * 45) * scale;
-      const ch = (30 + (i % 2) * 12) * scale;
-
-      const cGrad = ctx.createLinearGradient(0, cy - ch, 0, cy + ch);
-      cGrad.addColorStop(0, `rgba(215, 225, 242, ${alpha * 0.6})`);
-      cGrad.addColorStop(0.55, `rgba(235, 230, 245, ${alpha})`);
-      cGrad.addColorStop(1, `rgba(255, 222, 215, ${alpha * 1.3})`);
-      ctx.fillStyle = cGrad;
-
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, cw * 0.5, ch * 0.5, 0, 0, Math.PI * 2);
-      ctx.ellipse(cx - cw * 0.24, cy + ch * 0.12, cw * 0.34, ch * 0.42, 0, 0, Math.PI * 2);
-      ctx.ellipse(cx + cw * 0.28, cy - ch * 0.08, cw * 0.36, ch * 0.46, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.restore();
-  }
-
-  // 3. Đàn chim sáng bay muộn lãng mạn qua thung lũng (Birds in V-formation)
-  _drawDalatBirds(ctx, s) {
-    ctx.save();
-    const scale = s || 1;
-    const t = this.animTimer || 0;
-    const w = this.width;
-    const h = this.height;
-
-    ctx.strokeStyle = '#323c52';
-    ctx.lineWidth = 1.4 * scale;
-
-    const birds = [
-      { rx: 0.52, ry: 0.26, sz: 5.8 },
-      { rx: 0.57, ry: 0.23, sz: 5.0 },
-      { rx: 0.62, ry: 0.21, sz: 4.4 },
-      { rx: 0.47, ry: 0.29, sz: 5.2 },
-      { rx: 0.42, ry: 0.31, sz: 4.2 }
-    ];
-
-    birds.forEach((bird, idx) => {
-      const swing = Math.sin(t * 4.8 + idx * 0.9) * (2.0 * scale);
-      const bx = ((bird.rx * w - (t * 12) % (w * 1.3)) + w * 1.3) % (w * 1.3) - w * 0.15;
-      const by = bird.ry * h + Math.sin(t * 1.2 + idx) * (3.5 * scale);
-      const sz = bird.sz * scale;
-
-      ctx.beginPath();
-      ctx.moveTo(bx, by);
-      ctx.quadraticCurveTo(bx + sz * 0.5, by - sz * 0.45 + swing, bx + sz, by);
-      ctx.quadraticCurveTo(bx + sz * 1.5, by - sz * 0.45 + swing, bx + sz * 2, by);
-      ctx.stroke();
+    scene.birds = Array.from({ length: 7 }, () => {
+      const x = this._dalatRange(500, 1000);
+      const y = this._dalatRange(330, 420);
+      const z = this._dalatRange(.7, 1.4);
+      const sp = this._dalatRange(6, 12);
+      const ph = this._dalatRange(0, 6);
+      return { x, y, z, sp, ph };
     });
 
-    ctx.restore();
-  }
-
-  // 4. Các lớp đồi thông xa mờ ảo trong sương (Misty Pine Hills)
-  _drawMistyPineHills(ctx, baseY, color, count, s) {
-    ctx.save();
-    const scale = s || 1;
-    const w = this.width;
-    const h = this.height;
-
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.moveTo(0, baseY);
-    ctx.quadraticCurveTo(w * 0.42, baseY - 28 * scale, w, baseY + 12 * scale);
-    ctx.lineTo(w, h * 0.55);
-    ctx.lineTo(0, h * 0.55);
-    ctx.closePath();
-    ctx.fill();
-
-    // Rừng thông kim mờ ảo xếp hàng nhấp nhô
-    const step = w / count;
-    for (let i = 0; i < count; i++) {
-      const tx = i * step + ((i * 17) % (step * 0.8));
-      const ty = baseY - 8 * scale + Math.cos(i * 1.4) * (10 * scale);
-      const tH = (20 + (i % 3) * 7) * scale;
-      const tW = (7 + (i % 2) * 3) * scale;
-
-      // Thân thông
-      ctx.strokeStyle = '#182030';
-      ctx.lineWidth = 1.1 * scale;
-      ctx.beginPath();
-      ctx.moveTo(tx, ty);
-      ctx.lineTo(tx, ty - tH * 0.85);
-      ctx.stroke();
-
-      // Tán thông kim nhọn
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.moveTo(tx - tW, ty - tH * 0.3);
-      ctx.lineTo(tx, ty - tH);
-      ctx.lineTo(tx + tW, ty - tH * 0.3);
-      ctx.closePath();
-      ctx.fill();
-    }
-
-    // Dải sương mù phủ nhẹ chân đồi
-    const fogGrad = ctx.createLinearGradient(0, baseY, 0, baseY + 28 * scale);
-    fogGrad.addColorStop(0, 'rgba(215, 225, 240, 0.48)');
-    fogGrad.addColorStop(1, 'rgba(215, 225, 240, 0)');
-    ctx.fillStyle = fogGrad;
-    ctx.fillRect(0, baseY, w, 28 * scale);
-
-    ctx.restore();
-  }
-
-  // 5. Đồi thông sườn trái và sườn phải chính (Main Pine Slopes)
-  _drawMainPineSlopes(ctx, w, h, s) {
-    ctx.save();
-    const scale = s || 1;
-
-    // Sườn đồi thông lớn bên trái
-    const slopeGradL = ctx.createLinearGradient(0, h * 0.35, 0, h * 0.55);
-    slopeGradL.addColorStop(0, '#1c283a');
-    slopeGradL.addColorStop(0.5, '#16202e');
-    slopeGradL.addColorStop(1, '#0e1520');
-    ctx.fillStyle = slopeGradL;
-
-    ctx.beginPath();
-    ctx.moveTo(0, h * 0.36);
-    ctx.lineTo(w * 0.32, h * 0.46);
-    ctx.lineTo(w * 0.46, h * 0.50);
-    ctx.lineTo(0, h * 0.52);
-    ctx.closePath();
-    ctx.fill();
-
-    // Sườn đồi thông thoai thoải bên phải (Nơi đặt Nhà Thờ Con Gà)
-    const slopeGradR = ctx.createLinearGradient(0, h * 0.36, 0, h * 0.55);
-    slopeGradR.addColorStop(0, '#1e2b3c');
-    slopeGradR.addColorStop(0.6, '#141d2a');
-    slopeGradR.addColorStop(1, '#0c131c');
-    ctx.fillStyle = slopeGradR;
-
-    ctx.beginPath();
-    ctx.moveTo(w, h * 0.35);
-    ctx.lineTo(w * 0.62, h * 0.46);
-    ctx.lineTo(w * 0.48, h * 0.50);
-    ctx.lineTo(w, h * 0.52);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.restore();
-  }
-
-  // 6. Vẽ hàng thông kim sắc nét trên đồi chính (Detailed Pine Trees)
-  _drawDetailedPineTrees(ctx, baseY, color, s) {
-    ctx.save();
-    const scale = s || 1;
-    const w = this.width;
-    const numTrees = 22;
-
-    for (let i = 0; i < numTrees; i++) {
-      const u = i / (numTrees - 1);
-      // Bỏ trống khoảng giữa để lộ mặt hồ và thung lũng
-      if (u > 0.40 && u < 0.56) continue;
-      // Tránh đè lên phần chính của tháp chuông
-      if (u > 0.74 && u < 0.84) continue;
-
-      const tx = u * w;
-      const slopeY = u < 0.5 
-        ? baseY - 20 * scale + u * (28 * scale) 
-        : baseY + 10 * scale - (u - 0.5) * (34 * scale);
-      const ty = slopeY + Math.sin(i * 2.5) * (4 * scale);
-
-      const treeH = (28 + (i % 4) * 9) * scale;
-      const treeW = (9 + (i % 3) * 2.8) * scale;
-
-      // Thân cây thông sẫm màu
-      ctx.strokeStyle = '#1b120c';
-      ctx.lineWidth = 1.8 * scale;
-      ctx.beginPath();
-      ctx.moveTo(tx, ty);
-      ctx.lineTo(tx, ty - treeH * 0.85);
-      ctx.stroke();
-
-      // 3 tầng tán thông kim nhọn xếp chồng
-      ctx.fillStyle = color;
-      // Tầng đáy
-      ctx.beginPath();
-      ctx.moveTo(tx - treeW, ty - treeH * 0.22);
-      ctx.lineTo(tx, ty - treeH * 0.65);
-      ctx.lineTo(tx + treeW, ty - treeH * 0.22);
-      ctx.closePath();
-      ctx.fill();
-
-      // Tầng giữa
-      ctx.beginPath();
-      ctx.moveTo(tx - treeW * 0.82, ty - treeH * 0.48);
-      ctx.lineTo(tx, ty - treeH * 0.85);
-      ctx.lineTo(tx + treeW * 0.82, ty - treeH * 0.48);
-      ctx.closePath();
-      ctx.fill();
-
-      // Tầng đỉnh
-      ctx.beginPath();
-      ctx.moveTo(tx - treeW * 0.6, ty - treeH * 0.7);
-      ctx.lineTo(tx, ty - treeH);
-      ctx.lineTo(tx + treeW * 0.6, ty - treeH * 0.7);
-      ctx.closePath();
-      ctx.fill();
-    }
-
-    ctx.restore();
-  }
-
-  // 7. NHÀ THỜ CON GÀ ĐÀ LẠT / THÁP CHUÔNG CỔ KÍNH HOÀNG TRÁNG (Dalat Cathedral - Romanesque Masterpiece)
-  _drawDalatBellTower(ctx, x, y, scale) {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.scale(scale, scale);
-
-    // Kích thước tháp chuông đồ sộ, vươn cao kiêu hãnh lên đến tầng trời
-    const towerW = 28;     // Bề ngang thân tháp chính
-    const belfryH = 105;   // Chiều cao thân tháp gạch
-    const spireH = 88;     // Chiều cao chóp kim nhọn
-
-    // Vệt bóng râm nghiêng trên sườn đồi
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.32)';
-    ctx.beginPath();
-    ctx.ellipse(0, 4, towerW * 0.9, 8, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // ================= KHỐI NHÀ THỜ CHÍNH VÀ GIAN PHỤ (CHURCH NAVE & BUTTRESSES) =================
-    // Gian nhà thờ phía sau tháp
-    ctx.fillStyle = '#6d382b';
-    ctx.fillRect(-towerW * 1.3, -belfryH * 0.38, towerW * 0.6, belfryH * 0.4);
-    ctx.fillRect(towerW * 0.7, -belfryH * 0.38, towerW * 0.6, belfryH * 0.4);
-
-    // ================= THÂN THÁP CHUÔNG GẠCH ĐỎ PHONG CÁCH ROMANESQUE PHÁP =================
-    // Mặt tường gạch nung đỏ hồng đặc trưng Nhà Thờ Con Gà Đà Lạt
-    const towerGrad = ctx.createLinearGradient(-towerW * 0.5, 0, towerW * 0.5, 0);
-    towerGrad.addColorStop(0, '#c46d54');   // Mặt đón sáng bình minh
-    towerGrad.addColorStop(0.35, '#b05942');
-    towerGrad.addColorStop(0.65, '#883e2c'); // Mặt bóng râm bên phải
-    towerGrad.addColorStop(1, '#68291a');
-    ctx.fillStyle = towerGrad;
-
-    // Tầng 1: Chân tháp kiên cố
-    ctx.fillRect(-towerW * 0.5, -belfryH * 0.45, towerW, belfryH * 0.45);
-
-    // Tầng 2: Thân tháp giữa có gờ chỉ nổi
-    ctx.fillRect(-towerW * 0.45, -belfryH * 0.75, towerW * 0.9, belfryH * 0.30);
-
-    // Tầng 3: Tầng chuông cao nhất
-    ctx.fillRect(-towerW * 0.40, -belfryH, towerW * 0.8, belfryH * 0.25);
-
-    // Các gờ chỉ phào đá cổ điển chạy ngang thân tháp (Cornice bands)
-    ctx.fillStyle = '#dca688';
-    ctx.fillRect(-towerW * 0.52, -belfryH * 0.45, towerW * 1.04, 3.5);
-    ctx.fillRect(-towerW * 0.47, -belfryH * 0.75, towerW * 0.94, 3.5);
-    ctx.fillRect(-towerW * 0.42, -belfryH, towerW * 0.84, 3.8);
-
-    // ================= CÁC Ô CỔNG VÒM VÀ MẶT ĐỒNG HỒ / CỬA SỔ HOA HỒNG =================
-    // Tầng 1: Cửa chính hình vòm cuốn Romanesque
-    ctx.fillStyle = '#1c0f0a';
-    ctx.beginPath();
-    ctx.arc(0, -belfryH * 0.28, 4.5, Math.PI, 0, false);
-    ctx.lineTo(4.5, 0);
-    ctx.lineTo(-4.5, 0);
-    ctx.closePath();
-    ctx.fill();
-
-    // Tầng 2: Mặt đồng hồ tròn / Cửa sổ hoa hồng cổ hắt ánh sáng bình minh
-    ctx.fillStyle = '#fff4e6';
-    ctx.beginPath();
-    ctx.arc(0, -belfryH * 0.60, 5.8, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = '#5a2d20';
-    ctx.lineWidth = 1.0;
-    ctx.stroke();
-    // Kim đồng hồ nhỏ
-    ctx.fillStyle = '#3a1b12';
-    ctx.fillRect(-0.5, -belfryH * 0.60 - 3.8, 1.0, 4.0);
-    ctx.fillRect(-0.5, -belfryH * 0.60, 3.0, 1.0);
-
-    // Tầng 3: Cặp ô cửa sổ vòm chuông đôi (Paired Belfry Arches)
-    ctx.fillStyle = '#180a06';
-    [-4.5, 4.5].forEach(ox => {
-      ctx.beginPath();
-      ctx.arc(ox, -belfryH * 0.92, 2.8, Math.PI, 0, false);
-      ctx.lineTo(ox + 2.8, -belfryH * 0.80);
-      ctx.lineTo(ox - 2.8, -belfryH * 0.80);
-      ctx.closePath();
-      ctx.fill();
-
-      // Ánh chuông đồng vàng ấm hắt nhẹ từ bên trong
-      ctx.fillStyle = 'rgba(255, 200, 100, 0.45)';
-      ctx.beginPath();
-      ctx.arc(ox, -belfryH * 0.86, 1.5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#180a06';
+    scene.flies = Array.from({ length: 26 }, () => {
+      const x = this._dalatRange(100, 1500);
+      const y = this._dalatRange(720, 1100);
+      const ph = this._dalatRange(0, 6);
+      const sz = this._dalatRange(.7, 1.3);
+      return { x, y, ph, sz };
     });
 
-    // ================= MÁI CHÓP KIM NHỌN VƯƠN CAO LÊN TRỜI (SOARING SPIRE) =================
-    // Chóp nhọn lợp ngói kim loại sẫm màu phong cách Gothic/Romanesque
-    const spireGrad = ctx.createLinearGradient(-towerW * 0.4, 0, towerW * 0.4, 0);
-    spireGrad.addColorStop(0, '#5a2e22'); // Cạnh trái
-    spireGrad.addColorStop(0.5, '#421f16');
-    spireGrad.addColorStop(1, '#2a110b'); // Cạnh phải bóng tối
-    ctx.fillStyle = spireGrad;
-
-    ctx.beginPath();
-    ctx.moveTo(-towerW * 0.42, -belfryH);
-    ctx.lineTo(0, -belfryH - spireH);
-    ctx.lineTo(towerW * 0.42, -belfryH);
-    ctx.closePath();
-    ctx.fill();
-
-    // 4 Mái chóp nhỏ bốn góc chân tháp chính (Corner spirelets)
-    ctx.fillStyle = '#4a241a';
-    [-towerW * 0.42, towerW * 0.42].forEach(px => {
-      ctx.beginPath();
-      ctx.moveTo(px - 3, -belfryH);
-      ctx.lineTo(px, -belfryH - 14);
-      ctx.lineTo(px + 3, -belfryH);
-      ctx.closePath();
-      ctx.fill();
-    });
-
-    // ================= CON GÀ THỜI TIẾT VÀ THÁNH GIÁ ĐỈNH THÁP (ROOSTER & CROSS) =================
-    const topY = -belfryH - spireH;
-    ctx.strokeStyle = '#f59e0b'; // Vàng đồng ánh kim
-    ctx.lineWidth = 1.6;
-
-    // Cột thánh giá vươn cao
-    ctx.beginPath();
-    ctx.moveTo(0, topY);
-    ctx.lineTo(0, topY - 18);
-    ctx.moveTo(-4.5, topY - 12);
-    ctx.lineTo(4.5, topY - 12);
-    ctx.stroke();
-
-    // Chú gà trống Gaulois (Con Gà) bằng đồng xoay theo chiều gió trên đỉnh tháp
-    ctx.fillStyle = '#fbbf24';
-    ctx.beginPath();
-    ctx.ellipse(2, topY - 15, 3.5, 2.2, 0.2, 0, Math.PI * 2); // Thân gà
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(5.2, topY - 17, 1.4, 0, Math.PI * 2); // Đầu gà
-    ctx.lineTo(7.2, topY - 16.5); // Mỏ gà
-    ctx.fill();
-    // Đuôi gà xòe cong
-    ctx.strokeStyle = '#d97706';
-    ctx.lineWidth = 1.0;
-    ctx.beginPath();
-    ctx.moveTo(-0.5, topY - 15.5);
-    ctx.quadraticCurveTo(-3, topY - 19, -1, topY - 18.5);
-    ctx.stroke();
-
-    // Cụm thông bao quanh chân nhà thờ
-    ctx.fillStyle = '#0f1a24';
-    ctx.beginPath();
-    ctx.moveTo(-towerW * 1.2, 0);
-    ctx.lineTo(-towerW * 0.7, -35);
-    ctx.lineTo(-towerW * 0.2, 0);
-    ctx.moveTo(towerW * 0.2, 0);
-    ctx.lineTo(towerW * 0.8, -38);
-    ctx.lineTo(towerW * 1.3, 0);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.restore();
+    scene.cats = [[560, 230], [612, 190], [1060, 210], [1105, 250], [1142, 180], [340, 170]];
+    this._dalatScene = scene;
+    return scene;
   }
 
-  // 8. Hồ Xuân Hương phẳng lặng sương giăng (Xuan Huong Lake)
-  _drawXuanHuongLake(ctx, w, h, s, lakeY) {
-    ctx.save();
-    const lakeH = h - lakeY;
-
-    // Mặt nước hồ phẳng lặng trong trẻo ánh mờ sáng
-    const lGrad = ctx.createLinearGradient(0, lakeY, 0, h);
-    lGrad.addColorStop(0, '#505d76'); // Xanh lam xám mờ phản chiếu bầu trời
-    lGrad.addColorStop(0.35, '#354056');
-    lGrad.addColorStop(0.75, '#1e2738');
-    lGrad.addColorStop(1.0, '#101622');
-    ctx.fillStyle = lGrad;
-    ctx.fillRect(0, lakeY, w, lakeH);
-
-    // Dải bóng phản chiếu đồi thông và bình minh trên mặt hồ
-    const refl = ctx.createLinearGradient(w * 0.45, 0, w * 0.75, 0);
-    refl.addColorStop(0, 'rgba(240, 205, 195, 0)');
-    refl.addColorStop(0.5, 'rgba(250, 220, 210, 0.24)');
-    refl.addColorStop(1, 'rgba(240, 205, 195, 0)');
-    ctx.fillStyle = refl;
-    ctx.fillRect(w * 0.40, lakeY, w * 0.40, lakeH * 0.4);
-
-    ctx.restore();
+  // ---- Số ngẫu nhiên có hạt giống & hàm toán học ----
+  _dalatRand() {
+    this._dalatSeed = this._dalatSeed * 16807 % 2147483647;
+    return this._dalatSeed / 2147483647;
   }
 
-  // 9. Thủy tạ nhỏ / Tháp Gazebo bên mép hồ (Scenic Pavilion)
-  _drawLakeGazebo(ctx, x, y, scale) {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.scale(scale, scale);
-
-    // Sân lót bê tông / trụ sàn cắm xuống nước
-    ctx.fillStyle = '#2b313d';
-    ctx.fillRect(-22, 0, 44, 5);
-
-    // Cột trụ chống mái gỗ lim
-    ctx.fillStyle = '#1b1d24';
-    ctx.fillRect(-18, -14, 3, 14);
-    ctx.fillRect(-8, -13, 2.5, 13);
-    ctx.fillRect(6, -13, 2.5, 13);
-    ctx.fillRect(15, -14, 3, 14);
-
-    // Ánh sáng vàng dịu bên trong nhà thủy tạ
-    ctx.fillStyle = 'rgba(255, 230, 160, 0.55)';
-    ctx.fillRect(-15, -12, 30, 10);
-
-    // Mái ngói cong truyền thống kiểu nhà chòi thủy tạ Đà Lạt
-    ctx.fillStyle = '#452a1a';
-    ctx.beginPath();
-    ctx.moveTo(-25, -13);
-    ctx.quadraticCurveTo(0, -26, 25, -13);
-    ctx.lineTo(20, -9);
-    ctx.quadraticCurveTo(0, -18, -20, -9);
-    ctx.closePath();
-    ctx.fill();
-
-    // Chóp nhọn đỉnh mái
-    ctx.strokeStyle = '#cda165';
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.moveTo(0, -22);
-    ctx.lineTo(0, -28);
-    ctx.stroke();
-
-    ctx.restore();
+  _dalatRange(a, b) {
+    return a + (b - a) * this._dalatRand();
   }
 
-  // 10. Dải sương mù lững lờ trôi trên thung lũng & mặt hồ (Floating Mist Ribbons)
-  _drawDalatValleyMists(ctx, y, color, speedMult, s) {
-    ctx.save();
-    const scale = s || 1;
-    const w = this.width;
-    const t = this.animTimer || 0;
-    const shift = Math.sin(t * speedMult) * (32 * scale);
-
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.bezierCurveTo(w * 0.32 + shift, y - 24 * scale, w * 0.68 - shift, y + 22 * scale, w, y - 8 * scale);
-    ctx.lineTo(w, y + 38 * scale);
-    ctx.bezierCurveTo(w * 0.68, y + 50 * scale, w * 0.32, y + 24 * scale, 0, y + 44 * scale);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
+  _dalatSmooth(a, b, x) {
+    const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+    return t * t * (3 - 2 * t);
   }
 
-  // 11. ĐỒI HOA CẨM TÚ CẦU BẠT NGÀN (Rolling Hills of Blooming Hydrangeas - Masterpiece)
-  _drawRollingHydrangeaHills(ctx, startY, s) {
-    ctx.save();
-    const w = this.width;
-    const h = this.height;
-    const scale = s || 1;
+  _dalatGauss(x, c, s) {
+    return Math.exp(-(((x - c) / s) ** 2));
+  }
 
-    // 5 tầng triền đồi uốn lượn nhấp nhô tuyệt đẹp theo địa hình cao nguyên
-    const hillTiers = [
-      { yOffset: 0,           hillCol: '#274426', count: 16, radius: 11 * scale, curveAmp: 22 * scale },
-      { yOffset: 34 * scale,  hillCol: '#2e4e2c', count: 20, radius: 13 * scale, curveAmp: -18 * scale },
-      { yOffset: 72 * scale,  hillCol: '#365a34', count: 24, radius: 15 * scale, curveAmp: 25 * scale },
-      { yOffset: 115 * scale, hillCol: '#3e663a', count: 26, radius: 17 * scale, curveAmp: -20 * scale },
-      { yOffset: 165 * scale, hillCol: '#2c4e28', count: 28, radius: 20 * scale, curveAmp: 16 * scale }
-    ];
+  // ---- Đường sống đồi (trả về độ cao y tại vị trí x) ----
+  _dalatFarRidge(x) {
+    return 600 + Math.sin(x * .005 + 1) * 30 + Math.sin(x * .013 + 2) * 14;
+  }
 
-    // Bảng màu hoa cẩm tú cầu pastel chuẩn điện ảnh Trại Mát - Đà Lạt
-    const hydrangeas = [
-      { base: '#5c87ea', mid: '#87aaf8', light: '#b8cffc', core: '#ffffff', floret: '#dae6ff' }, // Xanh biếc thanh khiết
-      { base: '#8d68d8', mid: '#ae8ef0', light: '#d2c0fc', core: '#ffffff', floret: '#ece2ff' }, // Tím oải hương Lavender
-      { base: '#d85886', mid: '#ee80a6', light: '#f7b6cb', core: '#ffffff', floret: '#fedde7' }, // Hồng phấn dịu ngọt
-      { base: '#5898cc', mid: '#7cb5e6', light: '#b0d6f8', core: '#ffffff', floret: '#dcf0fe' }, // Xanh ngọc lam mây
-      { base: '#a056a8', mid: '#c07ec8', light: '#e0b0e6', core: '#ffffff', floret: '#f6dcfb' }, // Tím cẩm phong lan
-      { base: '#98b898', mid: '#b8d8b8', light: '#daf0da', core: '#ffffff', floret: '#f2fbf2' }  // Trắng ngọc tinh khôi
-    ];
+  _dalatLeftRidge(x) {
+    return 560 + this._dalatSmooth(-40, 560, x) * 210 + this._dalatSmooth(540, 760, x) * 500 + Math.sin(x * .02) * 6;
+  }
 
-    hillTiers.forEach((tier, rowIdx) => {
-      const curY = startY + tier.yOffset;
-      if (curY > h) return;
+  _dalatRightRidge(x) {
+    return 1300 - this._dalatSmooth(760, 930, x) * 610 - this._dalatSmooth(1010, 1520, x) * 240;
+  }
 
-      // 1. Đường cong sườn đồi xanh cỏ uốn lượn tự nhiên
-      ctx.fillStyle = tier.hillCol;
-      ctx.beginPath();
-      ctx.moveTo(0, curY + 28 * scale);
-      ctx.bezierCurveTo(
-        w * 0.35, curY + tier.curveAmp,
-        w * 0.68, curY - tier.curveAmp * 0.8,
-        w, curY + 6 * scale
-      );
-      ctx.lineTo(w, h);
-      ctx.lineTo(0, h);
-      ctx.closePath();
-      ctx.fill();
+  _dalatRightShore(x) {
+    return this._dalatRightRidge(x) + 16 + this._dalatSmooth(1000, 1350, x) * 900;
+  }
 
-      // Viền gờ cỏ nhấp nhô trên sống đồi
-      ctx.strokeStyle = '#4e7c4a';
-      ctx.lineWidth = 2.0 * scale;
-      ctx.beginPath();
-      ctx.moveTo(0, curY + 28 * scale);
-      ctx.bezierCurveTo(
-        w * 0.35, curY + tier.curveAmp,
-        w * 0.68, curY - tier.curveAmp * 0.8,
-        w, curY + 6 * scale
-      );
-      ctx.stroke();
+  _dalatNearPineRidge(x) {
+    return 700 + this._dalatSmooth(-40, 420, x) * 150 + this._dalatSmooth(400, 640, x) * 600;
+  }
 
-      // 2. Phủ kín những bông hoa cẩm tú cầu tròn 3D nở bung xum xuê (Lush Hydrangea Flower Spheres)
-      const step = w / tier.count;
-      for (let col = 0; col < tier.count; col++) {
-        const u = col / (tier.count - 1);
-        const hx = col * step + ((rowIdx % 2) * (step * 0.45));
-        
-        // Tọa độ y bám sát sống đồi cỏ
-        const baseSlopeY = curY + ((1 - u) * (1 - u) * (28 * scale) + 2 * (1 - u) * u * (tier.curveAmp) + u * u * (6 * scale));
-        const hy = baseSlopeY + Math.sin(col * 1.5 + rowIdx * 1.1) * (5 * scale);
+  _dalatMeadowFarRidge(x) {
+    return 840 - 80 * this._dalatGauss(x, 420, 300) - 110 * this._dalatGauss(x, 1280, 330) + Math.sin(x * .012) * 5;
+  }
 
-        const flower = hydrangeas[(col + rowIdx * 3) % hydrangeas.length];
-        const rad = tier.radius;
+  _dalatMeadowRidge(x) {
+    return 890 - 100 * this._dalatGauss(x, 200, 300) - 90 * this._dalatGauss(x, 1350, 360) + Math.sin(x * .008 + 1) * 8;
+  }
 
-        ctx.save();
-        ctx.translate(hx, hy);
+  // Màu hoa theo vị trí: xanh dương bên trái, tím giữa, hồng tím bên phải
+  _dalatHue(x) {
+    if (x < 500) return 218 + this._dalatRange(-8, 12);
+    if (x < 1000) return 262 + this._dalatRange(-10, 10);
+    return 295 + this._dalatRange(-15, 20);
+  }
 
-        // Lá xanh đệm lót dưới gốc bông hoa
-        ctx.fillStyle = '#18381c';
-        ctx.beginPath();
-        ctx.ellipse(-rad * 0.6, rad * 0.5, rad * 0.5, rad * 0.28, -0.4, 0, Math.PI * 2);
-        ctx.ellipse(rad * 0.6, rad * 0.5, rad * 0.5, rad * 0.28, 0.4, 0, Math.PI * 2);
-        ctx.fill();
+  // ---- Dụng cụ vẽ lớp ----
+  _dalatLayer(draw) {
+    const c = document.createElement('canvas');
+    c.width = DALAT_W + DALAT_PAD * 2;
+    c.height = DALAT_H;
+    const g = c.getContext('2d');
+    g.translate(DALAT_PAD, 0);
+    draw(g);
+    return c;
+  }
 
-        // Bóng tối của khóm hoa trên nền cỏ
-        ctx.fillStyle = 'rgba(10, 25, 12, 0.38)';
-        ctx.beginPath();
-        ctx.ellipse(0, rad * 0.65, rad * 0.95, rad * 0.35, 0, 0, Math.PI * 2);
-        ctx.fill();
+  // Tô khối đồi giữa đường sống (trên) và đường đáy
+  _dalatPoly(g, ridge, fill, bottom) {
+    g.beginPath();
+    for (let x = -DALAT_PAD; x <= DALAT_W + DALAT_PAD; x += 6) g.lineTo(x, ridge(x));
+    for (let x = DALAT_W + DALAT_PAD; x >= -DALAT_PAD; x -= 6) g.lineTo(x, bottom ? bottom(x) : DALAT_H + 60);
+    g.closePath();
+    g.fillStyle = fill;
+    g.fill();
+  }
 
-        // Khối hoa cẩm tú cầu tròn 3D nở rộ
-        const flowerGrad = ctx.createRadialGradient(-rad * 0.32, -rad * 0.35, rad * 0.08, 0, 0, rad);
-        flowerGrad.addColorStop(0, flower.light);
-        flowerGrad.addColorStop(0.55, flower.mid);
-        flowerGrad.addColorStop(1, flower.base);
-        ctx.fillStyle = flowerGrad;
-        ctx.beginPath();
-        ctx.arc(0, 0, rad, 0, Math.PI * 2);
-        ctx.fill();
+  // Một cây thông năm tầng
+  _dalatPine(g, x, y, h) {
+    const w = h * .32;
+    for (let i = 0; i < 5; i++) {
+      const top = y - h + i * h * .17;
+      const bot = top + h * .34;
+      const ww = w * (.35 + i * .17);
+      g.beginPath();
+      g.moveTo(x, top);
+      g.lineTo(x + ww, bot);
+      g.lineTo(x - ww, bot);
+      g.fill();
+    }
+    g.fillRect(x - h * .02, y - h * .1, h * .04, h * .1 + 2);
+  }
 
-        // Họa tiết cánh hoa 4 cánh hình chữ thập đặc trưng của hoa Cẩm Tú Cầu (4-Petal Florets)
-        const floretOffsets = [
-          { x: 0, y: 0, sz: rad * 0.42 },
-          { x: -rad * 0.42, y: -rad * 0.25, sz: rad * 0.35 },
-          { x: rad * 0.42, y: -rad * 0.25, sz: rad * 0.35 },
-          { x: -rad * 0.35, y: rad * 0.35, sz: rad * 0.34 },
-          { x: rad * 0.35, y: rad * 0.35, sz: rad * 0.34 },
-          { x: 0, y: -rad * 0.55, sz: rad * 0.32 },
-          { x: 0, y: rad * 0.55, sz: rad * 0.32 }
-        ];
+  // Một hàng thông rải dọc theo đường sống đồi
+  _dalatForest(g, ridge, x0, x1, hMin, hMax, step, colors, dy, canPlant) {
+    for (let x = x0; x < x1; x += step * this._dalatRange(.55, 1.45)) {
+      const y = ridge(x) + dy + this._dalatRange(-5, 10);
+      if (canPlant && !canPlant(x, y)) continue;
+      g.fillStyle = colors[this._dalatRand() * colors.length | 0];
+      this._dalatPine(g, x, y, this._dalatRange(hMin, hMax));
+    }
+  }
 
-        floretOffsets.forEach(fl => {
-          ctx.fillStyle = flower.floret;
-          const sz = fl.sz;
-          // 4 cánh hoa hình chữ thập
-          ctx.beginPath();
-          ctx.ellipse(fl.x - sz * 0.4, fl.y, sz * 0.38, sz * 0.24, 0, 0, Math.PI * 2);
-          ctx.ellipse(fl.x + sz * 0.4, fl.y, sz * 0.38, sz * 0.24, 0, 0, Math.PI * 2);
-          ctx.ellipse(fl.x, fl.y - sz * 0.4, sz * 0.24, sz * 0.38, 0, 0, Math.PI * 2);
-          ctx.ellipse(fl.x, fl.y + sz * 0.4, sz * 0.24, sz * 0.38, 0, 0, Math.PI * 2);
-          ctx.fill();
+  // ---- Các lớp tranh tĩnh ----
 
-          // Nhụy hoa li ti sáng trắng
-          ctx.fillStyle = flower.core;
-          ctx.beginPath();
-          ctx.arc(fl.x, fl.y, sz * 0.16, 0, Math.PI * 2);
-          ctx.fill();
-        });
+  // Bầu trời hoàng hôn tím hồng, ánh hồng đào sát chân trời
+  _drawDalatSkyLayer(g) {
+    let gr = g.createLinearGradient(0, 0, 0, 700);
+    gr.addColorStop(0, '#3a3560');
+    gr.addColorStop(.35, '#58507e');
+    gr.addColorStop(.65, '#b497a9');
+    gr.addColorStop(.85, '#e6c3b6');
+    gr.addColorStop(1, '#e9cdbf');
+    g.fillStyle = gr;
+    g.fillRect(-DALAT_PAD, 0, DALAT_W + DALAT_PAD * 2, DALAT_H);
 
-        ctx.restore();
+    gr = g.createRadialGradient(900, 640, 10, 900, 640, 520);
+    gr.addColorStop(0, 'rgba(255,214,190,.55)');
+    gr.addColorStop(1, 'rgba(255,214,190,0)');
+    g.fillStyle = gr;
+    g.fillRect(-DALAT_PAD, 0, DALAT_W + DALAT_PAD * 2, DALAT_H);
+  }
+
+  // Dãy đồi thông xa nhất mờ trong sương
+  _drawDalatFarHills(g) {
+    const ridge = x => this._dalatFarRidge(x);
+    const gr = g.createLinearGradient(0, 540, 0, 700);
+    gr.addColorStop(0, '#8d95b2');
+    gr.addColorStop(1, '#bdb7cf');
+    this._dalatPoly(g, ridge, gr, () => DALAT_HZ + 40);
+    this._dalatForest(g, ridge, -DALAT_PAD, DALAT_W + DALAT_PAD, 14, 30, 7, ['#7b86a5', '#707c9c'], 8);
+    this._dalatForest(g, ridge, -DALAT_PAD, DALAT_W + DALAT_PAD, 18, 34, 9, ['#7f89a8'], 28);
+  }
+
+  // Mặt hồ Xuân Hương: bóng đồi xa và bóng thủy tạ in xuống nước
+  _drawDalatLakeLayer(g, farHills) {
+    g.save();
+    g.beginPath();
+    g.rect(-DALAT_PAD, DALAT_HZ, DALAT_W + DALAT_PAD * 2, DALAT_H);
+    g.clip();
+
+    let gr = g.createLinearGradient(0, DALAT_HZ, 0, 900);
+    gr.addColorStop(0, '#a9a2bf');
+    gr.addColorStop(.4, '#8085a6');
+    gr.addColorStop(1, '#5a6286');
+    g.fillStyle = gr;
+    g.fillRect(-DALAT_PAD, DALAT_HZ, DALAT_W + DALAT_PAD * 2, DALAT_H);
+
+    // Bóng đồi xa lật ngược
+    g.save();
+    g.globalAlpha = .32;
+    g.translate(0, 2 * DALAT_HZ);
+    g.scale(1, -1);
+    g.drawImage(farHills, -DALAT_PAD, 0);
+    g.restore();
+
+    // Bóng thủy tạ lật ngược
+    g.save();
+    g.globalAlpha = .22;
+    g.translate(0, 2 * 688 + 4);
+    g.scale(1, -1);
+    this._drawLakeGazebo(g, 972, 688);
+    g.restore();
+
+    // Phủ một lớp sương nước nhẹ
+    gr = g.createLinearGradient(0, DALAT_HZ, 0, 900);
+    gr.addColorStop(0, 'rgba(190,180,205,.25)');
+    gr.addColorStop(1, 'rgba(90,98,134,.35)');
+    g.fillStyle = gr;
+    g.fillRect(-DALAT_PAD, DALAT_HZ, DALAT_W + DALAT_PAD * 2, DALAT_H);
+    g.restore();
+  }
+
+  // Đồi thông bên trái, nhiều hàng cây xếp tầng
+  _drawDalatLeftHills(g) {
+    const ridge = x => this._dalatLeftRidge(x);
+    this._dalatPoly(g, ridge, '#566a7c');
+    for (const dy of [0, 40, 85]) {
+      const colors = dy ? ['#47596c', '#3f5265'] : ['#4f6378', '#586c80'];
+      this._dalatForest(g, ridge, -DALAT_PAD, 720, 50 + dy * .3, 95 + dy * .4, 16, colors, dy + 22);
+    }
+  }
+
+  // Đồi bên phải: tháp chuông, thủy tạ trên mũi đất và rừng thông sẫm
+  _drawDalatRightHills(g) {
+    const ridge = x => this._dalatRightRidge(x);
+    const shore = x => this._dalatRightShore(x);
+    const gr = g.createLinearGradient(0, 450, 0, 900);
+    gr.addColorStop(0, '#6b8676');
+    gr.addColorStop(1, '#2b4a3d');
+
+    g.beginPath();
+    for (let x = -DALAT_PAD; x <= DALAT_W + DALAT_PAD; x += 6) g.lineTo(x, ridge(x));
+    for (let x = DALAT_W + DALAT_PAD; x >= -DALAT_PAD; x -= 6) g.lineTo(x, shore(x));
+    g.closePath();
+    g.fillStyle = gr;
+    g.fill();
+
+    this._drawDalatBellTower(g, 1283, ridge(1283) + 8, 340);
+    this._drawLakeGazebo(g, 972, 688);
+
+    // Chỉ trồng thông trên phần đất liền, không trồng xuống nước
+    const onLand = (x, y) => y < shore(x) - 4;
+    for (const dy of [-6, 30, 70, 115]) {
+      this._dalatForest(g, ridge, 990, DALAT_W + DALAT_PAD, 40 + dy * .3, 100 + dy * .4, 13, ['#2d4d45', '#27463f', '#355a4d'], dy, onLand);
+    }
+  }
+
+  // Đồi thông sẫm màu gần bờ trái
+  _drawDalatNearPineHills(g) {
+    const ridge = x => this._dalatNearPineRidge(x);
+    this._dalatPoly(g, ridge, '#2c4a45');
+    for (const dy of [0, 60]) {
+      this._dalatForest(g, ridge, -DALAT_PAD, 560, 90, 170, 22, ['#1f3d3a', '#264a42', '#193530'], dy + 30);
+    }
+  }
+
+  // Đồi hoa phía xa: hàng nghìn chấm hoa pastel li ti
+  _drawDalatFarMeadow(g) {
+    const ridge = x => this._dalatMeadowFarRidge(x);
+    const gr = g.createLinearGradient(0, 700, 0, 900);
+    gr.addColorStop(0, '#7aa36a');
+    gr.addColorStop(1, '#4f7f4f');
+    this._dalatPoly(g, ridge, gr);
+
+    for (let i = 0; i < 1400; i++) {
+      const x = this._dalatRange(-DALAT_PAD, DALAT_W + DALAT_PAD);
+      const t = this._dalatRand();
+      const y = ridge(x) + 3 + t * 130;
+      const r = 2.5 + t * 3.5;
+      const hue = this._dalatHue(x);
+      const sat = this._dalatRange(45, 70);
+      const light = this._dalatRange(68, 86);
+      g.fillStyle = `hsl(${hue},${sat}%,${light}%)`;
+      g.beginPath();
+      g.arc(x, y, r, 0, 7);
+      g.fill();
+    }
+  }
+
+  // Đồi hoa cẩm tú cầu tiền cảnh: các khóm hoa to dần về phía dưới
+  _drawDalatHydrangeaHills(g) {
+    const ridge = x => this._dalatMeadowRidge(x);
+    const gr = g.createLinearGradient(0, 760, 0, DALAT_H);
+    gr.addColorStop(0, '#6aa04f');
+    gr.addColorStop(1, '#2a5636');
+    this._dalatPoly(g, ridge, gr);
+
+    const items = [];
+    for (let i = 0; i < 130; i++) {
+      const x = this._dalatRange(-40, DALAT_W + 40);
+      const t = Math.pow(this._dalatRand(), 1.4);
+      items.push([x, ridge(x) + 12 + t * (DALAT_H + 30 - ridge(x)), 12 + t * 46, t]);
+    }
+    items.sort((a, b) => a[1] - b[1]);  // Khóm ở xa vẽ trước, khóm ở gần vẽ sau
+
+    for (const [x, y, r] of items) {
+      const isWhite = this._dalatRand() < .12;
+      let hue;
+      if (isWhite) hue = 260;
+      else if (this._dalatRand() < .22) hue = this._dalatHue(this._dalatRange(0, DALAT_W));
+      else hue = this._dalatHue(x);
+      this._drawDalatHydrangea(g, x, y, r, hue, isWhite);
+    }
+  }
+
+  // Một khóm cẩm tú cầu tròn: lá dưới nền, hàng trăm cánh hoa nhỏ
+  _drawDalatHydrangea(g, x, y, r, h, white) {
+    g.fillStyle = '#2f5a35';
+    for (let i = 0; i < 7; i++) {
+      const cx = x + this._dalatRange(-1, 1) * r * 1.1;
+      const cy = y + r * this._dalatRange(.3, .85);
+      const rot = this._dalatRange(-.6, .6);
+      g.beginPath();
+      g.ellipse(cx, cy, r * .5, r * .25, rot, 0, 7);
+      g.fill();
+    }
+
+    g.fillStyle = white ? 'hsl(260,20%,62%)' : `hsl(${h},45%,45%)`;
+    g.beginPath();
+    g.arc(x, y, r, 0, 7);
+    g.fill();
+
+    for (let i = 0, n = r * 1.7 | 0; i < n; i++) {
+      const a = this._dalatRand() * 6.283;
+      const d = Math.sqrt(this._dalatRand()) * r * .88;
+      const fx = x + Math.cos(a) * d;
+      const fy = y + Math.sin(a) * d * .9;
+      const light = (white ? 78 : 58) + (-(fx - x) * .25 - (fy - y) * .35) / r * 18 + this._dalatRange(-5, 8);
+      const hue = h + this._dalatRange(-10, 10);
+      const sat = white ? this._dalatRange(15, 30) : this._dalatRange(50, 75);
+      g.fillStyle = `hsl(${hue},${sat}%,${light}%)`;
+      g.beginPath();
+      g.arc(fx, fy, r * .2, 0, 7);
+      g.fill();
+      g.fillStyle = 'rgba(255,255,255,.4)';  // Điểm sáng trên từng cánh hoa
+      g.beginPath();
+      g.arc(fx - 1, fy - 1, r * .06, 0, 7);
+      g.fill();
+    }
+  }
+
+  // Nhánh thông, dương xỉ, cỏ dại và hoa nhỏ ở tiền cảnh
+  _drawDalatFoliages(g) {
+    const dark = ['#14291f', '#1d3d2b', '#0e1d16'];
+    const fern = ['#234a2c', '#3f7a3b', '#173320'];
+
+    // Nhánh thông sẫm rủ từ hai bên
+    for (let i = 0; i < 34; i++) {
+      let x = this._dalatRange(-50, 70);
+      let y = this._dalatRange(430, 850);
+      let len = this._dalatRange(150, 300);
+      let ang = this._dalatRange(-.5, .4);
+      let droop = this._dalatRange(.005, .025);
+      this._dalatBranch(g, x, y, len, ang, droop, dark);
+
+      x = this._dalatRange(DALAT_W - 60, DALAT_W + 50);
+      y = this._dalatRange(520, 880);
+      len = this._dalatRange(150, 300);
+      ang = Math.PI + this._dalatRange(-.4, .5);
+      droop = -this._dalatRange(.005, .025);
+      this._dalatBranch(g, x, y, len, ang, droop, dark);
+    }
+
+    // Dương xỉ xòe nan quạt ở các góc đáy tranh
+    for (const x of [40, 260, 430, 1230, 1420, 1580]) {
+      for (let i = 0; i < 9; i++) {
+        const len = this._dalatRange(150, 230);
+        const droop = (i < 4 ? -1 : 1) * this._dalatRange(.012, .03);
+        this._dalatBranch(g, x, DALAT_H + 10, len, -Math.PI / 2 + (i - 4) * .2, droop, fern);
       }
-    });
+    }
 
-    ctx.restore();
+    // Cỏ lá dài
+    const grass = ['#264d2c', '#2f6535', '#1d3b26', '#4d8a44'];
+    g.lineCap = 'round';
+    for (let i = 0; i < 220; i++) {
+      const x = this._dalatRange(-20, DALAT_W + 20);
+      const h = this._dalatRange(40, 170);
+      g.strokeStyle = grass[i % 4];
+      g.lineWidth = this._dalatRange(2, 5);
+      g.beginPath();
+      g.moveTo(x, DALAT_H + 5);
+      const cpx = x + this._dalatRange(-30, 30);
+      const endX = x + this._dalatRange(-50, 50);
+      g.quadraticCurveTo(cpx, DALAT_H - h * .6, endX, DALAT_H - h);
+      g.stroke();
+    }
+
+    // Hoa dại năm cánh: hồng, trắng, cam
+    const petals = ['#f08aa4', '#ffffff', '#f2a05a', '#f7c6d6'];
+    for (let i = 0; i < 70; i++) {
+      const x = this._dalatRange(0, DALAT_W);
+      const y = this._dalatRange(1030, 1190);
+      const r = this._dalatRange(5, 9);
+      g.fillStyle = petals[i % 4];
+      for (let k = 0; k < 5; k++) {
+        g.beginPath();
+        g.ellipse(x + Math.cos(k * 1.2566) * r * .9, y + Math.sin(k * 1.2566) * r * .9, r * .6, r * .4, k * 1.2566, 0, 7);
+        g.fill();
+      }
+      g.fillStyle = '#f6d34a';
+      g.beginPath();
+      g.arc(x, y, r * .35, 0, 7);
+      g.fill();
+    }
   }
 
-  // 12. KHÓM CÂY CỎ & NHÁNH THÔNG TIỀN CẢNH GÓC TRÁI (Foreground Left Framing Plants)
-  _drawDalatLeftForeground(ctx, w, h, s) {
-    ctx.save();
-    const scale = s || 1;
-    const t = this.animTimer || 0;
+  // Một nhánh thông có kim lá (không save/restore: giữ lineCap bo tròn cho lớp cỏ phía sau)
+  _dalatBranch(g, x, y, len, ang, droop, cols) {
+    const n = len / 7 | 0;
+    let a = ang;
+    let px = x;
+    let py = y;
+    g.lineCap = 'round';
+    for (let i = 0; i < n; i++) {
+      const k = 1 - i / n;
+      a += droop;
+      const nx = px + Math.cos(a) * 7;
+      const ny = py + Math.sin(a) * 7;
 
-    // 1. Tán cây bóng râm rậm rạp làm nền góc dưới trái
-    ctx.fillStyle = '#06130b';
-    ctx.beginPath();
-    ctx.moveTo(0, h * 0.42);
-    ctx.quadraticCurveTo(w * 0.32, h * 0.65, w * 0.24, h);
-    ctx.lineTo(0, h);
-    ctx.closePath();
-    ctx.fill();
+      g.strokeStyle = cols[0];
+      g.lineWidth = 2 + k * 3;
+      g.beginPath();
+      g.moveTo(px, py);
+      g.lineTo(nx, ny);
+      g.stroke();
 
-    // 2. Những cành thông kim sắc nét vươn từ mép trái vào khung hình (Overhanging Pine Boughs)
-    ctx.strokeStyle = '#1a1008';
-    ctx.lineWidth = 3.2 * scale;
-    const branches = [
-      { y: h * 0.46, len: w * 0.28, dip: -18 * scale },
-      { y: h * 0.58, len: w * 0.32, dip: 15 * scale },
-      { y: h * 0.70, len: w * 0.26, dip: -12 * scale }
-    ];
-
-    branches.forEach((b, bIdx) => {
-      ctx.beginPath();
-      ctx.moveTo(0, b.y);
-      ctx.quadraticCurveTo(b.len * 0.55, b.y + b.dip, b.len, b.y + 10 * scale);
-      ctx.stroke();
-
-      // Các chùm lá kim thông xòe rủ sắc sảo (Pine needle tufts)
-      const tufts = 7;
-      for (let k = 0; k < tufts; k++) {
-        const u = (k + 0.5) / tufts;
-        const kx = u * b.len;
-        const ky = (1 - u) * (1 - u) * b.y + 2 * (1 - u) * u * (b.y + b.dip) + u * u * (b.y + 10 * scale);
-
-        // Chùm kim xòe tỏa nan quạt
-        ctx.strokeStyle = k % 2 === 0 ? '#102e1b' : '#194228';
-        ctx.lineWidth = 1.4 * scale;
-        for (let needle = -4; needle <= 4; needle++) {
-          const ang = (needle * 0.22) + (bIdx % 2 === 0 ? 0.3 : -0.3);
-          const nLen = (14 + (k % 3) * 5) * scale;
-          ctx.beginPath();
-          ctx.moveTo(kx, ky);
-          ctx.lineTo(kx + Math.cos(ang) * nLen * (scale > 0 ? 1 : -1), ky + Math.sin(ang) * nLen);
-          ctx.stroke();
+      g.lineWidth = 1.3;
+      g.strokeStyle = cols[i % 3];
+      g.beginPath();
+      const needle = 8 + k * 22;
+      for (let s = -1; s <= 1; s += 2) {
+        for (let j = 0; j < 2; j++) {
+          const na = a + s * (.8 + j * .35 + this._dalatRand() * .2);
+          g.moveTo(nx, ny);
+          g.lineTo(nx + Math.cos(na) * needle, ny + Math.sin(na) * needle);
         }
       }
-    });
+      g.stroke();
+      px = nx;
+      py = ny;
+    }
+  }
 
-    // 3. Tán lá cọ / dương xỉ nhiệt đới xòe cánh ở góc dưới trái
-    ctx.fillStyle = '#0a2012';
+  // Tháp chuông cổ gạch đỏ, mái chóp nhọn, đồng hồ tròn và thánh giá
+  _drawDalatBellTower(ctx, x, by, th) {
+    ctx.save();
+    const w = 62;
+    const top = by - th;
+
+    // Gian nhà thấp phía sau tháp
+    ctx.fillStyle = '#a58478';
+    ctx.fillRect(x - w / 2 - 120, by - th * .2, 120, th * .2);
+    ctx.fillStyle = '#7a4b40';
     ctx.beginPath();
-    ctx.arc(0, h * 0.88, 75 * scale, 0, Math.PI * 2);
-    ctx.arc(w * 0.08, h * 0.94, 60 * scale, 0, Math.PI * 2);
+    ctx.moveTo(x - w / 2 - 130, by - th * .2);
+    ctx.lineTo(x - w / 2 - 60, by - th * .32);
+    ctx.lineTo(x - w / 2, by - th * .2);
     ctx.fill();
 
-    // Tàu lá dừa nước / lá cọ xòe sắc nhọn vươn lên
-    ctx.strokeStyle = '#12361e';
-    ctx.lineWidth = 2.4 * scale;
-    for (let f = 0; f < 9; f++) {
-      const ang = -0.2 + f * 0.18;
-      const fLen = (85 + (f % 3) * 20) * scale;
+    // Thân tháp có dải gạch
+    const gr = ctx.createLinearGradient(x - w / 2, 0, x + w / 2, 0);
+    gr.addColorStop(0, '#b57560');
+    gr.addColorStop(1, '#7b4a3d');
+    ctx.fillStyle = gr;
+    ctx.fillRect(x - w / 2, by - th * .66, w, th * .66);
+    ctx.strokeStyle = 'rgba(70,30,25,.22)';
+    ctx.lineWidth = 1;
+    for (let y = by - th * .66; y < by; y += 7) {
       ctx.beginPath();
-      ctx.moveTo(-10 * scale, h);
-      ctx.quadraticCurveTo(w * 0.08 + Math.cos(ang) * fLen * 0.5, h * 0.85 + Math.sin(ang) * fLen * 0.5, w * 0.08 + Math.cos(ang) * fLen, h * 0.85 + Math.sin(ang) * fLen);
+      ctx.moveTo(x - w / 2, y);
+      ctx.lineTo(x + w / 2, y);
       ctx.stroke();
     }
 
-    // 4. Hoa dại trắng và hồng phấn (Wild Daisies) nở rộ lác đác trong khóm lá tiền cảnh
-    for (let d = 0; d < 12; d++) {
-      const dx = (12 + d * 14 * scale) % (w * 0.24);
-      const dy = h * 0.82 + (d * 11 * scale) % (h * 0.16);
-      ctx.fillStyle = d % 3 === 0 ? '#ffb3c6' : '#ffffff';
+    // Tầng chuông có ba ô cửa vòm
+    const bt = by - th * .66;
+    const bh = th * .13;
+    const sb = bt - bh;
+    ctx.fillStyle = '#9c5f4c';
+    ctx.fillRect(x - w * .46, sb, w * .92, bh);
+    ctx.fillStyle = '#3a1f1b';
+    for (let i = 0; i < 3; i++) {
+      const ax = x - w * .3 + i * w * .3;
       ctx.beginPath();
-      ctx.arc(dx, dy, 3.2 * scale, 0, Math.PI * 2);
-      ctx.fill();
-      // Nhụy vàng
-      ctx.fillStyle = '#f59e0b';
-      ctx.beginPath();
-      ctx.arc(dx, dy, 1.2 * scale, 0, Math.PI * 2);
+      ctx.moveTo(ax - 5, bt - 3);
+      ctx.lineTo(ax - 5, bt - bh * .65);
+      ctx.arc(ax, bt - bh * .65, 5, Math.PI, 0);
+      ctx.lineTo(ax + 5, bt - 3);
       ctx.fill();
     }
 
+    // Mái chóp nhọn và hai tháp nhỏ ở góc
+    ctx.fillStyle = '#8a4838';
+    ctx.beginPath();
+    ctx.moveTo(x, top);
+    ctx.lineTo(x + w * .5, sb);
+    ctx.lineTo(x - w * .5, sb);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,200,170,.2)';
+    ctx.beginPath();
+    ctx.moveTo(x, top);
+    ctx.lineTo(x - w * .5, sb);
+    ctx.lineTo(x - w * .08, sb);
+    ctx.fill();
+    ctx.fillStyle = '#7a3f31';
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(x + s * w * .43, sb - th * .07);
+      ctx.lineTo(x + s * w * .5, sb);
+      ctx.lineTo(x + s * w * .36, sb);
+      ctx.fill();
+    }
+
+    // Thánh giá trên đỉnh
+    ctx.strokeStyle = '#5b3a30';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(x, top - 22);
+    ctx.lineTo(x, top);
+    ctx.moveTo(x - 6, top - 15);
+    ctx.lineTo(x + 6, top - 15);
+    ctx.stroke();
+
+    // Đồng hồ tròn
+    const cy = by - th * .36;
+    ctx.fillStyle = '#efe6d8';
+    ctx.beginPath();
+    ctx.arc(x, cy, w * .2, 0, 7);
+    ctx.fill();
+    ctx.strokeStyle = '#4a2b25';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x, cy);
+    ctx.lineTo(x, cy - w * .13);
+    ctx.moveTo(x, cy);
+    ctx.lineTo(x + w * .1, cy + 2);
+    ctx.stroke();
+
+    // Hai khe sáng nhỏ trên thân tháp
+    ctx.fillStyle = '#3a1f1b';
+    for (let i = 0; i < 2; i++) ctx.fillRect(x - w * .3 + i * w * .5, by - th * .56, 5, th * .09);
     ctx.restore();
   }
 
-  // 13. KHÓM CÂY CỎ & RẶNG CỎ LAU TIỀN CẢNH GÓC PHẢI (Foreground Right Framing Plants)
-  _drawDalatRightForeground(ctx, w, h, s) {
+  // Thủy tạ hóng mát ven hồ (x: tâm, y: mặt sàn)
+  _drawLakeGazebo(ctx, x, y) {
     ctx.save();
-    const scale = s || 1;
-    const t = this.animTimer || 0;
 
-    // 1. Tán cây bóng râm rậm rạp làm nền góc dưới phải
-    ctx.fillStyle = '#06130b';
+    // Sàn và bốn cột
+    ctx.fillStyle = '#4c3a33';
+    ctx.fillRect(x - 50, y - 3, 100, 5);
+    ctx.strokeStyle = '#5a4538';
+    ctx.lineWidth = 2.5;
+    for (const i of [-42, -14, 14, 42]) {
+      ctx.beginPath();
+      ctx.moveTo(x + i, y - 3);
+      ctx.lineTo(x + i, y - 34);
+      ctx.stroke();
+    }
+
+    // Lan can
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.moveTo(w, h * 0.44);
-    ctx.quadraticCurveTo(w * 0.68, h * 0.65, w * 0.74, h);
-    ctx.lineTo(w, h);
-    ctx.closePath();
+    ctx.moveTo(x - 46, y - 14);
+    ctx.lineTo(x + 46, y - 14);
+    ctx.stroke();
+
+    // Mái chóp gỗ, nửa trái hắt sáng
+    ctx.fillStyle = '#7d5d49';
+    ctx.beginPath();
+    ctx.moveTo(x, y - 64);
+    ctx.lineTo(x + 66, y - 32);
+    ctx.lineTo(x - 66, y - 32);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,225,190,.22)';
+    ctx.beginPath();
+    ctx.moveTo(x, y - 64);
+    ctx.lineTo(x - 66, y - 32);
+    ctx.lineTo(x, y - 32);
     ctx.fill();
 
-    // 2. Nhánh thông kim sắc nét vươn từ mép phải vào
-    ctx.strokeStyle = '#1a1008';
-    ctx.lineWidth = 3.2 * scale;
-    const branchesR = [
-      { y: h * 0.48, len: w * 0.28, dip: 16 * scale },
-      { y: h * 0.62, len: w * 0.32, dip: -14 * scale },
-      { y: h * 0.74, len: w * 0.25, dip: 12 * scale }
-    ];
-
-    branchesR.forEach((b, bIdx) => {
+    // Chân cọc cắm xuống nước
+    ctx.strokeStyle = '#3d2e28';
+    ctx.lineWidth = 2;
+    for (let i = -40; i <= 40; i += 20) {
       ctx.beginPath();
-      ctx.moveTo(w, b.y);
-      ctx.quadraticCurveTo(w - b.len * 0.55, b.y + b.dip, w - b.len, b.y + 10 * scale);
+      ctx.moveTo(x + i, y + 2);
+      ctx.lineTo(x + i, y + 16);
       ctx.stroke();
-
-      // Các chùm lá kim thông xòe rủ
-      const tufts = 7;
-      for (let k = 0; k < tufts; k++) {
-        const u = (k + 0.5) / tufts;
-        const kx = w - u * b.len;
-        const ky = (1 - u) * (1 - u) * b.y + 2 * (1 - u) * u * (b.y + b.dip) + u * u * (b.y + 10 * scale);
-
-        ctx.strokeStyle = k % 2 === 0 ? '#102e1b' : '#194228';
-        ctx.lineWidth = 1.4 * scale;
-        for (let needle = -4; needle <= 4; needle++) {
-          const ang = Math.PI - (needle * 0.22) + (bIdx % 2 === 0 ? 0.3 : -0.3);
-          const nLen = (14 + (k % 3) * 5) * scale;
-          ctx.beginPath();
-          ctx.moveTo(kx, ky);
-          ctx.lineTo(kx + Math.cos(ang) * nLen, ky + Math.sin(ang) * nLen);
-          ctx.stroke();
-        }
-      }
-    });
-
-    // 3. Rặng cỏ đuôi mèo / cỏ lau nhung nâu cao vút (Cattails & Reeds)
-    const numCattails = 12;
-    for (let c = 0; c < numCattails; c++) {
-      const cx = w - (12 + c * 13 * scale);
-      const cy = h - (22 + (c % 4) * 22 * scale);
-      const sway = Math.sin(t * 1.8 + c * 0.9) * (5.0 * scale);
-
-      // Thân lau sậy mảnh mai dẻo dai
-      ctx.strokeStyle = '#14301a';
-      ctx.lineWidth = 1.8 * scale;
-      ctx.beginPath();
-      ctx.moveTo(cx, h);
-      ctx.quadraticCurveTo(cx + sway * 0.5, cy + 32 * scale, cx + sway, cy);
-      ctx.stroke();
-
-      // Bông cỏ lau nhung nâu hình trụ mượt mà đặc trưng
-      ctx.fillStyle = '#422416';
-      ctx.beginPath();
-      ctx.ellipse(cx + sway, cy + 10 * scale, 3.2 * scale, 13 * scale, sway * 0.04, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Chóp lông tơ vàng nhạt trên đỉnh bông lau
-      ctx.fillStyle = '#d4a373';
-      ctx.beginPath();
-      ctx.arc(cx + sway, cy - 3 * scale, 1.4 * scale, 0, Math.PI * 2);
-      ctx.fill();
     }
-
     ctx.restore();
   }
 
-  // 14. Gợn sóng nhỏ li ti phẳng lặng trên hồ (Lake ripples)
-  _drawLakeRipples(ctx, startY, s) {
+  // Sprite sương mù: một dải elip mờ mềm
+  _makeDalatFogSprite() {
+    const c = document.createElement('canvas');
+    c.width = 800;
+    c.height = 200;
+    const g = c.getContext('2d');
+    g.translate(400, 100);
+    g.scale(1, .25);
+    const gr = g.createRadialGradient(0, 0, 0, 0, 0, 400);
+    gr.addColorStop(0, 'rgba(228,224,240,.8)');
+    gr.addColorStop(.6, 'rgba(228,224,240,.3)');
+    gr.addColorStop(1, 'rgba(228,224,240,0)');
+    g.fillStyle = gr;
+    g.fillRect(-400, -400, 800, 800);
+    return c;
+  }
+
+  // Sprite một đám mây gồm nhiều cụm tròn mờ
+  _makeDalatCloudSprite(w, h, col) {
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    const g = c.getContext('2d');
+    for (let i = 0; i < 32; i++) {
+      const x = w * this._dalatRange(.1, .9);
+      const k = Math.max(.35, 1 - Math.abs(x / w - .5) * 1.4);
+      const r = h * this._dalatRange(.18, .4) * k;
+      const y = h * .72 - r * this._dalatRange(.2, .9);
+      const gr = g.createRadialGradient(x, y, 0, x, y, r);
+      gr.addColorStop(0, `rgba(${col},.55)`);
+      gr.addColorStop(1, `rgba(${col},0)`);
+      g.fillStyle = gr;
+      g.beginPath();
+      g.arc(x, y, r, 0, 7);
+      g.fill();
+    }
+    return c;
+  }
+
+  // ---- Các hiệu ứng chuyển động (vẽ lại mỗi khung hình) ----
+
+  // Dải sương mù lững lờ trôi (speed âm: trôi ngược chiều)
+  _drawDalatMist(ctx, sprite, t, y, speed, alpha, scale, count) {
     ctx.save();
-    const scale = s || 1;
-    const w = this.width;
-    const t = this.animTimer || 0;
+    const sw = 800 * scale;
+    ctx.globalAlpha = alpha;
+    for (let i = 0; i < count; i++) {
+      const x = ((i * (DALAT_W + sw) / count + t * speed / 1000) % (DALAT_W + sw)) - sw;
+      ctx.drawImage(sprite, x, y + Math.sin(i * 2 + t * .0002) * 8 - 100 * scale * .5, sw, 200 * scale * .5);
+    }
+    ctx.restore();
+  }
 
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
-    ctx.lineWidth = 0.9 * scale;
-    for (let i = 0; i < 11; i++) {
-      const ry = startY + 18 * scale + i * (16 * scale);
-      const rx = ((i * 85 + t * 6 + (this.scrollX || 0) * 0.3) % (w - 50 * scale)) + 15 * scale;
-      const rLen = (30 + (i % 3) * 18) * scale;
+  // Mây núi sớm mai trôi nhẹ
+  _drawDalatSoftClouds(ctx, clouds, t, px) {
+    for (const c of clouds) {
+      const x = ((c.x + c.w + t * c.sp / 1000) % (DALAT_W + c.w)) - c.w;
+      ctx.drawImage(c.img, x + px * 2, c.y);
+    }
+  }
 
+  // Đàn chim bay vỗ cánh
+  _drawDalatBirds(ctx, birds, t) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(62,52,96,.85)';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    for (const b of birds) {
+      const x = ((b.x + t * b.sp / 1000) % (DALAT_W + 80)) - 40;
+      const y = b.y + Math.sin(t * .0008 + b.ph) * 8;
+      const flap = Math.sin(t * .008 + b.ph) * 5 * b.z;
+      const s = 10 * b.z;
       ctx.beginPath();
-      ctx.moveTo(rx, ry);
-      ctx.lineTo(rx + rLen, ry);
+      ctx.moveTo(x - s, y - flap);
+      ctx.quadraticCurveTo(x - s * .4, y - s * .5 - flap, x, y);
+      ctx.quadraticCurveTo(x + s * .4, y - s * .5 - flap, x + s, y - flap);
       ctx.stroke();
     }
     ctx.restore();
   }
 
-  // Khả năng tương thích ngược
-  _drawDalatPromenade(ctx, startX, startY, s) {
-    this._drawDalatLeftForeground(ctx, this.width, this.height, s);
-  }
-
-  _drawDalatFoliages(ctx, startX, startY, dir, s) {
-    if (dir > 0) {
-      this._drawDalatLeftForeground(ctx, this.width, this.height, s);
-    } else {
-      this._drawDalatRightForeground(ctx, this.width, this.height, s);
+  // Gợn sóng lấp lánh li ti trên mặt hồ
+  _drawLakeRipples(ctx, t) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(240,230,248,.2)';
+    for (let i = 0; i < 45; i++) {
+      const k = Math.pow(i / 45, 1.6);
+      const y = DALAT_HZ + 12 + k * 190;
+      const x = ((i * 137.5) % DALAT_W) + Math.sin(t * .0006 + i) * 30;
+      ctx.fillRect(x, y, 60 + (i % 5) * 40, 1.2 + k * 1.5);
     }
+    ctx.restore();
   }
 
-  // ==========================================
+  // Cây đuôi chồn đung đưa trong gió
+  _drawDalatCattails(ctx, cats, t, px) {
+    ctx.save();
+    ctx.lineCap = 'round';
+    cats.forEach(([x, h], i) => {
+      const sway = Math.sin(t * .0012 + i) * 8;
+      const bx = x + px * 28;
+      const tipX = bx + sway;
+      const tipY = DALAT_H - h;
+      ctx.strokeStyle = '#3b5a2f';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(bx, DALAT_H + 5);
+      ctx.quadraticCurveTo(bx + sway * .3, DALAT_H - h * .5, tipX, tipY);
+      ctx.stroke();
+      ctx.fillStyle = '#6b3f25';
+      ctx.beginPath();
+      ctx.ellipse(tipX + sway * .1, tipY - 6, 5, 20, sway * .02, 0, 7);
+      ctx.fill();
+    });
+    ctx.restore();
+  }
+
+  // Đom đóm vàng phát sáng, nhấp nháy trên đồi hoa
+  _drawDalatFireflies(ctx, flies, t, px) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+    for (const f of flies) {
+      const x = f.x + Math.sin(t * .0004 + f.ph) * 40 + px * 20;
+      const y = f.y + Math.cos(t * .0006 + f.ph) * 25;
+      const a = .55 + .45 * Math.sin(t * .003 + f.ph);
+      const glow = ctx.createRadialGradient(x, y, 0, x, y, 22 * f.sz);
+      glow.addColorStop(0, `rgba(255,200,80,${a})`);
+      glow.addColorStop(1, 'rgba(255,170,40,0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(x, y, 22 * f.sz, 0, 7);
+      ctx.fill();
+
+      ctx.strokeStyle = `rgba(255,236,170,${a})`;
+      ctx.lineWidth = 2;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(t * .0008 + f.ph);
+      ctx.strokeRect(-5 * f.sz, -5 * f.sz, 10 * f.sz, 10 * f.sz);
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  // Viền tối nhẹ quanh khung tranh
+  _drawDalatVignette(ctx) {
+    ctx.save();
+    const v = ctx.createRadialGradient(DALAT_W / 2, DALAT_H / 2, DALAT_H * .45, DALAT_W / 2, DALAT_H / 2, DALAT_H * .95);
+    v.addColorStop(0, 'rgba(10,8,30,0)');
+    v.addColorStop(1, 'rgba(10,8,30,.4)');
+    ctx.fillStyle = v;
+    ctx.fillRect(0, 0, DALAT_W, DALAT_H);
+    ctx.restore();
+  }
+
+  // Tiêu đề ĐÀ LẠT phía trên tranh
+  _drawDalatTitle(ctx) {
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.shadowColor = 'rgba(30,20,60,.6)';
+    ctx.shadowBlur = 14;
+    ctx.fillStyle = 'rgba(255,243,236,.94)';
+    try { ctx.letterSpacing = '10px'; } catch (e) {}
+    ctx.font = '600 56px Lora,Georgia,serif';
+    ctx.fillText('ĐÀ LẠT', DALAT_W / 2 + 5, 118);
+    try { ctx.letterSpacing = '3px'; } catch (e) {}
+    ctx.font = 'italic 22px Lora,Georgia,serif';
+    ctx.fillText('Hồ Xuân Hương và thung lũng thông', DALAT_W / 2, 156);
+    ctx.restore();
+  }
+
   // PANEL 8: TP. HCM (Landmark 81 hoa sen neon, Bitexco & Đại lộ ánh sáng)
   // ==========================================
   _drawHoChiMinh(ctx) {
