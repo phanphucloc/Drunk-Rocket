@@ -5228,129 +5228,1095 @@ export class ScenicLandmarksManager {
 
   // PANEL 8: TP. HCM (Landmark 81 hoa sen neon, Bitexco & Đại lộ ánh sáng)
   // ==========================================
+
+  _rnd(n) {
+    const s = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  }
+
+  // ---- Hình học dòng sông & cao tốc (đường cong Bezier) -------------------
+  _segs() {
+    const w = this.width;
+    const h = this.height;
+    const P = (x, y) => ({ x: w * x, y: h * y });
+    return {
+      L1: [P(0, 0.88), P(0.20, 0.82), P(0.30, 0.74), P(0.34, 0.66)],
+      L2: [P(0.34, 0.66), P(0.37, 0.58), P(0.42, 0.53), P(0.50, 0.505)],
+      R1: [P(0.56, 0.505), P(0.60, 0.54), P(0.54, 0.60), P(0.60, 0.66)],
+      R2: [P(0.60, 0.66), P(0.68, 0.73), P(0.76, 0.76), P(0.80, 0.84)],
+      F1: [P(1.03, 0.66), P(0.80, 0.68), P(0.86, 0.80), P(0.64, 0.84)],
+      F2: [P(0.64, 0.84), P(0.50, 0.87), P(0.44, 0.93), P(0.28, 1.0)]
+    };
+  }
+
+  _bez(s, t) {
+    const u = 1 - t;
+    const a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t;
+    return {
+      x: a * s[0].x + b * s[1].x + c * s[2].x + d * s[3].x,
+      y: a * s[0].y + b * s[1].y + c * s[2].y + d * s[3].y
+    };
+  }
+
+  _bezTo(ctx, s) {
+    ctx.bezierCurveTo(s[1].x, s[1].y, s[2].x, s[2].y, s[3].x, s[3].y);
+  }
+
+  _riverPath(ctx) {
+    const S = this._segs();
+    ctx.beginPath();
+    ctx.moveTo(S.L1[0].x, S.L1[0].y);
+    this._bezTo(ctx, S.L1);
+    this._bezTo(ctx, S.L2);
+    ctx.lineTo(S.R1[0].x, S.R1[0].y);
+    this._bezTo(ctx, S.R1);
+    this._bezTo(ctx, S.R2);
+    ctx.lineTo(this.width * 0.72, this.height);
+    ctx.lineTo(0, this.height);
+    ctx.closePath();
+  }
+
+  // =========================================================================
+  // PANEL: TP. HỒ CHÍ MINH
+  // =========================================================================
   _drawHoChiMinh(ctx) {
     ctx.save();
+    const w = this.width;
+    const h = this.height;
 
-    // 1. Midnight Cyberpunk Sky
-    const sky = ctx.createLinearGradient(0, 0, 0, this.height * 0.6);
-    sky.addColorStop(0, '#060413');
-    sky.addColorStop(0.5, '#120b29');
-    sky.addColorStop(1, '#241042');
+    // 1. Bầu trời đêm đô thị (Navy - Tím - Hồng neon ở chân trời)
+    const sky = ctx.createLinearGradient(0, 0, 0, h * 0.52);
+    sky.addColorStop(0, '#060927');
+    sky.addColorStop(0.35, '#1d1050');
+    sky.addColorStop(0.65, '#5a1f86');
+    sky.addColorStop(0.88, '#c23aa6');
+    sky.addColorStop(1, '#ff6fc0');
     ctx.fillStyle = sky;
-    ctx.fillRect(0, 0, this.width, this.height * 0.6);
+    ctx.fillRect(0, 0, w, h * 0.52);
 
-    // 2. Far Skyscrapers & Towers
-    const skylineY = 460;
-    ctx.fillStyle = '#100e26';
-    ctx.fillRect(150, skylineY - 180, 48, 180);
-    ctx.fillRect(210, skylineY - 220, 42, 220);
-    ctx.fillRect(265, skylineY - 190, 52, 190);
-    ctx.fillRect(328, skylineY - 240, 45, 240);
+    // 2. Sao đêm & mây tím
+    this._drawAtmosphereEffects(ctx);
 
-    // 3. Bitexco Financial Tower (Búp sen & Sân đỗ trực thăng)
-    const bitX = 230;
-    ctx.fillStyle = '#1c1b3d';
-    ctx.beginPath();
-    ctx.moveTo(bitX - 20, skylineY);
-    ctx.quadraticCurveTo(bitX - 16, skylineY - 140, bitX - 5, skylineY - 260);
-    ctx.lineTo(bitX + 5, skylineY - 260);
-    ctx.quadraticCurveTo(bitX + 16, skylineY - 140, bitX + 20, skylineY);
-    ctx.fill();
+    // 3. Quầng sáng đô thị ở chân trời
+    this._drawCityGlow(ctx, h * 0.5);
 
-    // Cantilevered Helipad (Sân đỗ trực thăng phát sáng)
-    ctx.fillStyle = '#00f0ff';
-    ctx.beginPath();
-    ctx.ellipse(bitX - 14, skylineY - 160, 16, 4, -0.2, 0, Math.PI * 2);
-    ctx.fill();
+    // 4. Đường chân trời xa dày đặc cao ốc
+    this._drawFarSkyline(ctx, h * 0.5);
 
-    // 4. LANDMARK 81 (Tòa nhà cao nhất Việt Nam & Bó tre giật cấp)
-    const lmX = 75;
-    // Stepped Tube Bundles
-    ctx.fillStyle = '#151c38';
-    ctx.fillRect(lmX - 35, skylineY - 150, 70, 150);
-    ctx.fillRect(lmX - 25, skylineY - 260, 50, 110);
-    ctx.fillRect(lmX - 16, skylineY - 350, 32, 90);
-    ctx.fillRect(lmX - 8, skylineY - 420, 16, 70);
+    // 5. Mặt đất đô thị
+    const land = ctx.createLinearGradient(0, h * 0.5, 0, h);
+    land.addColorStop(0, '#231452');
+    land.addColorStop(0.4, '#171040');
+    land.addColorStop(1, '#0d0930');
+    ctx.fillStyle = land;
+    ctx.fillRect(0, h * 0.5, w, h * 0.5);
 
-    // Glowing Neon Cyan Structural Lines
-    ctx.strokeStyle = '#00f0ff';
-    ctx.lineWidth = 1.2;
-    ctx.strokeRect(lmX - 35, skylineY - 150, 70, 150);
-    ctx.strokeRect(lmX - 25, skylineY - 260, 50, 110);
-    ctx.strokeRect(lmX - 16, skylineY - 350, 32, 90);
-    ctx.strokeRect(lmX - 8, skylineY - 420, 16, 70);
+    // 6. Cụm cao ốc hai bờ
+    this._drawMidBlocks(ctx);
 
-    // Spire & Blinking Aviation Beacon
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 2.0;
-    ctx.beginPath();
-    ctx.moveTo(lmX, skylineY - 420);
-    ctx.lineTo(lmX, skylineY - 465);
-    ctx.stroke();
+    // 7. Landmark 81 (bên trái)
+    this._drawLandmark81(ctx, w * 0.25, h * 0.57);
 
-    ctx.save();
-    ctx.fillStyle = Math.sin(this.animTimer * 6) > 0 ? '#ff0054' : '#ffffff';
-    ctx.shadowColor = '#ff0054';
-    ctx.shadowBlur = 10;
-    ctx.beginPath();
-    ctx.arc(lmX, skylineY - 465, 3, 0, Math.PI * 2);
-    ctx.fill();
+    // 8. Bitexco, bãi đáp trực thăng & chùm đèn (bên phải)
+    this._drawBitexco(ctx, w * 0.76, h * 0.585);
+
+    // 9. Dòng sông Sài Gòn uốn lượn
+    this._drawRiver(ctx);
+
+    // 10. Bờ sông, đường dạo & đèn
+    this._drawRiverBanks(ctx);
+
+    // 11. Công viên bờ trái: búp sen neon, nhà vòm, rặng dừa
+    this._drawLotusPark(ctx, w * 0.20, h * 0.655);
+
+    // 12. Thuyền chở hàng & tàu du lịch
+    this._drawBoat(ctx, w * 0.47, h * 0.585, 0.7, 'barge', 0.2);
+    this._drawBoat(ctx, w * 0.44, h * 0.655, 0.9, 'tour', 1.4);
+    this._drawBoat(ctx, w * 0.56, h * 0.705, 1.0, 'barge', 2.6);
+    this._drawBoat(ctx, w * 0.31, h * 0.80, 1.2, 'tour', 3.8);
+    this._drawBoat(ctx, w * 0.50, h * 0.79, 1.3, 'barge', 5.0);
+
+    // 13. Cầu tàu gỗ
+    this._drawPier(ctx, w * 0.235, h * 0.778);
+
+    // 14. Cao tốc trên cao với dòng xe
+    this._drawFlyover(ctx);
+
+    // 15. Chợ Bến Thành (tiền cảnh phải)
+    this._drawBenThanh(ctx, w * 0.745, h);
+
+    // 16. Lan can neon, cọ tiền cảnh
+    this._drawForeground(ctx, w, h);
+
     ctx.restore();
+  }
 
-    // 5. HOA SEN PHÁT SÁNG KHỔNG LỒ TẠI CHÂN LANDMARK 81 (Matching Reference Image)
-    const lotusY = skylineY - 12;
+  // =========================================================================
+  // BỘ HÀM PHỤ TRỢ MỸ THUẬT CHI TIẾT
+  // =========================================================================
+
+  // Sao đêm & mây tím
+  _drawAtmosphereEffects(ctx) {
+    const w = this.width;
+    const h = this.height;
     ctx.save();
-    ctx.shadowColor = '#ff007f';
-    ctx.shadowBlur = 16;
-    ctx.fillStyle = '#ff007f';
+    for (let i = 0; i < 70; i++) {
+      const sx = this._rnd(i + 1) * w;
+      const sy = this._rnd(i + 91) * h * 0.34;
+      const alpha = (0.2 + 0.7 * Math.abs(Math.sin(this.animTimer * 1.6 + i))) * (1 - sy / (h * 0.4));
+      ctx.fillStyle = `rgba(255, 255, 255, ${Math.max(0, alpha)})`;
+      if (i % 9 === 0) {
+        ctx.fillRect(sx - 2, sy - 0.5, 4, 1);
+        ctx.fillRect(sx - 0.5, sy - 2, 1, 4);
+      } else {
+        ctx.fillRect(sx, sy, 1.1, 1.1);
+      }
+    }
 
-    // Lotus Petals Layer 1
-    ctx.beginPath();
-    ctx.ellipse(lmX, lotusY, 48, 16, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Lotus Petals Layer 2
-    ctx.fillStyle = '#ff70a6';
-    for (let p = -3; p <= 3; p++) {
+    const clouds = [
+      { y: 0.16, len: 150, spd: 0.08, a: 0.38 },
+      { y: 0.27, len: 190, spd: 0.05, a: 0.34 },
+      { y: 0.07, len: 120, spd: 0.11, a: 0.30 },
+      { y: 0.36, len: 170, spd: 0.06, a: 0.30 }
+    ];
+    clouds.forEach((c, i) => {
+      const cx = ((this.scrollX * c.spd * 3 + i * 170) % (w + c.len * 2)) - c.len;
+      const cy = h * c.y;
+      ctx.fillStyle = `rgba(110, 70, 170, ${c.a})`;
       ctx.beginPath();
-      ctx.ellipse(lmX + p * 12, lotusY - 10, 8, 18, (p * 0.15), 0, Math.PI * 2);
+      ctx.ellipse(cx, cy, c.len * 0.5, 11, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx + c.len * 0.2, cy - 8, c.len * 0.3, 10, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx - c.len * 0.22, cy - 4, c.len * 0.26, 8, 0, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.restore();
+  }
+
+  // Quầng sáng đô thị phía chân trời
+  _drawCityGlow(ctx, y) {
+    ctx.save();
+    const g = ctx.createLinearGradient(0, y - 120, 0, y + 6);
+    g.addColorStop(0, 'rgba(255, 80, 200, 0)');
+    g.addColorStop(0.7, 'rgba(255, 90, 210, 0.28)');
+    g.addColorStop(1, 'rgba(255, 140, 220, 0.5)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, y - 120, this.width, 126);
+    ctx.restore();
+  }
+
+  // Đường chân trời xa: hai lớp cao ốc kèm cửa sổ lấp lánh
+  _drawFarSkyline(ctx, baseY) {
+    const w = this.width;
+    ctx.save();
+    const layers = [
+      { col: '#3b2380', step: 11, min: 24, max: 96, seed: 5, win: 'rgba(255, 190, 240, 0.55)' },
+      { col: '#241564', step: 9, min: 16, max: 66, seed: 41, win: 'rgba(255, 215, 150, 0.6)' }
+    ];
+    layers.forEach((L, li) => {
+      for (let x = -4, i = 0; x < w + 6; x += L.step, i++) {
+        const r = this._rnd(i + L.seed);
+        const bh = L.min + r * (L.max - L.min);
+        const bw = L.step + 1 + this._rnd(i + L.seed + 7) * 3;
+        ctx.fillStyle = L.col;
+        ctx.fillRect(x, baseY - bh, bw, bh + 2);
+        ctx.fillStyle = L.win;
+        for (let wy = baseY - bh + 4; wy < baseY - 3; wy += 5) {
+          for (let wx = x + 2; wx < x + bw - 2; wx += 3.6) {
+            const k = this._rnd(wx * 3.1 + wy * 1.7 + li);
+            if (k > 0.55) {
+              const tw = k > 0.93 ? 0.4 + 0.6 * Math.abs(Math.sin(this.animTimer * 2 + wx)) : 1;
+              ctx.globalAlpha = tw;
+              ctx.fillRect(wx, wy, 1.4, 1.8);
+            }
+          }
+        }
+        ctx.globalAlpha = 1;
+      }
+    });
+
+    // Đốm sáng đô thị mờ ảo (bokeh) sát chân trời
+    for (let i = 0; i < 60; i++) {
+      const bx = this._rnd(i + 301) * w;
+      const by = baseY - 14 + this._rnd(i + 401) * 16;
+      ctx.fillStyle = `rgba(255, ${160 + (i % 4) * 25}, 230, ${0.25 + this._rnd(i) * 0.35})`;
+      ctx.beginPath();
+      ctx.arc(bx, by, 0.9 + this._rnd(i + 9) * 1.3, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.restore();
+  }
 
-    // 6. Winding S-shaped Sài Gòn River & Glowing Highway Traffic
-    const roadY = 460;
-    const rGrad = ctx.createLinearGradient(0, roadY, 0, this.height);
-    rGrad.addColorStop(0, '#0c152e');
-    rGrad.addColorStop(1, '#050914');
-    ctx.fillStyle = rGrad;
-    ctx.fillRect(0, roadY, this.width, this.height - roadY);
+  // Một tòa nhà: thân, cửa sổ và viền neon tùy chọn
+  _drawBlock(ctx, x, base, bw, bh, col, win, neon) {
+    ctx.save();
+    ctx.fillStyle = col;
+    ctx.fillRect(x, base - bh, bw, bh);
 
-    // River / Expressway S-Curve
-    ctx.strokeStyle = '#00f0ff';
-    ctx.lineWidth = 24;
+    ctx.fillStyle = win;
+    for (let wy = base - bh + 4; wy < base - 3; wy += 5) {
+      for (let wx = x + 2.5; wx < x + bw - 3; wx += 4.5) {
+        const k = this._rnd(wx * 5.3 + wy * 2.9);
+        if (k > 0.38) {
+          ctx.globalAlpha = k > 0.9 ? 0.45 + 0.55 * Math.abs(Math.sin(this.animTimer * 1.7 + wx + wy)) : 1;
+          ctx.fillRect(wx, wy, 2.4, 2);
+        }
+      }
+    }
+    ctx.globalAlpha = 1;
+
+    if (neon) {
+      ctx.strokeStyle = neon;
+      ctx.lineWidth = 1.1;
+      ctx.shadowColor = neon;
+      ctx.shadowBlur = 5;
+      ctx.beginPath();
+      ctx.moveTo(x, base);
+      ctx.lineTo(x, base - bh);
+      ctx.lineTo(x + bw, base - bh);
+      ctx.lineTo(x + bw, base);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // Cụm cao ốc hai bên Landmark & Bitexco
+  _drawMidBlocks(ctx) {
+    const w = this.width;
+    const h = this.height;
+    const blocks = [
+      // Bên trái Landmark
+      { x: 0.00, b: 0.62, bw: 16, bh: 74, col: '#1a2f66', win: '#33f0e0', neon: '#22d3ee' },
+      { x: 0.04, b: 0.64, bw: 20, bh: 96, col: '#17275c', win: '#ffd166', neon: null },
+      { x: 0.095, b: 0.63, bw: 16, bh: 60, col: '#102248', win: '#33f0e0', neon: '#22d3ee' },
+      { x: 0.14, b: 0.60, bw: 22, bh: 112, col: '#1d3a78', win: '#8ef5ff', neon: '#38e8ff' },
+      // Giữa Landmark và sông
+      { x: 0.31, b: 0.585, bw: 16, bh: 70, col: '#1b2d66', win: '#ffd166', neon: null },
+      { x: 0.345, b: 0.56, bw: 14, bh: 54, col: '#2a1c70', win: '#ff9de0', neon: '#ff4fd8' },
+      // Bờ phải, trái Bitexco
+      { x: 0.55, b: 0.545, bw: 14, bh: 48, col: '#241a66', win: '#ffd166', neon: null },
+      { x: 0.585, b: 0.555, bw: 18, bh: 76, col: '#17306c', win: '#33f0e0', neon: '#22d3ee' },
+      { x: 0.63, b: 0.565, bw: 16, bh: 56, col: '#2d1f78', win: '#ff9de0', neon: '#ff4fd8' },
+      // Phải Bitexco
+      { x: 0.825, b: 0.63, bw: 40, bh: 66, col: '#c2693c', win: '#ffe3a0', neon: null },
+      { x: 0.915, b: 0.62, bw: 20, bh: 168, col: '#142a66', win: '#9af6ff', neon: '#22d3ee' },
+      { x: 0.955, b: 0.64, bw: 26, bh: 130, col: '#3a1a78', win: '#ff9de0', neon: '#ff4fd8' },
+      { x: 0.865, b: 0.655, bw: 22, bh: 42, col: '#d9895a', win: '#fff0c0', neon: null }
+    ];
+    blocks.forEach(b => {
+      this._drawBlock(ctx, w * b.x, h * b.b, b.bw, b.bh, b.col, b.win, b.neon);
+    });
+  }
+
+  // Landmark 81: tháp nhọn nhiều tầng, viền neon xanh ngọc
+  _drawLandmark81(ctx, cx, baseY) {
+    ctx.save();
+    const t = this.animTimer;
+
+    // Hào quang xanh quanh tháp
+    const aura = ctx.createRadialGradient(cx, baseY - 170, 10, cx, baseY - 170, 190);
+    aura.addColorStop(0, 'rgba(40, 210, 255, 0.30)');
+    aura.addColorStop(1, 'rgba(40, 210, 255, 0)');
+    ctx.fillStyle = aura;
     ctx.beginPath();
-    ctx.moveTo(this.width * 0.45, roadY);
-    ctx.bezierCurveTo(this.width * 0.2, roadY + 80, this.width * 0.8, roadY + 140, this.width * 0.3, this.height);
+    ctx.arc(cx, baseY - 170, 190, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Chân đế podium
+    ctx.fillStyle = '#0a2c58';
+    ctx.fillRect(cx - 36, baseY - 22, 72, 22);
+    ctx.fillStyle = '#4fe3ff';
+    for (let px = cx - 32; px < cx + 32; px += 6) ctx.fillRect(px, baseY - 16, 2.4, 8);
+
+    const tiers = [
+      { w: 52, h: 118 }, { w: 44, h: 84 }, { w: 36, h: 62 }, { w: 28, h: 50 }, { w: 20, h: 34 }
+    ];
+    let y = baseY - 22;
+    tiers.forEach((tr, i) => {
+      const x = cx - tr.w / 2;
+      const top = y - tr.h;
+      const g = ctx.createLinearGradient(x, 0, x + tr.w, 0);
+      g.addColorStop(0, '#0a4a86');
+      g.addColorStop(0.5, '#14b0e6');
+      g.addColorStop(1, '#0a4a86');
+      ctx.fillStyle = g;
+      ctx.fillRect(x, top, tr.w, tr.h);
+
+      // Khung kính: đường đứng & ngang
+      ctx.strokeStyle = 'rgba(160, 245, 255, 0.5)';
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      for (let vx = x + 4; vx < x + tr.w; vx += 4) {
+        ctx.moveTo(vx, top);
+        ctx.lineTo(vx, y);
+      }
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(8, 40, 96, 0.55)';
+      ctx.beginPath();
+      for (let fy = top + 4; fy < y; fy += 5) {
+        ctx.moveTo(x, fy);
+        ctx.lineTo(x + tr.w, fy);
+      }
+      ctx.stroke();
+
+      // Cửa sổ lấp lánh
+      for (let k = 0; k < 14; k++) {
+        const wx = x + 2 + this._rnd(i * 31 + k) * (tr.w - 5);
+        const wy = top + 2 + this._rnd(i * 17 + k + 50) * (tr.h - 5);
+        ctx.fillStyle = `rgba(255, 238, 170, ${0.3 + 0.7 * Math.abs(Math.sin(t * 1.5 + k + i))})`;
+        ctx.fillRect(wx, wy, 2, 2);
+      }
+
+      // Viền neon hai cạnh
+      ctx.save();
+      ctx.strokeStyle = '#4ff3ff';
+      ctx.lineWidth = 1.3;
+      ctx.shadowColor = '#22d3ee';
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x, top);
+      ctx.lineTo(x + tr.w, top);
+      ctx.lineTo(x + tr.w, y);
+      ctx.stroke();
+      ctx.restore();
+
+      // Đèn hồng ở các góc mái tầng
+      ctx.fillStyle = '#ff4fd8';
+      ctx.fillRect(x - 1, top - 1, 3, 2);
+      ctx.fillRect(x + tr.w - 2, top - 1, 3, 2);
+
+      y = top;
+    });
+
+    // Kim tháp
+    ctx.strokeStyle = '#8ef5ff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, y);
+    ctx.lineTo(cx, y - 34);
     ctx.stroke();
 
-    // Streaming Yellow Headlights & Red Taillights
-    for (const t of this.trafficLights) {
-      const p = t.progress;
-      // Bezier point approximation
-      const tx = (1 - p) * (1 - p) * (this.width * 0.45) + 2 * (1 - p) * p * (this.width * 0.3) + p * p * (this.width * 0.5);
-      const ty = roadY + p * (this.height - roadY);
-      ctx.fillStyle = t.lane === 'headlight' ? '#ffd13b' : '#ff0054';
-      ctx.fillRect(tx - 2, ty - 2, 4, 4);
+    const blink = Math.sin(t * 4) > 0;
+    ctx.save();
+    ctx.fillStyle = blink ? '#ffffff' : '#ff3355';
+    ctx.shadowColor = blink ? '#9ff' : '#ff3355';
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.arc(cx, y - 35, 2.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.restore();
+  }
+
+  // Bitexco: búp sen, đỉnh vát, bãi đáp trực thăng
+  _drawBitexco(ctx, bx, base) {
+    ctx.save();
+    const t = this.animTimer;
+
+    const body = () => {
+      ctx.beginPath();
+      ctx.moveTo(bx - 22, base);
+      ctx.lineTo(bx - 22, base - 170);
+      ctx.quadraticCurveTo(bx - 22, base - 215, bx - 8, base - 250);
+      ctx.lineTo(bx + 6, base - 205);
+      ctx.quadraticCurveTo(bx + 22, base - 170, bx + 24, base - 120);
+      ctx.lineTo(bx + 22, base);
+      ctx.closePath();
+    };
+
+    // Quầng sáng tím
+    const aura = ctx.createRadialGradient(bx, base - 130, 8, bx, base - 130, 140);
+    aura.addColorStop(0, 'rgba(170, 70, 255, 0.35)');
+    aura.addColorStop(1, 'rgba(170, 70, 255, 0)');
+    ctx.fillStyle = aura;
+    ctx.beginPath();
+    ctx.arc(bx, base - 130, 140, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Thân tháp
+    const g = ctx.createLinearGradient(bx - 22, 0, bx + 24, 0);
+    g.addColorStop(0, '#3a1a8a');
+    g.addColorStop(0.55, '#7a34e0');
+    g.addColorStop(1, '#b24cf0');
+    body();
+    ctx.fillStyle = g;
+    ctx.fill();
+
+    // Vân ngang kính
+    ctx.save();
+    body();
+    ctx.clip();
+    ctx.strokeStyle = 'rgba(255, 190, 255, 0.35)';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    for (let fy = base - 250; fy < base; fy += 5) {
+      ctx.moveTo(bx - 24, fy);
+      ctx.lineTo(bx + 26, fy);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    // Viền neon xanh bên trái & hồng bên phải
+    ctx.save();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#4ff3ff';
+    ctx.shadowColor = '#22d3ee';
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.moveTo(bx - 22, base);
+    ctx.lineTo(bx - 22, base - 170);
+    ctx.quadraticCurveTo(bx - 22, base - 215, bx - 8, base - 250);
+    ctx.stroke();
+    ctx.strokeStyle = '#ff4fd8';
+    ctx.shadowColor = '#ff4fd8';
+    ctx.beginPath();
+    ctx.moveTo(bx - 8, base - 250);
+    ctx.lineTo(bx + 6, base - 205);
+    ctx.quadraticCurveTo(bx + 22, base - 170, bx + 24, base - 120);
+    ctx.lineTo(bx + 22, base);
+    ctx.stroke();
+    ctx.restore();
+
+    // Đèn đỉnh nhọn
+    ctx.fillStyle = '#ffffff';
+    ctx.shadowColor = '#ff9de0';
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.arc(bx - 8, base - 252, 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // Bãi đáp trực thăng
+    const hx = bx + 35;
+    const hy = base - 126;
+    ctx.fillStyle = '#26175e';
+    ctx.fillRect(bx + 22, hy, 30, 3);
+    ctx.fillStyle = '#4ff3ff';
+    ctx.fillRect(bx + 22, hy + 3, 30, 1);
+
+    // Chùm đèn pha từ trực thăng
+    const hover = Math.sin(t * 1.2) * 3;
+    const hcx = hx + 4 + Math.sin(t * 0.5) * 6;
+    const hcy = hy - 16 + hover;
+    const beam = ctx.createLinearGradient(hcx, hcy, hcx - 70, hcy - 110);
+    beam.addColorStop(0, 'rgba(255, 255, 255, 0.55)');
+    beam.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = beam;
+    ctx.beginPath();
+    ctx.moveTo(hcx, hcy);
+    ctx.lineTo(hcx - 78, hcy - 100);
+    ctx.lineTo(hcx - 24, hcy - 118);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(hcx, hcy);
+    ctx.lineTo(hcx - 10, hcy - 128);
+    ctx.lineTo(hcx + 30, hcy - 112);
+    ctx.closePath();
+    ctx.globalAlpha = 0.6;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Trực thăng
+    ctx.fillStyle = '#120b34';
+    ctx.beginPath();
+    ctx.ellipse(hcx, hcy, 7, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillRect(hcx - 16, hcy - 1.5, 10, 1.4);
+    ctx.fillRect(hcx - 1, hcy - 5, 2, 3);
+    const rotor = 6 + Math.abs(Math.cos(t * 28)) * 11;
+    ctx.fillRect(hcx - rotor, hcy - 5.6, rotor * 2, 1);
+    ctx.fillStyle = '#ff3355';
+    ctx.fillRect(hcx - 17, hcy - 2.4, 1.6, 1.6);
+
+    ctx.restore();
+  }
+
+  // Dòng sông Sài Gòn: nước tím, phản chiếu neon, gợn sóng
+  _drawRiver(ctx) {
+    const w = this.width;
+    const h = this.height;
+    ctx.save();
+    this._riverPath(ctx);
+    const g = ctx.createLinearGradient(0, h * 0.5, 0, h);
+    g.addColorStop(0, '#9a58c8');
+    g.addColorStop(0.1, '#6a46b8');
+    g.addColorStop(0.35, '#3f2f92');
+    g.addColorStop(0.7, '#21186a');
+    g.addColorStop(1, '#0e0a38');
+    ctx.fillStyle = g;
+    ctx.fill();
+
+    ctx.clip();
+
+    // Phản chiếu Landmark 81 (xanh ngọc)
+    for (let i = 0; i < 14; i++) {
+      const rx = w * 0.30 + i * 8;
+      const sh = Math.sin(this.animTimer * 1.8 + i) * 4;
+      const ga = ctx.createLinearGradient(0, h * 0.54, 0, h * 0.86);
+      ga.addColorStop(0, 'rgba(60, 230, 255, 0.28)');
+      ga.addColorStop(1, 'rgba(60, 230, 255, 0)');
+      ctx.fillStyle = ga;
+      ctx.fillRect(rx + sh, h * 0.54, 3, h * 0.32);
+    }
+    // Phản chiếu Bitexco & bờ phải (hồng tím)
+    for (let i = 0; i < 12; i++) {
+      const rx = w * 0.55 + i * 7;
+      const sh = Math.sin(this.animTimer * 1.5 + i * 1.3) * 4;
+      const ga = ctx.createLinearGradient(0, h * 0.54, 0, h * 0.80);
+      ga.addColorStop(0, 'rgba(255, 90, 220, 0.26)');
+      ga.addColorStop(1, 'rgba(255, 90, 220, 0)');
+      ctx.fillStyle = ga;
+      ctx.fillRect(rx + sh, h * 0.54, 3, h * 0.26);
+    }
+
+    // Gợn sóng ngang trôi
+    ctx.strokeStyle = 'rgba(210, 180, 255, 0.16)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 26; i++) {
+      const y = h * 0.52 + i * (h * 0.02);
+      const len = 22 + this._rnd(i + 3) * 46;
+      const x = ((this._rnd(i + 9) * w + this.animTimer * (5 + (i % 5) * 2)) % (w + 120)) - 60;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + len, y);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // Đèn đường vàng dọc bờ
+  _drawLamp(ctx, x, y, s) {
+    ctx.save();
+    const flick = 0.85 + Math.sin(this.animTimer * 4 + x) * 0.08;
+    const g = ctx.createRadialGradient(x, y, 0.5, x, y, 10 * s);
+    g.addColorStop(0, `rgba(255, 225, 140, ${0.95 * flick})`);
+    g.addColorStop(0.4, `rgba(255, 190, 90, ${0.35 * flick})`);
+    g.addColorStop(1, 'rgba(255, 160, 60, 0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, 10 * s, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fff4c8';
+    ctx.beginPath();
+    ctx.arc(x, y, 1.3 * s, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Bờ sông: viền sáng, đường dạo hồng, đèn đường
+  _drawRiverBanks(ctx) {
+    const S = this._segs();
+    ctx.save();
+
+    const bankStroke = (segs, lw, col, dx) => {
+      ctx.strokeStyle = col;
+      ctx.lineWidth = lw;
+      ctx.beginPath();
+      ctx.moveTo(segs[0][0].x + dx, segs[0][0].y);
+      segs.forEach(sg => {
+        ctx.bezierCurveTo(sg[1].x + dx, sg[1].y, sg[2].x + dx, sg[2].y, sg[3].x + dx, sg[3].y);
+      });
+      ctx.stroke();
+    };
+
+    // Bờ trái: đường dạo ánh hồng + viền
+    bankStroke([S.L1, S.L2], 7, 'rgba(255, 150, 200, 0.25)', -8);
+    bankStroke([S.L1, S.L2], 1.6, '#6f8fe8', 0);
+    // Bờ phải
+    bankStroke([S.R1, S.R2], 1.6, '#6f8fe8', 0);
+    bankStroke([S.R1, S.R2], 5, 'rgba(255, 190, 120, 0.2)', 6);
+
+    // Đèn đường hai bờ
+    [S.L1, S.L2].forEach((sg, si) => {
+      for (let i = 0; i < 5; i++) {
+        const p = this._bez(sg, 0.08 + i * 0.2);
+        this._drawLamp(ctx, p.x - 8, p.y - 2, 0.9 + (si === 0 ? 0.2 : 0));
+      }
+    });
+    [S.R1, S.R2].forEach((sg, si) => {
+      for (let i = 0; i < 5; i++) {
+        const p = this._bez(sg, 0.08 + i * 0.2);
+        this._drawLamp(ctx, p.x + 6, p.y - 2, 0.9 + (si === 1 ? 0.2 : 0));
+      }
+    });
+    ctx.restore();
+  }
+
+  // Cây dừa / cọ
+  _drawPalm(ctx, x, y, s, dir) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(s, s);
+    ctx.strokeStyle = '#06241f';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(-dir * 4, -16, dir * 3, -34);
+    ctx.stroke();
+
+    const angles = [-2.7, -2.2, -1.7, -1.2, -0.7, -0.2, 0.3];
+    angles.forEach((a, i) => {
+      ctx.fillStyle = i % 2 === 0 ? '#0b3b34' : '#104d41';
+      ctx.beginPath();
+      ctx.moveTo(dir * 3, -34);
+      const ex = dir * 3 + Math.cos(a) * 22;
+      const ey = -34 + Math.sin(a) * 15 + 6;
+      ctx.quadraticCurveTo((dir * 3 + ex) * 0.5, ey - 10, ex, ey);
+      ctx.quadraticCurveTo((dir * 3 + ex) * 0.5, ey - 3, dir * 3, -34);
+      ctx.fill();
+    });
+    ctx.restore();
+  }
+
+  // Búp sen neon, nhà vòm, rặng dừa bờ trái
+  _drawLotusPark(ctx, lx, ly) {
+    const w = this.width;
+    const h = this.height;
+    ctx.save();
+
+    // Mảng cây xanh tối
+    ctx.fillStyle = '#0a1f2c';
+    ctx.beginPath();
+    ctx.ellipse(lx + 6, ly + 12, 58, 20, -0.15, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Nhà vòm kính ven sông (bên trái)
+    const dx = w * 0.085;
+    const dy = h * 0.745;
+    ctx.fillStyle = '#1a3a7a';
+    ctx.beginPath();
+    ctx.ellipse(dx, dy + 6, 40, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#0f2a60';
+    ctx.fillRect(dx - 40, dy - 4, 80, 10);
+    ctx.fillStyle = '#9af6ff';
+    for (let px = dx - 36; px < dx + 36; px += 5) ctx.fillRect(px, dy - 2, 2.2, 6);
+    ctx.fillStyle = '#3a5cc0';
+    ctx.beginPath();
+    ctx.ellipse(dx, dy - 4, 40, 8, 0, Math.PI, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#4ff3ff';
+    ctx.lineWidth = 1.2;
+    ctx.shadowColor = '#22d3ee';
+    ctx.shadowBlur = 6;
+    ctx.beginPath();
+    ctx.ellipse(dx, dy - 4, 40, 8, 0, Math.PI, Math.PI * 2);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // Rặng dừa
+    this._drawPalm(ctx, lx - 38, ly + 22, 1.0, 1);
+    this._drawPalm(ctx, lx + 44, ly + 14, 0.9, -1);
+    this._drawPalm(ctx, lx + 64, ly + 24, 1.1, 1);
+    this._drawPalm(ctx, lx - 18, ly + 34, 0.8, -1);
+
+    // Búp sen neon hồng (nhịp thở)
+    const pulse = 0.8 + Math.sin(this.animTimer * 2.4) * 0.2;
+    const petals = [
+      { a: -0.9, s: 34 }, { a: 0.9, s: 34 },
+      { a: -0.45, s: 42 }, { a: 0.45, s: 42 },
+      { a: 0, s: 50 }
+    ];
+    // Hào quang
+    const lg = ctx.createRadialGradient(lx, ly - 14, 4, lx, ly - 14, 56);
+    lg.addColorStop(0, `rgba(255, 90, 210, ${0.35 * pulse})`);
+    lg.addColorStop(1, 'rgba(255, 90, 210, 0)');
+    ctx.fillStyle = lg;
+    ctx.beginPath();
+    ctx.arc(lx, ly - 14, 56, 0, Math.PI * 2);
+    ctx.fill();
+
+    petals.forEach(p => {
+      ctx.save();
+      ctx.translate(lx, ly);
+      ctx.rotate(p.a);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.bezierCurveTo(-p.s * 0.38, -p.s * 0.3, -p.s * 0.3, -p.s * 0.8, 0, -p.s);
+      ctx.bezierCurveTo(p.s * 0.3, -p.s * 0.8, p.s * 0.38, -p.s * 0.3, 0, 0);
+      ctx.fillStyle = 'rgba(120, 20, 110, 0.35)';
+      ctx.fill();
+      ctx.strokeStyle = '#ff6ee0';
+      ctx.lineWidth = 2.2;
+      ctx.shadowColor = '#ff2fd0';
+      ctx.shadowBlur = 10 * pulse;
+      ctx.stroke();
+      ctx.strokeStyle = '#ffe6fa';
+      ctx.lineWidth = 0.8;
+      ctx.shadowBlur = 0;
+      ctx.stroke();
+      ctx.restore();
+    });
+    ctx.restore();
+  }
+
+  // Thuyền chở hàng và tàu du lịch
+  _drawBoat(ctx, x, y, s, type, phase) {
+    ctx.save();
+    const t = this.animTimer;
+    y += Math.sin(t * 1.8 + phase) * 1.4;
+    x += Math.sin(t * 0.12 + phase) * 10;
+
+    // Vệt sáng phản chiếu dưới nước
+    const rg = ctx.createLinearGradient(0, y + 4 * s, 0, y + 22 * s);
+    rg.addColorStop(0, type === 'tour' ? 'rgba(255, 220, 150, 0.35)' : 'rgba(255, 180, 120, 0.2)');
+    rg.addColorStop(1, 'rgba(255, 180, 120, 0)');
+    ctx.fillStyle = rg;
+    ctx.fillRect(x - 12 * s, y + 4 * s, 24 * s, 18 * s);
+
+    // Vệt nước
+    ctx.strokeStyle = 'rgba(230, 210, 255, 0.28)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x - 18 * s, y + 5 * s);
+    ctx.lineTo(x - 34 * s, y + 9 * s);
+    ctx.moveTo(x - 18 * s, y + 7 * s);
+    ctx.lineTo(x - 30 * s, y + 12 * s);
+    ctx.stroke();
+
+    if (type === 'barge') {
+      ctx.fillStyle = '#2e2020';
+      ctx.beginPath();
+      ctx.moveTo(x - 18 * s, y);
+      ctx.lineTo(x + 20 * s, y);
+      ctx.lineTo(x + 16 * s, y + 6 * s);
+      ctx.lineTo(x - 15 * s, y + 6 * s);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#8a6a3a';
+      ctx.beginPath();
+      ctx.ellipse(x + 2 * s, y - 1 * s, 14 * s, 4.5 * s, 0, Math.PI, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#d8d0c8';
+      ctx.fillRect(x - 17 * s, y - 6 * s, 7 * s, 6 * s);
+      ctx.fillStyle = '#ffd166';
+      ctx.fillRect(x - 15 * s, y - 4 * s, 2.4 * s, 2 * s);
+    } else {
+      ctx.fillStyle = '#2a2a52';
+      ctx.fillRect(x - 17 * s, y, 34 * s, 5 * s);
+      ctx.fillStyle = '#f0ecf8';
+      ctx.fillRect(x - 15 * s, y - 6 * s, 30 * s, 6 * s);
+      ctx.fillStyle = '#ffd166';
+      for (let k = 0; k < 6; k++) ctx.fillRect(x - 13 * s + k * 4.6 * s, y - 4.4 * s, 2.8 * s, 2.4 * s);
+      ctx.fillStyle = '#25a5a5';
+      ctx.fillRect(x - 16 * s, y - 8.5 * s, 32 * s, 2.6 * s);
+    }
+
+    // Đèn đuôi
+    ctx.fillStyle = '#ff3355';
+    ctx.beginPath();
+    ctx.arc(x - 19 * s, y + 1 * s, 1.1 * s, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Cầu tàu gỗ ven sông
+  _drawPier(ctx, px, py) {
+    ctx.save();
+    ctx.lineCap = 'square';
+    ctx.strokeStyle = '#7a5a40';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.lineTo(px + 52, py + 12);
+    ctx.moveTo(px + 22, py + 6);
+    ctx.lineTo(px + 40, py - 10);
+    ctx.moveTo(px + 52, py + 12);
+    ctx.lineTo(px + 74, py - 2);
+    ctx.moveTo(px + 52, py + 12);
+    ctx.lineTo(px + 66, py + 26);
+    ctx.stroke();
+    ctx.strokeStyle = '#c8a070';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(px, py - 3);
+    ctx.lineTo(px + 52, py + 9);
+    ctx.moveTo(px + 52, py + 9);
+    ctx.lineTo(px + 74, py - 5);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Cao tốc trên cao uốn lượn, xe chạy đèn sáng
+  _drawFlyover(ctx) {
+    const S = this._segs();
+    ctx.save();
+
+    const strokePath = (lw, col, off) => {
+      ctx.strokeStyle = col;
+      ctx.lineWidth = lw;
+      ctx.beginPath();
+      ctx.moveTo(S.F1[0].x, S.F1[0].y + off);
+      ctx.bezierCurveTo(S.F1[1].x, S.F1[1].y + off, S.F1[2].x, S.F1[2].y + off, S.F1[3].x, S.F1[3].y + off);
+      ctx.bezierCurveTo(S.F2[1].x, S.F2[1].y + off, S.F2[2].x, S.F2[2].y + off, S.F2[3].x, S.F2[3].y + off);
+      ctx.stroke();
+    };
+
+    strokePath(22, 'rgba(6, 4, 30, 0.45)', 6);   // bóng đổ
+    ctx.save();
+    ctx.shadowColor = '#5a8aff';
+    ctx.shadowBlur = 8;
+    strokePath(19, '#4a6fd0', 0);                // thành cầu sáng
+    ctx.restore();
+    strokePath(16, '#23214c', 0);                // mặt đường
+    ctx.setLineDash([6, 8]);
+    strokePath(1, 'rgba(255, 230, 160, 0.5)', 0);
+    ctx.setLineDash([]);
+
+    // Dòng xe: hai làn ngược chiều
+    const pt = (u) => (u < 0.5 ? this._bez(S.F1, u * 2) : this._bez(S.F2, (u - 0.5) * 2));
+    const cars = 12;
+    for (let lane = 0; lane < 2; lane++) {
+      for (let i = 0; i < cars; i++) {
+        const sp = lane === 0 ? 0.045 : -0.035;
+        let u = (this.animTimer * sp + i / cars + lane * 0.037) % 1;
+        if (u < 0) u += 1;
+        const p = pt(u);
+        const p2 = pt(Math.min(0.999, u + 0.01));
+        const dx = p2.x - p.x;
+        const dy = p2.y - p.y;
+        const len = Math.hypot(dx, dy) || 1;
+        const nx = -dy / len;
+        const ny = dx / len;
+        const off = lane === 0 ? -3.2 : 3.2;
+        const cx = p.x + nx * off;
+        const cy = p.y + ny * off;
+        const headlight = lane === 0;
+        ctx.save();
+        ctx.fillStyle = headlight ? '#fff2b0' : '#ff3b4a';
+        ctx.shadowColor = headlight ? '#ffe680' : '#ff2030';
+        ctx.shadowBlur = 6;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    // Đèn đường dọc cao tốc
+    for (let i = 0; i < 7; i++) {
+      const p = pt(0.03 + i * 0.15);
+      this._drawLamp(ctx, p.x, p.y - 12, 0.9);
+    }
+    ctx.restore();
+  }
+
+  // Chợ Bến Thành: tháp đồng hồ, mái ngói, mái vòm sáng đèn
+  _drawBenThanh(ctx, cx, groundY) {
+    const h = this.height;
+    ctx.save();
+    const t = this.animTimer;
+
+    // Hào quang ấm
+    const warm = ctx.createRadialGradient(cx, h * 0.93, 10, cx, h * 0.93, 150);
+    warm.addColorStop(0, 'rgba(255, 150, 60, 0.4)');
+    warm.addColorStop(1, 'rgba(255, 120, 40, 0)');
+    ctx.fillStyle = warm;
+    ctx.beginPath();
+    ctx.arc(cx, h * 0.93, 150, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Cánh trái & phải
+    const wing = (x0, x1) => {
+      ctx.fillStyle = '#c0391f';
+      ctx.beginPath();
+      ctx.moveTo(x0, h * 0.945);
+      ctx.lineTo((x0 + x1) / 2, h * 0.915);
+      ctx.lineTo(x1, h * 0.945);
+      ctx.closePath();
+      ctx.fill();
+      const wg = ctx.createLinearGradient(0, h * 0.945, 0, groundY);
+      wg.addColorStop(0, '#ffb04a');
+      wg.addColorStop(1, '#ff8a3a');
+      ctx.fillStyle = wg;
+      ctx.fillRect(x0, h * 0.945, x1 - x0, groundY - h * 0.945);
+      ctx.fillStyle = '#7a1e1e';
+      for (let ax = x0 + 6; ax < x1 - 8; ax += 16) {
+        ctx.beginPath();
+        ctx.arc(ax + 5, groundY - 22, 6, Math.PI, Math.PI * 2);
+        ctx.lineTo(ax + 11, groundY);
+        ctx.lineTo(ax - 1, groundY);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.fillStyle = '#ff5a3a';
+      for (let ax = x0 + 6; ax < x1 - 8; ax += 16) ctx.fillRect(ax + 1, groundY - 20, 8, 3);
+    };
+    wing(cx - 118, cx - 52);
+    wing(cx + 52, cx + 118);
+
+    // Sảnh chính
+    const hg = ctx.createLinearGradient(0, h * 0.905, 0, groundY);
+    hg.addColorStop(0, '#ffc050');
+    hg.addColorStop(1, '#f08a2c');
+    ctx.fillStyle = hg;
+    ctx.fillRect(cx - 54, h * 0.915, 108, groundY - h * 0.915);
+    ctx.fillStyle = '#b8321c';
+    ctx.beginPath();
+    ctx.moveTo(cx - 62, h * 0.918);
+    ctx.lineTo(cx - 40, h * 0.898);
+    ctx.lineTo(cx + 40, h * 0.898);
+    ctx.lineTo(cx + 62, h * 0.918);
+    ctx.closePath();
+    ctx.fill();
+
+    // Cửa sổ & cổng vòm sảnh
+    ctx.fillStyle = '#ffe9a8';
+    ctx.fillRect(cx - 40, h * 0.935, 9, 11);
+    ctx.fillRect(cx + 31, h * 0.935, 9, 11);
+    ctx.fillStyle = '#5a1a14';
+    ctx.beginPath();
+    ctx.arc(cx, groundY - 26, 12, Math.PI, Math.PI * 2);
+    ctx.lineTo(cx + 12, groundY);
+    ctx.lineTo(cx - 12, groundY);
+    ctx.closePath();
+    ctx.fill();
+
+    // Tháp đồng hồ
+    const tg = ctx.createLinearGradient(cx - 16, 0, cx + 16, 0);
+    tg.addColorStop(0, '#e8892a');
+    tg.addColorStop(0.5, '#ffb64a');
+    tg.addColorStop(1, '#e8892a');
+    ctx.fillStyle = tg;
+    ctx.fillRect(cx - 16, h * 0.845, 32, h * 0.07);
+
+    // Mái chuông nhiều tầng
+    ctx.fillStyle = '#c8401a';
+    ctx.beginPath();
+    ctx.moveTo(cx - 26, h * 0.846);
+    ctx.quadraticCurveTo(cx - 12, h * 0.838, cx, h * 0.816);
+    ctx.quadraticCurveTo(cx + 12, h * 0.838, cx + 26, h * 0.846);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#e0562a';
+    ctx.beginPath();
+    ctx.moveTo(cx - 14, h * 0.826);
+    ctx.quadraticCurveTo(cx - 6, h * 0.82, cx, h * 0.805);
+    ctx.quadraticCurveTo(cx + 6, h * 0.82, cx + 14, h * 0.826);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#ffd166';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(cx, h * 0.805);
+    ctx.lineTo(cx, h * 0.788);
+    ctx.stroke();
+    ctx.save();
+    ctx.fillStyle = '#ffe9a8';
+    ctx.shadowColor = '#ffd166';
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.arc(cx, h * 0.787, 1.8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Đồng hồ
+    const ccy = h * 0.875;
+    ctx.fillStyle = '#fdfdf5';
+    ctx.beginPath();
+    ctx.arc(cx, ccy, 8.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#6a3a1a';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.strokeStyle = '#2a1a14';
+    ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    ctx.moveTo(cx, ccy);
+    ctx.lineTo(cx + Math.cos(t * 0.2 - 1.57) * 6, ccy + Math.sin(t * 0.2 - 1.57) * 6);
+    ctx.moveTo(cx, ccy);
+    ctx.lineTo(cx + Math.cos(t * 0.02 - 0.5) * 4, ccy + Math.sin(t * 0.02 - 0.5) * 4);
+    ctx.stroke();
+
+    // Bảng tên
+    ctx.fillStyle = '#7a1e10';
+    ctx.font = 'bold 6.5px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('CHỢ BẾN THÀNH', cx, h * 0.909);
+
+    // Đám đông trước chợ
+    for (let i = 0; i < 24; i++) {
+      const px = cx - 108 + this._rnd(i + 500) * 216 + Math.sin(t * 0.6 + i) * 1.5;
+      const py = h * 0.978 + this._rnd(i + 600) * h * 0.016;
+      const cols = ['#ff5a5a', '#4aa8ff', '#ffe066', '#e8e8f0', '#ff8ad0'];
+      ctx.fillStyle = cols[i % cols.length];
+      ctx.fillRect(px - 1, py, 2.2, 4.2);
+      ctx.fillStyle = '#e0b090';
+      ctx.beginPath();
+      ctx.arc(px, py - 1.4, 1.3, 0, Math.PI * 2);
+      ctx.fill();
     }
 
     ctx.restore();
   }
 
-  // ==========================================
-  // PANEL 8: MIỀN TÂY (Cầu Cần Thơ, Rặng dừa nước & Chợ nổi Cái Răng)
-  // ==========================================
-  _drawMienTay(ctx) {
+  // Lan can neon, cọ tiền cảnh, đốm sáng
+  _drawForeground(ctx, w, h) {
+    ctx.save();
+
+    // Sàn đi bộ phía dưới trái
+    ctx.fillStyle = '#18124a';
+    ctx.beginPath();
+    ctx.moveTo(0, h * 0.905);
+    ctx.lineTo(w * 0.43, h);
+    ctx.lineTo(0, h);
+    ctx.closePath();
+    ctx.fill();
+
+    // Lan can neon
+    const rail = (dy, col, lw) => {
+      ctx.save();
+      ctx.strokeStyle = col;
+      ctx.lineWidth = lw;
+      ctx.shadowColor = col;
+      ctx.shadowBlur = 7;
+      ctx.beginPath();
+      ctx.moveTo(0, h * 0.885 + dy);
+      ctx.lineTo(w * 0.43, h * 0.985 + dy);
+      ctx.stroke();
+      ctx.restore();
+    };
+    rail(0, '#4fe3ff', 2);
+    rail(9, '#ff4fd8', 1.6);
+
+    ctx.fillStyle = '#7a8fe8';
+    for (let i = 0; i <= 9; i++) {
+      const px = (w * 0.43 * i) / 9;
+      const py = h * 0.885 + ((h * 0.1) * i) / 9;
+      ctx.fillRect(px - 1.2, py, 2.4, 14);
+    }
+
+    // Cột neo
+    [[w * 0.30, h * 0.945], [w * 0.37, h * 0.965]].forEach(([bx, by], i) => {
+      ctx.fillStyle = '#3a3a78';
+      ctx.fillRect(bx - 5, by - 12, 10, 14);
+      ctx.fillStyle = i === 0 ? '#ff6a8a' : '#c8b0ff';
+      ctx.beginPath();
+      ctx.ellipse(bx, by - 12, 5, 2, 0, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // Cọ tiền cảnh
+    this._drawPalm(ctx, w * 0.04, h * 0.93, 2.3, 1);
+    this._drawPalm(ctx, w * 0.13, h * 0.98, 1.8, -1);
+    this._drawPalm(ctx, w * 0.975, h * 0.93, 2.1, -1);
+    this._drawPalm(ctx, w * 0.90, h * 0.98, 1.6, 1);
+
+    // Đốm sáng lung linh
+    for (let i = 0; i < 18; i++) {
+      const fx = this._rnd(i + 700) * w;
+      const fy = h * (0.52 + this._rnd(i + 800) * 0.4);
+      const a = 0.15 + 0.5 * Math.abs(Math.sin(this.animTimer * 1.3 + i * 2.1));
+      ctx.fillStyle = `rgba(255, 220, 250, ${a})`;
+      ctx.fillRect(fx - 1, fy, 2, 0.8);
+      ctx.fillRect(fx - 0.4, fy - 1, 0.8, 2);
+    }
+    ctx.restore();
+  }
+
+    _drawMienTay(ctx) {
     ctx.save();
 
     // 1. Tropical River Morning Sky
