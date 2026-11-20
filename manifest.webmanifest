@@ -1,0 +1,21 @@
+{
+  "name": "Diều Say Gió — Cánh Diều Bay Dọc Việt Nam",
+  "short_name": "Diều Say Gió",
+  "description": "Thả con diều say gió bay dọc 9 vùng miền Việt Nam, gom gió để hoá Diều Rồng. / Fly a tipsy kite across Vietnam.",
+  "lang": "vi",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b1512",
+  "theme_color": "#0b1512",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    {
+      "src": "./assets/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

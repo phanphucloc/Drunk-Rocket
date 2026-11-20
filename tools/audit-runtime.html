@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>audit-runtime</title>
+  <style>body{margin:0;background:#000;color:#0f0;font:12px monospace}pre{white-space:pre-wrap}canvas{position:fixed;left:-9999px}</style>
+</head>
+<body>
+  <pre id="out">running...</pre>
+  <canvas id="c" width="400" height="700"></canvas>
+  <script type="module">
+    import { Game } from '../src/core/game.js';
+    import { getProgression } from '../src/core/progression.js';
+    import { TIER_THEMES } from '../src/graphics/themes.js';
+    import { PERK_CATALOG } from '../src/core/perks.js';
+
+    const out = document.getElementById('out');
+    const lines = [];
+    const problems = [];
+    const log = (s) => { lines.push(s); out.textContent = lines.join('\n'); };
+
+    const errs = [];
+    window.addEventListener('error', (e) => { errs.push(e.message); problems.push('window.error: ' + e.message); });
+
+    try {
+      const game = new Game(document.getElementById('c'));
+      game.state = 'PLAYING';
+
+      // --- 1) Render mọi địa danh với 3 kiểu thời tiết ---
+      const weathers = ['sun', 'stars', 'rain'];
+      const tiers = Object.values(TIER_THEMES).sort((a, b) => a.tier - b.tier);
+      let worstFrame = 0;
+      const perTier = [];
+
+      for (const theme of tiers) {
+        for (const w of weathers) {
+          const prog = getProgression((theme.tier - 1) * 12 + 2);
+          game.currentTheme = prog.theme;
+          game.kiteStage = prog.kiteStage;
+          game.scenic.setTier(theme.tier);
+          game.scenic.currentTier = theme.tier;
+          game.scenic.prevTier = theme.tier;
+          game.scenic.fadeProgress = 1;
+          game.weather.setTheme(theme);
+          game.weather.setWeather(w, true);
+          game.nightLevel = game.weather.isDark ? 1 : 0;
+          try {
+            const t0 = performance.now();
+            game.render();               // frame đầu: dựng cache của bức tranh
+            const firstMs = performance.now() - t0;
+            let steady = 0;
+            for (let i = 0; i < 3; i++) {
+              const t1 = performance.now();
+              game.render();
+              steady += performance.now() - t1;
+            }
+            steady /= 3;
+            worstFrame = Math.max(worstFrame, firstMs);
+            perTier.push(`#${theme.tier}: first=${firstMs.toFixed(0)}ms steady=${steady.toFixed(1)}ms`);
+          } catch (e) {
+            problems.push(`render lỗi: tier ${theme.tier} (${w}) → ${e.message}`);
+          }
+        }
+      }
+      log(perTier.join(' | '));
+      log(`Đã render ${tiers.length} địa danh × ${weathers.length} kiểu thời tiết. Frame tệ nhất: ${worstFrame.toFixed(1)}ms`);
+
+      // --- 2) Chuyển cảnh: 9 lần đổi tier, đo frame ---
+      let worstTransition = 0;
+      try {
+        for (let i = 0; i < 9; i++) {
+          game.scenic.prevTier = game.scenic.currentTier;
+          game.scenic.currentTier = 1 + (i % 9);
+          game.scenic.fadeProgress = 0;
+          for (let f = 0; f < 6; f++) {
+            const t0 = performance.now();
+            game.scenic.update(1 / 60, game.scenic.currentTier);
+            game.scenic.draw(game.ctx);
+            worstTransition = Math.max(worstTransition, performance.now() - t0);
+          }
+        }
+        log(`Chuyển cảnh: frame tệ nhất ${worstTransition.toFixed(1)}ms`);
+      } catch (e) {
+        problems.push('transition lỗi: ' + e.message);
+      }
+
+      // --- 3) Perk draft + game over + story overlay ---
+      try {
+        game.perks.isDrafting = true;
+        game.perks.draftTimer = 99;
+        game.perks.draftCards = PERK_CATALOG.slice(0, 3);
+        game.render();
+        game.perks.isDrafting = false;
+        game.state = 'GAMEOVER';
+        game.timeSinceDeath = 2;
+        game.render();
+        game.state = 'PLAYING';
+        log('Perk draft + Game Over render OK');
+      } catch (e) {
+        problems.push('perk/gameover lỗi: ' + e.message);
+      }
+
+      // --- 4) Bộ nhớ / rò rỉ đơn giản ---
+      if (performance.memory) {
+        log('Heap: ' + Math.round(performance.memory.usedJSHeapSize / 1048576) + 'MB');
+      }
+
+      // --- 5) i18n runtime: chuỗi có bị 'undefined' không ---
+      const t = await import('../src/i18n.js');
+      const bad = [];
+      for (const k of ['brand.name', 'ready.tap', 'hud.overdrive', 'gameover.title', 'toolbar.story', 'settings.music']) {
+        const v = t.t(k);
+        if (!v || v === k) bad.push(k);
+      }
+      if (bad.length) problems.push('i18n trả về khoá thay vì chuỗi: ' + bad.join(', '));
+      log('i18n runtime OK');
+
+    } catch (e) {
+      problems.push('FATAL: ' + (e && (e.stack || e.message)));
+    }
+
+    log('');
+    log('=== VẤN ĐỀ ===');
+    log(problems.length ? problems.map(p => '  ✗ ' + p).join('\n') : '  (không có)');
+    log('');
+    log('errors=' + errs.length);
+    log('DONE');
+  </script>
+</body>
+</html>
