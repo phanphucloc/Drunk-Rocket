@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>crash-probe</title>
+  <style>body{margin:0;background:#000;color:#0f0;font:12px monospace}canvas{display:block}pre{white-space:pre-wrap}</style>
+</head>
+<body>
+  <canvas id="c" width="400" height="700"></canvas>
+  <pre id="out">running...</pre>
+  <script type="module">
+    const out = document.getElementById('out');
+    const lines = [];
+    const log = (s) => { lines.push(s); out.textContent = lines.join('\n'); console.log(s); };
+
+    const errors = [];
+    window.addEventListener('error', (e) => {
+      errors.push('window.error: ' + (e.message || e));
+      log('ERR: ' + (e.message || e));
+    });
+    window.addEventListener('unhandledrejection', (e) => {
+      errors.push('unhandledrejection: ' + (e.reason && (e.reason.message || e.reason)));
+      log('REJ: ' + (e.reason && (e.reason.message || e.reason)));
+    });
+
+    try {
+      const { Game } = await import('../src/core/game.js');
+      const canvas = document.getElementById('c');
+      const game = new Game(canvas);
+      window.game = game;
+      game.start();
+
+      const fireTap = () => {
+        const ev = new PointerEvent('pointerdown', { clientX: 200, clientY: 350, bubbles: true, pointerId: 1, isPrimary: true });
+        canvas.dispatchEvent(ev);
+        const up = new PointerEvent('pointerup', { clientX: 200, clientY: 350, bubbles: true, pointerId: 1, isPrimary: true });
+        canvas.dispatchEvent(up);
+      };
+
+      const weathers = ['sun', 'clouds', 'rain', 'storm', 'stars', 'snow', 'fog', 'birds'];
+      let ticks = 0;
+      const timer = setInterval(() => {
+        ticks++;
+        try {
+          fireTap();
+          if (ticks % 3 === 0) game.score += 3;            // ép chuyển chương / vòng
+          if (ticks % 7 === 0) game.weather.setWeather(weathers[ticks % weathers.length], true);
+          if (ticks % 11 === 0 && game.perks) game.perks.triggerDraft();
+          if (ticks % 5 === 0 && game.story) game.story.showChapter(game.currentTheme, true, { lap: 2, chapter: 3 });
+          if (ticks % 13 === 0 && game.energyCells) game.energyCells.spawnCluster(200, 300, 3);
+          if (game.lastError) {
+            log('GAME.lastError: ' + (game.lastError.stack || game.lastError.message));
+          }
+        } catch (e) {
+          log('DRIVER ERROR: ' + (e.stack || e.message));
+        }
+      }, 120);
+
+      setTimeout(() => {
+        clearInterval(timer);
+        log('ticks=' + ticks);
+        log('fps-ish state=' + game.state + ' score=' + game.score + ' lap=' + game.lapNumber);
+        log('lastError=' + (game.lastError ? (game.lastError.stack || game.lastError.message) : 'none'));
+        log('windowErrors=' + errors.length);
+        log('DONE');
+      }, 9000);
+    } catch (e) {
+      log('FATAL: ' + (e && (e.stack || e.message)));
+    }
+  </script>
+</body>
+</html>

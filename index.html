@@ -3,7 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Drunk Rocket (Tàu Say Rượu) - Cyber Neon Arcade</title>
+  <title>Diều Say Gió — Cánh Diều Bay Dọc Việt Nam</title>
+  <meta name="description" content="Thả con diều say gió bay dọc 9 vùng miền Việt Nam (Sa Pa, Ninh Bình, Hà Nội, Huế, Đà Nẵng, Hội An, Đà Lạt, TP.HCM, Miền Tây), gom gió để hoá Diều Rồng. Song ngữ Việt–Anh.">
+  <meta name="theme-color" content="#0b1512">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="icon" href="./assets/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./assets/icon.svg">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <!-- Open Graph / mạng xã hội -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Diều Say Gió — Cánh Diều Bay Dọc Việt Nam">
+  <meta property="og:description" content="Một chú diều say rượu cần bay dọc 9 vùng miền Việt Nam. Bạn có đưa nó hoá Diều Rồng?">
+  <meta property="og:image" content="./docs/screenshots/area-title-hanoi.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Diều Say Gió — Cánh Diều Bay Dọc Việt Nam">
+  <meta name="twitter:description" content="Thả diều qua 9 vùng miền Việt Nam — song ngữ Việt/Anh.">
+  <meta name="twitter:image" content="./docs/screenshots/area-title-hanoi.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,400;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -12,37 +32,69 @@
 
     <!-- Top Floating Toolbar -->
     <div id="top-toolbar">
-      <button id="btn-open-leaderboard" class="arcade-btn" title="Bảng xếp hạng">🏆 TOP</button>
-      <button id="btn-toggle-sound" class="arcade-btn" title="Bật/Tắt âm thanh">🔊</button>
+      <button id="btn-open-leaderboard" class="arcade-btn" data-i18n-title="toolbar.top">
+        <span class="btn-icon">🏆</span><span class="btn-label" data-i18n="toolbar.top">TOP</span>
+      </button>
+      <button id="btn-open-story" class="arcade-btn" data-i18n-title="toolbar.story">
+        <span class="btn-icon">📖</span><span class="btn-label" data-i18n="toolbar.story">CỐT TRUYỆN</span>
+      </button>
+      <button id="btn-open-skills" class="arcade-btn" data-i18n-title="toolbar.skills">
+        <span class="btn-icon">🎴</span><span class="btn-label" data-i18n="toolbar.skills">KĨ NĂNG</span>
+      </button>
+      <button id="btn-toggle-sound" class="arcade-btn btn-square" data-i18n-title="toolbar.soundOn" aria-label="Sound">🔊</button>
+      <button id="btn-toggle-lang" class="arcade-btn btn-square" data-i18n-title="toolbar.langTitle" aria-label="Language"><span data-i18n="toolbar.lang">EN</span></button>
+      <button id="btn-open-settings" class="arcade-btn btn-square" data-i18n-title="toolbar.settings" aria-label="Settings">⚙</button>
     </div>
 
     <!-- Game Over Floating Action Bar -->
     <div id="gameover-actions" class="hidden">
-      <button id="btn-share-challenge" class="arcade-btn action-share">📤 THÁCH ĐỐ</button>
-      <button id="btn-save-score" class="arcade-btn action-top">🏆 LƯU ĐIỂM</button>
+      <button id="btn-share-challenge" class="arcade-btn action-share">📤 <span data-i18n="share.button">THÁCH ĐỐ</span></button>
+      <button id="btn-save-score" class="arcade-btn action-top">🏆 <span data-i18n="share.save">LƯU ĐIỂM</span></button>
+    </div>
+
+    <!-- Ô giới thiệu địa danh (luôn hiện, bấm để xem chi tiết) -->
+    <button id="landmark-chip" class="landmark-chip" type="button" data-i18n-title="toolbar.landmark">
+      <span class="chip-dot">ⓘ</span>
+      <span class="chip-line1" id="chip-chapter">CHƯƠNG 01</span>
+      <span class="chip-line2" id="chip-name">SA PA</span>
+      <span class="chip-line3" id="chip-wind">GIÓ NÚI FANSIPAN</span>
+    </button>
+
+    <!-- Landmark detail modal -->
+    <div id="landmark-modal" class="modal-overlay hidden">
+      <div class="modal-card modal-card--wide">
+        <div class="modal-header">
+          <h2 id="lm-title">ĐỊA DANH</h2>
+          <button id="btn-close-landmark" class="close-btn">&times;</button>
+        </div>
+        <div id="lm-sub" class="modal-intro"></div>
+        <div id="lm-story" class="chapter-story"></div>
+        <ul id="lm-facts" class="lm-facts"></ul>
+        <div id="lm-foot" class="modal-intro"></div>
+      </div>
     </div>
 
     <!-- Leaderboard Modal Overlay -->
     <div id="leaderboard-modal" class="modal-overlay hidden">
       <div class="modal-card">
         <div class="modal-header">
-          <h2>🏆 BẢNG VÀNG ARCADE</h2>
+          <h2 data-i18n="leaderboard.title">🏆 BẢNG VÀNG ARCADE</h2>
           <button id="btn-close-modal" class="close-btn">&times;</button>
         </div>
 
         <!-- Submit Score Section -->
         <div id="score-submit-box" class="submit-box" style="display: none;">
-          <div id="submit-status" class="submit-info">Ghi danh kỷ lục của bạn</div>
+          <div id="submit-status" class="submit-info" data-i18n="leaderboard.submit">Ghi danh kỷ lục của bạn</div>
           <div class="submit-form">
             <input type="text" id="input-player-name" maxlength="3" placeholder="TAG" autocomplete="off" spellcheck="false">
-            <button id="btn-submit-score" class="arcade-btn-submit">LƯU ĐIỂM</button>
+            <button id="btn-submit-score" class="arcade-btn-submit" data-i18n="leaderboard.save">LƯU ĐIỂM</button>
           </div>
         </div>
 
         <!-- Tabs -->
         <div class="modal-tabs">
-          <button id="tab-daily" class="tab-btn active">HÔM NAY</button>
-          <button id="tab-alltime" class="tab-btn">TẤT CẢ</button>
+          <button id="tab-daily" class="tab-btn active" data-i18n="leaderboard.today">HÔM NAY</button>
+          <button id="tab-alltime" class="tab-btn" data-i18n="leaderboard.alltime">MỌI THỜI ĐẠI</button>
         </div>
 
         <!-- Table -->
@@ -50,10 +102,10 @@
           <table class="leaderboard-table">
             <thead>
               <tr>
-                <th>HẠNG</th>
-                <th>TÊN</th>
-                <th>ĐIỂM</th>
-                <th>NGÀY</th>
+                <th data-i18n="leaderboard.rank">HẠNG</th>
+                <th data-i18n="leaderboard.name">TÊN</th>
+                <th data-i18n="leaderboard.score">ĐIỂM</th>
+                <th data-i18n="leaderboard.date">NGÀY</th>
               </tr>
             </thead>
             <tbody id="leaderboard-tbody">
@@ -61,6 +113,51 @@
             </tbody>
           </table>
         </div>
+      </div>
+    </div>
+
+    <!-- Story Modal -->
+    <div id="story-modal" class="modal-overlay hidden">
+      <div class="modal-card modal-card--wide">
+        <div class="modal-header">
+          <h2 data-i18n="storyOverlay.title">📖 CỐT TRUYỆN</h2>
+          <button id="btn-close-story" class="close-btn">&times;</button>
+        </div>
+        <p class="modal-intro" data-i18n="storyOverlay.intro"></p>
+        <div id="story-list" class="chapter-list"></div>
+      </div>
+    </div>
+
+    <!-- Skills Modal -->
+    <div id="skills-modal" class="modal-overlay hidden">
+      <div class="modal-card modal-card--wide">
+        <div class="modal-header">
+          <h2 data-i18n="skills.title">🎴 KĨ NĂNG</h2>
+          <button id="btn-close-skills" class="close-btn">&times;</button>
+        </div>
+        <p class="modal-intro" data-i18n="skills.note"></p>
+        <div id="skills-list" class="skill-list"></div>
+      </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal-overlay hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h2 data-i18n="settings.title">⚙ CÀI ĐẶT</h2>
+          <button id="btn-close-settings" class="close-btn">&times;</button>
+        </div>
+        <div class="vol-row">
+          <label for="vol-music" data-i18n="settings.music">Nhạc nền</label>
+          <input id="vol-music" type="range" min="0" max="100" step="1" value="80">
+          <span id="vol-music-val" class="vol-val">80%</span>
+        </div>
+        <div class="vol-row">
+          <label for="vol-sfx" data-i18n="settings.sfx">Hiệu ứng</label>
+          <input id="vol-sfx" type="range" min="0" max="100" step="1" value="100">
+          <span id="vol-sfx-val" class="vol-val">100%</span>
+        </div>
+        <p class="modal-intro" data-i18n="settings.note"></p>
       </div>
     </div>
 

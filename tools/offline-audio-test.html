@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>offline-audio-test</title>
+  <style>body{margin:0;background:#000;color:#0f0;font:12px monospace}pre{white-space:pre-wrap}</style>
+</head>
+<body>
+  <pre id="out">running...</pre>
+  <script type="module">
+    import { sound } from '../src/audio/audioSynth.js';
+    import { TIER_THEMES } from '../src/graphics/themes.js';
+
+    const out = document.getElementById('out');
+    const lines = [];
+    const log = (s) => { lines.push(s); out.textContent = lines.join('\n'); };
+
+    const Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+
+    const analyse = (buffer) => {
+      const data = buffer.getChannelData(0);
+      let peak = 0, sum = 0;
+      for (let i = 0; i < data.length; i++) {
+        const v = Math.abs(data[i]);
+        if (v > peak) peak = v;
+        sum += data[i] * data[i];
+      }
+      return { peak, rms: Math.sqrt(sum / data.length) };
+    };
+
+    const renderMusic = async (theme, force = false) => {
+      const oc = new Offline(1, 44100 * 1.2, 44100);
+      sound.ctx = oc;
+      sound.isMuted = false;
+      sound.musicGainNode = null;
+      sound.musicDuck = 1;
+      sound.musicTheme = null;
+      sound.setMusicTheme(theme.music, true);
+      const gain = sound._musicTargetGain();
+      for (let i = 0; i < 10; i++) sound.updateMusicTick(0.05);
+      const buf = await oc.startRendering();
+      const a = analyse(buf);
+      return { gain, ...a };
+    };
+
+    const renderSfx = async () => {
+      const oc = new Offline(1, 44100 * 1.2, 44100);
+      sound.ctx = oc;
+      sound.sfxGainNode = null;
+      sound.isMuted = false;
+      sound.sfxVolume = 1;
+      sound._ensureSfxBus();
+      sound.playScore();
+      const buf = await oc.startRendering();
+      return analyse(buf);
+    };
+
+    try {
+      const themes = Object.values(TIER_THEMES).sort((a, b) => a.tier - b.tier);
+
+      // 1) NHẠC trước (buffer ngắn để render kịp)
+      for (const theme of themes) {
+        const r = await renderMusic(theme);
+        log(`#${theme.tier} ${theme.music.id}: bus=${r.gain.toFixed(3)} peak=${r.peak.toFixed(4)} rms=${r.rms.toFixed(5)}`);
+      }
+
+      // 2) SFX
+      const sfx = await renderSfx();
+      log(`SFX: peak=${sfx.peak.toFixed(4)} rms=${sfx.rms.toFixed(5)}`);
+
+      const okMusic = log.length > 0; // xem từng dòng
+      log('DONE');
+    } catch (e) {
+      log('FATAL: ' + (e && (e.stack || e.message)));
+    }
+  </script>
+</body>
+</html>

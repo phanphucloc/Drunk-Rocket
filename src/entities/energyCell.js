@@ -111,39 +111,54 @@ export class EnergyCellManager {
       ctx.save();
       const pulse = Math.sin(cell.pulsePhase);
       const r = cell.radius + pulse * 1.5;
+      const magnet = cell.isMagnetized;
 
-      // Outer glowing halo
-      const grad = ctx.createRadialGradient(cell.x, cell.y, 2, cell.x, cell.y, r + 12);
-      grad.addColorStop(0, cell.isMagnetized ? 'rgba(0, 240, 255, 0.95)' : 'rgba(255, 209, 59, 0.95)');
-      grad.addColorStop(0.5, cell.isMagnetized ? 'rgba(0, 240, 255, 0.4)' : 'rgba(255, 209, 59, 0.35)');
+      // 1. Quầng gió sáng
+      const grad = ctx.createRadialGradient(cell.x, cell.y, 2, cell.x, cell.y, r + 13);
+      grad.addColorStop(0, magnet ? 'rgba(0, 240, 255, 0.95)' : 'rgba(216, 255, 244, 0.95)');
+      grad.addColorStop(0.45, magnet ? 'rgba(0, 240, 255, 0.35)' : 'rgba(150, 236, 212, 0.34)');
       grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
       ctx.fillStyle = grad;
       ctx.beginPath();
-      ctx.arc(cell.x, cell.y, r + 12, 0, Math.PI * 2);
+      ctx.arc(cell.x, cell.y, r + 13, 0, Math.PI * 2);
       ctx.fill();
 
-      // Rotating diamond crystal
       ctx.translate(cell.x, cell.y);
-      ctx.rotate(cell.pulsePhase * 0.75);
+      ctx.rotate(cell.pulsePhase * 0.6);
 
-      ctx.fillStyle = cell.isMagnetized ? '#00f0ff' : '#ffd13b';
+      // 2. Các sợi gió (bông gió) xoè ra, hơi xoắn theo chiều gió
+      const filaments = 7;
+      for (let i = 0; i < filaments; i++) {
+        const a = (i / filaments) * Math.PI * 2;
+        const len = r + 3 + Math.sin(cell.pulsePhase * 2 + i) * 1.6;
+        const tipA = a + 0.28;
+        const tx = Math.cos(tipA) * len;
+        const ty = Math.sin(tipA) * len;
+        ctx.strokeStyle = magnet ? 'rgba(0, 240, 255, 0.9)' : 'rgba(226, 255, 246, 0.85)';
+        ctx.lineWidth = 1.1;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * 1.6, Math.sin(a) * 1.6);
+        ctx.quadraticCurveTo(
+          Math.cos(a + 0.5) * len * 0.6, Math.sin(a + 0.5) * len * 0.6,
+          tx, ty
+        );
+        ctx.stroke();
+
+        // Hạt gió ở đầu sợi
+        ctx.fillStyle = magnet ? '#ffffff' : '#fffdf2';
+        ctx.beginPath();
+        ctx.arc(tx, ty, 1.3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // 3. Lõi ấm (giọt gió vàng)
+      const core = ctx.createRadialGradient(0, 0, 0.5, 0, 0, r * 0.85);
+      core.addColorStop(0, magnet ? '#ffffff' : '#fff8dc');
+      core.addColorStop(0.55, magnet ? '#00f0ff' : '#ffd13b');
+      core.addColorStop(1, magnet ? 'rgba(0, 240, 255, 0)' : 'rgba(255, 209, 59, 0)');
+      ctx.fillStyle = core;
       ctx.beginPath();
-      ctx.moveTo(0, -r);
-      ctx.lineTo(r, 0);
-      ctx.lineTo(0, r);
-      ctx.lineTo(-r, 0);
-      ctx.closePath();
-      ctx.fill();
-
-      // Outer rim
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 1.2;
-      ctx.stroke();
-
-      // White inner sparkle core
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.arc(0, 0, r * 0.35, 0, Math.PI * 2);
+      ctx.arc(0, 0, r * 0.85, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.restore();

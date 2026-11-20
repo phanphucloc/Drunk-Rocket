@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Drunk Rocket — Preview cảnh Sa Pa</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 14px; background: #0b0e14; color: #dfe6ff;
+      font-family: ui-monospace, monospace; display: flex; gap: 18px; align-items: flex-start;
+    }
+    figure { margin: 0; }
+    figcaption { font-size: 12px; letter-spacing: 0.08em; color: #8fa0c8; padding-bottom: 6px; }
+    canvas { display: block; border: 1px solid #2e3856; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <figure>
+    <figcaption>KHUNG DỌC 400 × 700 (trong game)</figcaption>
+    <canvas id="portrait" width="400" height="700"></canvas>
+  </figure>
+  <figure>
+    <figcaption>KHUNG DỌC LỚN 720 × 1260 (xem chi tiết)</figcaption>
+    <canvas id="big" width="720" height="1260"></canvas>
+  </figure>
+
+  <script type="module">
+    import { ScenicLandmarksManager } from './src/graphics/scenicLandmarks.js';
+
+    const portrait = new ScenicLandmarksManager(400, 700);
+    const big = new ScenicLandmarksManager(720, 1260);
+    portrait.currentTier = 1;
+    big.currentTier = 1;
+
+    const pCtx = document.getElementById('portrait').getContext('2d');
+    const bCtx = document.getElementById('big').getContext('2d');
+
+    let last = performance.now();
+    function frame(now) {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      portrait.update(dt, 1);
+      portrait.draw(pCtx);
+      big.update(dt, 1);
+      big.draw(bCtx);
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+    window.__ready = true;
+  </script>
+</body>
+</html>

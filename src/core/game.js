@@ -3,16 +3,21 @@ import { Rocket } from '../entities/rocket.js';
 import { LaserPillarManager } from '../entities/laserPillar.js';
 import { EnergyCellManager } from '../entities/energyCell.js';
 import { Starfield } from '../graphics/starfield.js';
+import { WeatherSystem } from '../graphics/weather.js';
 import { ScenicLandmarksManager } from '../graphics/scenicLandmarks.js';
+import { drawNightLights } from '../graphics/nightLights.js';
 import { ParticleSystem } from '../graphics/particles.js';
 import { EntityRenderer } from '../graphics/renderer.js';
 import { AudioSynthesizer } from '../audio/audioSynth.js';
 import { HUD } from '../ui/hud.js';
+import { StoryOverlay } from '../ui/storyOverlay.js';
+import { infoPanels } from '../ui/infoPanels.js';
 import { LeaderboardModal } from '../ui/leaderboardModal.js';
 import { ShareCard } from '../ui/shareCard.js';
 import { PerkDraftManager } from './perks.js';
 import { GhostManager } from '../entities/ghosts.js';
-import { getThemeForScore } from '../graphics/themes.js';
+import { getProgression, getThemeForScore, difficultyFor } from './progression.js';
+import { toggleLang, t } from '../i18n.js';
 
 export class Game {
   constructor(canvas) {
@@ -29,16 +34,40 @@ export class Game {
     this.audio = new AudioSynthesizer();
     this.starfield = new Starfield(this.width, this.height);
     this.scenic = new ScenicLandmarksManager(this.width, this.height);
+    // Thời tiết vẽ đè lên cảnh địa danh nên luôn nhìn thấy; starfield chỉ còn giữ nền trời.
+    this.starfield.externalWeather = true;
+    this.starfield.weather = 'none';
+    this.weather = new WeatherSystem(this.width, this.height);
+    this.weather.onAmbientChange = (ambient) => {
+      if (this.audio && this.audio.setAmbientTheme) this.audio.setAmbientTheme(ambient);
+    };
+    this.weather.onLightning = () => {
+      if (this.audio && this.audio.playThunderClap) this.audio.playThunderClap();
+    };
     this.particles = new ParticleSystem();
     this.pillars = new LaserPillarManager(this.width, this.height);
     this.energyCells = new EnergyCellManager(this.width, this.height);
     this.hud = new HUD(this.width, this.height);
+    this.story = new StoryOverlay(this.width, this.height);
     this.rocket = new Rocket(100, 320);
     this.perks = new PerkDraftManager(this);
     this.ghosts = new GhostManager();
     this.currentTheme = getThemeForScore(0);
+    this.kiteStage = 1;
+    this.difficulty = difficultyFor(0);
+    this.lapNumber = 1;
+    this.chapterNumber = 1;
+    this._chapterGlobal = 0;
     this.starfield.setTheme(this.currentTheme);
-    if (this.audio && this.audio.setAmbientTheme) this.audio.setAmbientTheme(this.currentTheme.ambientSound || 'birds', true);
+    this.weather.setTheme(this.currentTheme);
+    if (this.audio && this.audio.setAmbientTheme) this.audio.setAmbientTheme(this.weather.ambient, true);
+    if (this.audio && this.audio.setMusicTheme) this.audio.setMusicTheme(this.currentTheme.music, true);
+    this.dragonCelebrated = false;
+    this.introShown = false;
+    this.paused = false;
+    // Bất tử ngắn mỗi lần đổi chương (tránh chết oan khi cảnh vừa đổi, người chơi đang nhìn)
+    this.invincibleTimer = 0;
+    if (infoPanels) infoPanels.setLandmark(this.currentTheme, 1, 1);
 
     // Active Perk Modifiers
     this.shieldActive = false;
@@ -167,9 +196,20 @@ export class Game {
     const scaleY = windowHeight / this.height;
     this.scale = Math.min(scaleX, scaleY);
 
+    // Backing store giữ 400x700 (mọi hệ toạ độ trong game dùng hệ này).
     this.canvas.width = this.width;
     this.canvas.height = this.height;
+
+    // NHƯNG phải thu khung hiển thị (CSS) theo màn hình — trước đây thiếu bước này
+    // nên trên điện thoại hẹp (<400px) canvas tràn ra ngoài, cắt mất 2 bên.
+    const cssW = Math.max(1, Math.floor(this.width * this.scale));
+    const cssH = Math.max(1, Math.floor(this.height * this.scale));
+    this.canvas.style.width = cssW + 'px';
+    this.canvas.style.height = cssH + 'px';
+
     if (this.scenic) this.scenic.resize(this.width, this.height);
+    if (this.weather) this.weather.resize(this.width, this.height);
+    if (this.story) this.story.resize(this.width, this.height);
   }
 
   start() {
@@ -206,7 +246,13 @@ export class Game {
     this.energyCells.reset();
     this.particles.reset();
     this.currentTheme = getThemeForScore(0);
+    this.kiteStage = 1;
+    this.lapNumber = 1;
+    this.difficulty = difficultyFor(0);
+    this.chapterNumber = 1;
+    this._chapterGlobal = 0;
     if (this.starfield) this.starfield.setTheme(this.currentTheme);
+    if (this.weather) this.weather.setTheme(this.currentTheme);
     if (this.audio) {
       if (this.audio.stopLaserProximity) this.audio.stopLaserProximity();
       if (this.audio.stopAmbient) this.audio.stopAmbient();
@@ -215,20 +261,45 @@ export class Game {
     if (gameoverActions) gameoverActions.classList.add('hidden');
     this.state = 'READY';
     this.timeSinceDeath = 0;
+    this.dragonCelebrated = false;
+    this.invincibleTimer = 0;
+    if (infoPanels) infoPanels.setLandmark(this.currentTheme, 1, 1);
+    if (this.audio && this.audio.setMusicTheme) this.audio.setMusicTheme(this.currentTheme.music, true);
+    if (this.story) this.story.phase = 'idle';
   }
 
   _onScore(pillar) {
     this.score += 1;
     this.justScoredTimer = 0.6; // Cheerful expression timer
-    const prevTier = this.currentTheme ? this.currentTheme.tier : 1;
-    this.currentTheme = getThemeForScore(this.score);
-    if (this.currentTheme.tier !== prevTier) {
+    const prevChapter = this._chapterGlobal;
+    const prevLap = this.lapNumber;
+    const prog = getProgression(this.score);
+    this.currentTheme = prog.theme;
+    this.kiteStage = prog.kiteStage;
+    this.lapNumber = prog.lapNumber;
+    this.chapterNumber = prog.chapterNumber;
+    this._chapterGlobal = prog.globalChapter;
+    this.difficulty = difficultyFor(prog.lapIndex);
+
+    const chapterChanged = prevChapter !== undefined && prog.globalChapter !== prevChapter;
+    const lapChanged = prevLap !== undefined && prog.lapNumber !== prevLap;
+    if (chapterChanged || lapChanged) {
       this.starfield.setTheme(this.currentTheme);
-      if (this.audio && this.audio.setAmbientTheme) {
-        this.audio.setAmbientTheme(this.currentTheme.ambientSound || 'wind');
-      }
+      if (this.weather) this.weather.setTheme(this.currentTheme);
+      if (this.scenic) this.scenic.setTier(this.currentTheme.tier);
       this.hud.triggerSmashEffects();
+      // 1.2s bất tử: người chơi vừa "sang vùng mới", cho họ 1 nhịp thở
+      this.invincibleTimer = 1.2;
+      // Đổi bộ nhạc theo vùng miền (crossfade)
+      if (this.audio && this.audio.setMusicTheme) this.audio.setMusicTheme(this.currentTheme.music);
+      // Lên vòng = lên cấp diều -> tiếng "lên dây" riêng cho từng cấp
+      if (lapChanged && this.audio && this.audio.playKiteUpgrade) this.audio.playKiteUpgrade(prog.kiteStage);
+      // Cập nhật ô giới thiệu địa danh ở góc phải (bấm vào để xem chi tiết)
+      if (infoPanels) infoPanels.setLandmark(this.currentTheme, prog.lapNumber, prog.chapterNumber);
     }
+
+    // (Đã bỏ mốc 30 điểm "hoá rồng" — cấp bậc giờ theo VÒNG: mỗi vòng lên 1 cấp diều)
+
     // Regular pillar gives +10% Overdrive (10 pillars cleared = 100% Smash ready)
     this.drunkMeter = Math.min(100, this.drunkMeter + 10);
     this.audio.playScore(); // Cheerful "HEYYY!" sound
@@ -343,6 +414,26 @@ export class Game {
     }
   }
 
+  /** Tạm dừng toàn bộ gameplay (dùng khi mở popup/bảng điểm/cài đặt). */
+  setPaused(paused) {
+    const next = !!paused;
+    if (this.paused === next) return;
+    this.paused = next;
+
+    if (this.input) {
+      this.input.consumeTap();
+      this.input.consumeDoubleTap();
+    }
+    if (this.audio) {
+      if (next) {
+        if (this.audio.stopLaserProximity) this.audio.stopLaserProximity();
+        if (this.audio.setMusicDuck) this.audio.setMusicDuck(0.35);
+      } else if (this.audio.setMusicDuck) {
+        this.audio.setMusicDuck(1);
+      }
+    }
+  }
+
   _die() {
     if (this.state === 'GAMEOVER') return;
     this.state = 'GAMEOVER';
@@ -368,14 +459,32 @@ export class Game {
   }
 
   update(dt) {
+    if (this.paused) {
+      if (this.input) {
+        this.input.consumeTap();
+        this.input.consumeDoubleTap();
+      }
+      return;
+    }
     this.totalTime += dt;
     this.hud.update(dt);
     if (this.audio && this.audio.updateAmbientTick) {
       this.audio.updateAmbientTick(dt);
     }
+    if (this.audio && this.audio.updateMusicTick) {
+      this.audio.updateMusicTick(dt);
+    }
     this.particles.update(dt);
     this.starfield.update(dt, this.state === 'PLAYING' ? 1 : 0.2);
     if (this.scenic) this.scenic.update(dt, this.currentTheme ? this.currentTheme.tier : 1);
+    if (this.weather) this.weather.update(dt);
+
+    if (this.invincibleTimer > 0) this.invincibleTimer = Math.max(0, this.invincibleTimer - dt);
+
+    // Độ sáng của đèn ban đêm: trời càng tối (mưa giông, đêm, sương) đèn càng rõ
+    const darkTarget = (this.weather && this.weather.isDark) ? 1 : 0;
+    this.nightLevel = (this.nightLevel || 0) + (darkTarget - (this.nightLevel || 0)) * Math.min(1, dt * 2.2);
+    if (this.story) this.story.update(dt);
 
     if (this.leaderboard && this.leaderboard.isOpen) {
       this.input.consumeTap();
@@ -444,10 +553,11 @@ export class Game {
       if (hasTap || hasDoubleTap) {
         this.state = 'PLAYING';
         this.runStartTime = performance.now();
+        this.invincibleTimer = Math.max(this.invincibleTimer, 1.0);
         this.rocket.thrust();
         this.audio.playThrust();
-        if (this.audio.setAmbientTheme && this.currentTheme) {
-          this.audio.setAmbientTheme(this.currentTheme.ambientSound || 'birds');
+        if (this.audio.setAmbientTheme && this.weather) {
+          this.audio.setAmbientTheme(this.weather.ambient || 'birds');
         }
         this.particles.emitThrust(this.rocket.x, this.rocket.y, this.rocket.rotation);
       }
@@ -518,7 +628,7 @@ export class Game {
       } else {
         this.rocket.update(dt, false, this.totalTime);
       }
-      this.pillars.update(dt, this.rocket, this._onScore, this._onNearMiss, this.score);
+      this.pillars.update(dt, this.rocket, this._onScore, this._onNearMiss, this.score, this.difficulty);
       this.energyCells.update(dt, this.pillars.speed, this.rocket, this.hasDrunkMagnet, this._onCollectCell);
       if (this.ghosts) this.ghosts.update(dt, this.pillars.speed);
 
@@ -567,13 +677,13 @@ export class Game {
       }
 
       // Boundary collision check (ceiling or floor)
-      if (!this.isSmashActive && (this.rocket.y - this.rocket.radius <= 0 || this.rocket.y + this.rocket.radius >= this.height)) {
+      if (!this.isSmashActive && this.invincibleTimer <= 0 && (this.rocket.y - this.rocket.radius <= 0 || this.rocket.y + this.rocket.radius >= this.height)) {
         this._die();
         return;
       }
 
       // Pillar collision check
-      if (!this.isSmashActive && this.quantumTimer <= 0) {
+      if (!this.isSmashActive && this.quantumTimer <= 0 && this.invincibleTimer <= 0) {
         const collided = this.pillars.checkCollision(this.rocket);
         if (collided) {
           if (this.shieldActive) {
@@ -606,6 +716,11 @@ export class Game {
 
     this.starfield.draw(this.ctx);
     if (this.scenic) this.scenic.draw(this.ctx);
+    // Thời tiết: lớp màu trời + mây + sao + nắng (nằm trên tranh, dưới nhân vật)
+    if (this.weather) this.weather.drawSky(this.ctx);
+
+    // Đèn cửa sổ / đèn thuyền / đèn cầu sáng lên khi trời tối
+    drawNightLights(this.ctx, this.currentTheme, this.nightLevel || 0, this.totalTime || 0);
 
     for (const p of this.pillars.pillars) {
       if (!p.isDestroyed) {
@@ -641,7 +756,7 @@ export class Game {
       this.ctx.fillStyle = '#00f0ff';
       this.ctx.font = 'bold 11px monospace';
       this.ctx.textAlign = 'center';
-      this.ctx.fillText('🧲 MAGNET', this.rocket.x, this.rocket.y - this.rocket.radius - 12);
+      this.ctx.fillText('🌪 VÓ HÚT GIÓ', this.rocket.x, this.rocket.y - this.rocket.radius - 12);
       this.ctx.restore();
     }
 
@@ -649,7 +764,9 @@ export class Game {
     EntityRenderer.drawRocket(this.ctx, this.rocket, {
       isDead: this.state === 'GAMEOVER',
       isSmashing: this.isSmashActive,
-      justScored: this.justScoredTimer > 0
+      justScored: this.justScoredTimer > 0,
+      isInvincible: this.invincibleTimer > 0 && this.state === 'PLAYING',
+      stage: this.kiteStage || 1
     });
 
     // Quantum Drift Hologram / Ready indicator
@@ -733,6 +850,12 @@ export class Game {
       this.ctx.restore();
     }
 
+    // Mưa / tuyết / sét vẽ trước nhân vật và HUD (tạo cảm giác thời tiết ở sát ống kính)
+    if (this.weather) this.weather.drawForeground(this.ctx);
+
+    // Thẻ cốt truyện chương / màn kết Diều Rồng
+    if (this.story) this.story.draw(this.ctx);
+
     if (this.perks) this.perks.draw(this.ctx, this.width, this.height);
     this.hud.draw(
       this.ctx,
@@ -744,11 +867,20 @@ export class Game {
       this.drunkMeter,
       this.isSmashActive,
       this.smashChainCount || 1,
-      this.currentTheme
+      this.currentTheme,
+      {
+        darkScene: this.weather ? this.weather.isDark : false,
+        lapNumber: this.lapNumber,
+        chapterNumber: this.chapterNumber,
+        kiteStage: this.kiteStage,
+        theme: this.currentTheme
+      }
     );
 
-    // Hiệu ứng ánh sáng điện ảnh (Cinematic Vignette & Lightning Flash Overlay)
-    if (this.starfield && this.starfield.drawOverlay) {
+    // Hiệu ứng ánh sáng điện ảnh (chớp sét toàn khung & vignette theo thời tiết)
+    if (this.weather && this.weather.drawOverlay) {
+      this.weather.drawOverlay(this.ctx);
+    } else if (this.starfield && this.starfield.drawOverlay) {
       this.starfield.drawOverlay(this.ctx);
     }
 
@@ -781,12 +913,25 @@ export class Game {
         if (this.audio) {
           const isMuted = this.audio.toggleMute();
           btnSound.textContent = isMuted ? '🔇' : '🔊';
-          btnSound.title = isMuted ? 'Bật âm thanh' : 'Tắt âm thanh';
+          btnSound.title = t(isMuted ? 'toolbar.soundOff' : 'toolbar.soundOn');
           btnSound.classList.toggle('muted', isMuted);
-          if (!isMuted && this.currentTheme) {
-            this.audio.setAmbientTheme(this.currentTheme.ambientSound || 'birds', true);
+          if (!isMuted && this.weather) {
+            this.audio.setAmbientTheme(this.weather.ambient || 'birds', true);
           }
         }
+      });
+    }
+
+    // Nút đổi ngôn ngữ VI / EN
+    const btnLang = document.getElementById('btn-toggle-lang');
+    if (btnLang) {
+      btnLang.addEventListener('pointerdown', (e) => e.stopPropagation());
+      btnLang.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleLang();
+        const span = btnLang.querySelector('[data-i18n]');
+        if (span) span.textContent = t('toolbar.lang');
       });
     }
 
@@ -799,7 +944,7 @@ export class Game {
         const res = await ShareCard.share(this.score, this.deathCount);
         const toast = document.getElementById('toast');
         if (toast) {
-          toast.textContent = res && res.method === 'clipboard' ? '✅ Đã sao chép lời thách đố!' : '🚀 Đang mở giao diện thách đố...';
+          toast.textContent = res && res.method === 'clipboard' ? t('share.copied') : t('share.opened');
           toast.classList.remove('hidden');
           setTimeout(() => toast.classList.add('hidden'), 2500);
         }
@@ -826,8 +971,24 @@ export class Game {
     const dt = Math.min((timestamp - this.lastTime) / 1000, 0.1);
     this.lastTime = timestamp;
 
-    this.update(dt);
-    this.render();
+    // Một lỗi bất ngờ trong update/render KHÔNG được phép làm chết vòng lặp
+    // (trước đây requestAnimationFrame nằm sau update/render nên chỉ 1 exception
+    // là game đứng hình vĩnh viễn, không bấm gì được nữa).
+    try {
+      if (!this.paused) {
+        this.update(dt);
+      } else if (this.input) {
+        this.input.consumeTap();
+        this.input.consumeDoubleTap();
+      }
+      this.render();
+    } catch (err) {
+      this.lastError = err;
+      if (!this._errorLogged) {
+        this._errorLogged = true;
+        console.error('[Diều Say Gió] lỗi trong vòng lặp:', err);
+      }
+    }
 
     requestAnimationFrame(this.loop);
   }

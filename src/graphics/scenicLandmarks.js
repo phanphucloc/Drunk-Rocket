@@ -66,6 +66,8 @@ export class ScenicLandmarksManager {
     this.width = width;
     this.height = height;
     // Cached Miền Tây layers depend on the physical canvas dimensions.
+    this._sapaScene = null;
+    this._ninhBinhScene = null;
     this._hanoiScene = null;
     this._hueScene = null;
     this._daNangScene = null;
@@ -96,7 +98,8 @@ export class ScenicLandmarksManager {
     }
 
     if (this.fadeProgress < 1.0) {
-      this.fadeProgress = Math.min(1.0, this.fadeProgress + dt * 1.0);
+      // ~0.66s tổng: đủ để mắt bắt kịp, không kéo dài frame nặng
+      this.fadeProgress = Math.min(1.0, this.fadeProgress + dt * 1.5);
     }
 
     // Update Hoi An Sky Lanterns
@@ -119,25 +122,48 @@ export class ScenicLandmarksManager {
     ctx.save();
 
     if (this.fadeProgress < 1.0) {
-      // Cross-fade blend
-      ctx.save();
-      ctx.globalAlpha = 1.0 - this.fadeProgress;
-      this._drawLandmarkByTier(ctx, this.prevTier);
-      ctx.restore();
+      // Chuyển cảnh MƯỢT: chỉ vẽ MỘT bức tranh mỗi frame (trước đây vẽ cả hai
+      // cùng lúc nên frame bị nặng gấp đôi -> giật đúng lúc đổi chương).
+      const half = this.fadeProgress < 0.5;
+      this._drawLandmarkByTier(ctx, half ? this.prevTier : this.currentTier);
+
+      // Màn "mực" phủ lên: đậm dần (nửa đầu) rồi tan dần (nửa sau)
+      const veil = half
+        ? this.fadeProgress / 0.5
+        : 1 - (this.fadeProgress - 0.5) / 0.5;
 
       ctx.save();
-      ctx.globalAlpha = this.fadeProgress;
-      this._drawLandmarkByTier(ctx, this.currentTier);
+      ctx.globalAlpha = Math.min(1, Math.max(0, veil)) * 0.93;
+      ctx.fillStyle = '#0b1512';
+      ctx.fillRect(0, 0, this.width, this.height);
+      ctx.restore();
+
+      // Vệt vàng mảnh ở mép màn mực cho có chất "cuộn tranh"
+      const edgeY = this.height * (half ? 1 - veil : veil);
+      ctx.save();
+      ctx.globalAlpha = 0.5 * (1 - Math.abs(veil - 0.5) * 2);
+      ctx.fillStyle = 'rgba(232, 184, 75, 0.55)';
+      ctx.fillRect(0, Math.max(0, Math.min(this.height - 2, edgeY)), this.width, 2);
       ctx.restore();
     } else {
       this._drawLandmarkByTier(ctx, this.currentTier);
     }
 
     // Atmospheric depth scrim (keeps background subtle so foreground obstacles pop out crystal clear)
+    // Tier 1 (Sa Pa) và Tier 2 (Ninh Bình) là cảnh ban ngày nên chỉ phủ một lớp mỏng,
+    // giữ nguyên độ trong và sắc màu của tranh.
+    const daylight = this.currentTier === 1 || this.currentTier === 2;
     const scrim = ctx.createLinearGradient(0, 0, 0, this.height);
-    scrim.addColorStop(0, 'rgba(10, 14, 24, 0.12)');
-    scrim.addColorStop(0.5, 'rgba(10, 14, 24, 0.06)');
-    scrim.addColorStop(1, 'rgba(10, 14, 24, 0.25)');
+    if (daylight) {
+      const cool = this.currentTier === 1;
+      scrim.addColorStop(0, cool ? 'rgba(20, 34, 52, 0.08)' : 'rgba(24, 42, 34, 0.05)');
+      scrim.addColorStop(0.5, cool ? 'rgba(20, 34, 52, 0.04)' : 'rgba(24, 42, 34, 0.02)');
+      scrim.addColorStop(1, cool ? 'rgba(16, 30, 46, 0.16)' : 'rgba(16, 34, 28, 0.12)');
+    } else {
+      scrim.addColorStop(0, 'rgba(10, 14, 24, 0.12)');
+      scrim.addColorStop(0.5, 'rgba(10, 14, 24, 0.06)');
+      scrim.addColorStop(1, 'rgba(10, 14, 24, 0.25)');
+    }
     ctx.fillStyle = scrim;
     ctx.fillRect(0, 0, this.width, this.height);
 
@@ -160,810 +186,1329 @@ export class ScenicLandmarksManager {
   }
 
   // ==========================================
-  // PANEL 1: SA PA (Fansipan, Cáp treo, Ruộng bậc thang)
-  
-  // ==========================================
-  // PANEL 1: SA PA (Bản nâng cấp chuẩn Vector 2D Art)
+  // PANEL 1: SA PA (Đỉnh Fansipan, cáp treo & ruộng bậc thang Mù Cang Chải)
+  // Tranh gốc 1438 x 2576 (vùng cảnh x: 109..1329, rộng 1220).
+  // "Cover" vào khung vẽ nên giữ đúng tỉ lệ trên mọi màn hình.
+  // Lớp tĩnh -> dựng sẵn một lần; lớp động -> vẽ mỗi khung hình.
   // ==========================================
   _drawSapa(ctx) {
-    ctx.save();
     const w = this.width;
     const h = this.height;
+    const t = this.animTimer || 0;
+    const scene = this._getSapaScene();
+    const view = scene.view;
 
-    // 1. Bầu trời (Sky Gradient)
-    const sky = ctx.createLinearGradient(0, 0, 0, h * 0.55);
-    sky.addColorStop(0, '#6a8596');
-    sky.addColorStop(0.5, '#9ab4c4');
-    sky.addColorStop(1, '#d4e3ec');
-    ctx.fillStyle = sky;
-    ctx.fillRect(0, 0, w, h * 0.55);
+    ctx.save();
 
-    // 2. Lớp mây nền phía xa
-    this._drawSoftClouds(ctx, h * 0.28, 0.35, 4);
+    // 1. Bầu trời, Fansipan, dãy núi giữa và sương thung lũng
+    ctx.drawImage(scene.A, 0, 0, w, h);
 
-    // 3. Đỉnh Fansipan Hùng Vĩ (Bên phải)
-    const peakX = w * 0.72;
-    const peakY = h * 0.255;
+    // 2. Các chi tiết động vẽ trong hệ toạ độ tranh gốc
+    ctx.save();
+    ctx.setTransform(view.sx, 0, 0, view.sy, -view.offX * view.sx, -view.offY * view.sy);
 
-    // Thân núi chính
-    ctx.fillStyle = '#5c7285';
-    ctx.beginPath();
-    ctx.moveTo(w * 0.25, h * 0.48);
-    ctx.lineTo(w * 0.52, h * 0.35);
-    ctx.lineTo(peakX, peakY);
-    ctx.lineTo(w * 0.88, h * 0.34);
-    ctx.lineTo(w, h * 0.40);
-    ctx.lineTo(w, h * 0.52);
-    ctx.lineTo(w * 0.25, h * 0.52);
-    ctx.closePath();
-    ctx.fill();
+    this._saDrawFlag(ctx, t, view.kx);
+    this._saDrawClouds(ctx, t, scene);
+    this._saDrawBirds(ctx, t, scene);
+    this._saDrawCable(ctx, t, scene, view.kx);
 
-    // Mảng tối tạo khối 3D cho sườn núi phải
-    ctx.fillStyle = '#4b5f70';
-    ctx.beginPath();
-    ctx.moveTo(peakX, peakY);
-    ctx.lineTo(w * 0.76, h * 0.35);
-    ctx.lineTo(w * 0.69, h * 0.42);
-    ctx.lineTo(w * 0.85, h * 0.48);
-    ctx.lineTo(w, h * 0.40);
-    ctx.lineTo(w * 0.88, h * 0.34);
-    ctx.closePath();
-    ctx.fill();
+    ctx.restore();
 
-    // Tuyết phủ trên đỉnh Fansipan (Răng cưa tự nhiên)
-    ctx.fillStyle = '#eef5f9';
-    ctx.beginPath();
-    ctx.moveTo(peakX, peakY);
-    ctx.lineTo(peakX - 36, peakY + 26);
-    ctx.lineTo(peakX - 22, peakY + 22);
-    ctx.lineTo(peakX - 12, peakY + 33);
-    ctx.lineTo(peakX, peakY + 23);
-    ctx.lineTo(peakX + 14, peakY + 34);
-    ctx.lineTo(peakX + 22, peakY + 25);
-    ctx.lineTo(peakX + 35, peakY + 28);
-    ctx.closePath();
-    ctx.fill();
+    // 3. Ruộng bậc thang, nhà sàn, đá và hoa
+    ctx.drawImage(scene.B, 0, 0, w, h);
 
-    // Bóng đổ trên tuyết (Bên phải)
-    ctx.fillStyle = '#cad8e2';
-    ctx.beginPath();
-    ctx.moveTo(peakX, peakY);
-    ctx.lineTo(peakX, peakY + 23);
-    ctx.lineTo(peakX + 14, peakY + 34);
-    ctx.lineTo(peakX + 22, peakY + 25);
-    ctx.lineTo(peakX + 35, peakY + 28);
-    ctx.closePath();
-    ctx.fill();
-
-    // 4. Lá cờ Việt Nam tung bay trên đỉnh Fansipan
-    ctx.strokeStyle = '#2b3540';
-    ctx.lineWidth = 1.8;
-    ctx.beginPath();
-    ctx.moveTo(peakX, peakY);
-    ctx.lineTo(peakX, peakY - 22);
-    ctx.stroke();
-
-    const flagWave = Math.sin(this.animTimer * 5) * 2.5;
-    ctx.fillStyle = '#da251d';
-    ctx.beginPath();
-    ctx.moveTo(peakX, peakY - 22);
-    ctx.quadraticCurveTo(peakX + 9, peakY - 24 + flagWave, peakX + 18, peakY - 21 + flagWave * 0.5);
-    ctx.lineTo(peakX + 18, peakY - 10 + flagWave * 0.5);
-    ctx.quadraticCurveTo(peakX + 9, peakY - 13 + flagWave, peakX, peakY - 10);
-    ctx.closePath();
-    ctx.fill();
-
-    // Ngôi sao vàng 5 cánh
-    this._drawStar(ctx, peakX + 9, peakY - 16 + flagWave * 0.6, 3.2, '#ffbe0b');
-
-    // 5. Dãy núi đá sắc nhọn tiền cảnh (Bên trái & giữa)
-    ctx.fillStyle = '#3d4f60';
-    ctx.beginPath();
-    ctx.moveTo(0, h * 0.43);
-    ctx.lineTo(w * 0.14, h * 0.38);
-    ctx.lineTo(w * 0.23, h * 0.41);
-    ctx.lineTo(w * 0.36, h * 0.34); // Đỉnh nhọn
-    ctx.lineTo(w * 0.48, h * 0.41);
-    ctx.lineTo(w * 0.58, h * 0.37);
-    ctx.lineTo(w * 0.70, h * 0.45);
-    ctx.lineTo(w * 0.83, h * 0.37);
-    ctx.lineTo(w, h * 0.43);
-    ctx.lineTo(w, h * 0.56);
-    ctx.lineTo(0, h * 0.56);
-    ctx.closePath();
-    ctx.fill();
-
-    // Đổ bóng vách đá núi tiền cảnh
-    ctx.fillStyle = '#2f3e4d';
-    ctx.beginPath();
-    ctx.moveTo(w * 0.36, h * 0.34);
-    ctx.lineTo(w * 0.41, h * 0.45);
-    ctx.lineTo(w * 0.48, h * 0.41);
-    ctx.closePath();
-    ctx.fill();
-
-    // 6. Biển mây mù giăng ngang thung lũng (Hiệu ứng trôi bồng bềnh)
-    this._drawValleyMist(ctx, h * 0.46, 'rgba(222, 233, 240, 0.55)', 0.7);
-    this._drawValleyMist(ctx, h * 0.53, 'rgba(232, 241, 246, 0.78)', -0.5);
-
-    // 7. Hệ thống Cáp Treo Fansipan (2 dây cáp song song & Cabin chi tiết)
-    const cStartY1 = h * 0.255, cEndY1 = h * 0.365;
-    const cStartY2 = h * 0.263, cEndY2 = h * 0.373;
-
-    ctx.strokeStyle = 'rgba(35, 48, 60, 0.7)';
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.moveTo(0, cStartY1);
-    ctx.lineTo(w, cEndY1);
-    ctx.moveTo(0, cStartY2);
-    ctx.lineTo(w, cEndY2);
-    ctx.stroke();
-
-    const cabins = [
-      { bodyCol: '#f5a623', bottomCol: '#d98200', offset: 0.22, wire: 1 },
-      { bodyCol: '#38a3a5', bottomCol: '#22577a', offset: 0.38, wire: 2 },
-      { bodyCol: '#c94a6a', bottomCol: '#8c2d46', offset: 0.68, wire: 2 }
-    ];
-
-    cabins.forEach(c => {
-      const p = (this.cableCarPhase + c.offset) % 1.0;
-      const cx = p * w;
-      const cy = (c.wire === 1 ? cStartY1 : cStartY2) + p * (cEndY1 - cStartY1);
-      this._drawDetailedCabin(ctx, cx, cy, c.bodyCol, c.bottomCol);
-    });
-
-    // 8. RUỘNG BẬC THANG MÙ CANG CHẢI (Chia 2 sườn đồi giao nhau, có độ dày thành ruộng 3D)
-    // Sườn đồi bên phải (Xếp lớp từ trên xuống)
-    const rightTerraces = [
-      { y: h * 0.57, rx: w * 0.52, rw: w * 0.55, rh: 24, top: '#a7c947', side: '#657a24' },
-      { y: h * 0.59, rx: w * 0.46, rw: w * 0.60, rh: 28, top: '#bad44b', side: '#738926' },
-      { y: h * 0.61, rx: w * 0.40, rw: w * 0.65, rh: 32, top: '#d6cf46', side: '#897d22' },
-      { y: h * 0.64, rx: w * 0.35, rw: w * 0.70, rh: 36, top: '#b8cc43', side: '#6b7b21' },
-      { y: h * 0.67, rx: w * 0.30, rw: w * 0.75, rh: 40, top: '#e2be36', side: '#94741b' }
-    ];
-    rightTerraces.forEach(t => {
-      this._drawTerraceStep(ctx, t.rx, t.y, t.rw, t.rh, t.top, t.side, false);
-    });
-
-    // Sườn đồi bên trái (Uốn lượn đè lên sườn phải)
-    const leftTerraces = [
-      { y: h * 0.59, lx: -w * 0.05, lw: w * 0.45, lh: 26, top: '#9ec242', side: '#5f7822' },
-      { y: h * 0.62, lx: -w * 0.05, lw: w * 0.52, lh: 30, top: '#c6cf45', side: '#7d8022' },
-      { y: h * 0.65, lx: -w * 0.05, lw: w * 0.58, lh: 34, top: '#e5be38', side: '#96721c' },
-      { y: h * 0.68, lx: -w * 0.05, lw: w * 0.64, lh: 38, top: '#b8ca40', side: '#6d7c21' },
-      { y: h * 0.72, lx: -w * 0.05, lw: w * 0.70, lh: 44, top: '#deb435', side: '#8f691b' }
-    ];
-    leftTerraces.forEach(t => {
-      this._drawTerraceStep(ctx, t.lx, t.y, t.lw, t.lh, t.top, t.side, true);
-    });
-
-    // Các thảm ruộng lớn tiền cảnh phía dưới cùng (Uốn cong chữ S mềm mại)
-    const bottomTerraces = [
-      { y: h * 0.75, top: '#f0ca43', side: '#a37b1f', thick: 16, curve: 1 },
-      { y: h * 0.80, top: '#c2cf46', side: '#788424', thick: 18, curve: -1 },
-      { y: h * 0.85, top: '#e6b835', side: '#966c1a', thick: 20, curve: 1 },
-      { y: h * 0.91, top: '#9bbd3e', side: '#59721e', thick: 22, curve: -1 },
-      { y: h * 0.96, top: '#ecc642', side: '#99751d', thick: 24, curve: 1 }
-    ];
-    bottomTerraces.forEach(b => {
-      this._drawFullWaveTerrace(ctx, b.y, b.top, b.side, b.thick, b.curve);
-    });
-
-    // 9. Chòi gỗ canh lúa (Wooden Stilt Huts)
-    this._drawWoodenHut(ctx, w * 0.83, h * 0.56, 0.75); // Chòi nhỏ đồi phải
-    this._drawWoodenHut(ctx, w * 0.16, h * 0.71, 1.0);  // Chòi lớn đồi trái
-
-    // 10. Cụm đá tảng & Hoa dại Tây Bắc (Góc phải bên dưới)
-    this._drawRockAndFlowers(ctx, w * 0.78, h * 0.73);
+    // 4. Nắng lướt trên ruộng và hạt sáng lơ lửng
+    ctx.save();
+    ctx.setTransform(view.sx, 0, 0, view.sy, -view.offX * view.sx, -view.offY * view.sy);
+    this._saDrawSunSweep(ctx, t);
+    this._saDrawMotes(ctx, t, scene);
+    ctx.restore();
 
     ctx.restore();
   }
 
-  // ==========================================
-  // CÁC HÀM PHỤ TRỢ VẼ CHI TIẾT SA PA
-  // ==========================================
+  // Khung nhìn: tranh gốc cao hơn khung dọc nên co giãn nhẹ theo chiều dọc
+  // để cả đỉnh Fansipan lẫn ruộng bậc thang đều nằm trong khung (như ảnh mẫu).
+  // Nếu khung quá khác tỉ lệ tranh thì quay về kiểu "cover" + cắt bớt.
+  _saView(w, h) {
+    const artX0 = 109;
+    const artW = 1220;
+    const artH = 2576;
+    const maxStretch = 1.25;
 
-  // Vẽ ngôi sao vàng trên cờ
-  _drawStar(ctx, cx, cy, radius, color) {
-    ctx.save();
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    for (let i = 0; i < 5; i++) {
-      const angle = (i * 4 * Math.PI) / 5 - Math.PI / 2;
-      const x = cx + Math.cos(angle) * radius;
-      const y = cy + Math.sin(angle) * radius;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
+    let sx = w / artW;
+    let sy = h / artH;
+    const ratio = sx / sy;
+
+    if (ratio > maxStretch || ratio < 1 / maxStretch) {
+      // Cắt bớt cho an toàn, tránh biến dạng quá mức trên khung lạ
+      const s = Math.max(sx, sy);
+      sx = s;
+      sy = s;
+      const vw = w / sx;
+      const vh = h / sy;
+      return {
+        sx,
+        sy,
+        offX: artX0 + (artW - vw) / 2,
+        offY: Math.max(0, (artH - vh) * 0.30),
+        kx: 1
+      };
     }
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
+
+    return {
+      sx,
+      sy,
+      offX: artX0,
+      offY: 0,
+      // Hệ số bù để cabin cáp treo và lá cờ không bị dẹt theo chiều dọc
+      kx: Math.min(1, sy / sx)
+    };
   }
 
-  // Vẽ cabin cáp treo bo tròn hiện đại
-  _drawDetailedCabin(ctx, cx, cy, bodyCol, bottomCol) {
-    ctx.save();
-    // Bánh xe trượt trên cáp
-    ctx.fillStyle = '#222';
-    ctx.fillRect(cx - 4, cy - 1.5, 8, 3);
+  _saLayer(w, h, draw) {
+    const layer = document.createElement('canvas');
+    layer.width = Math.max(1, Math.round(w));
+    layer.height = Math.max(1, Math.round(h));
+    const g = layer.getContext('2d');
+    const view = this._saView(w, h);
+    g.setTransform(view.sx, 0, 0, view.sy, -view.offX * view.sx, -view.offY * view.sy);
+    draw(g);
+    return layer;
+  }
 
-    // Cần treo chữ L
-    ctx.strokeStyle = '#333';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.lineTo(cx, cy + 12);
-    ctx.stroke();
-
-    // Thân cabin
-    const cw = 18, ch = 15;
-    const rx = cx - cw / 2, ry = cy + 12;
-
-    // Nửa trên cabin
-    ctx.fillStyle = bodyCol;
-    ctx.beginPath();
-    if (ctx.roundRect) {
-      ctx.roundRect(rx, ry, cw, ch, 4);
-    } else {
-      ctx.rect(rx, ry, cw, ch);
+  _getSapaScene() {
+    const width = Math.max(1, Math.round(this.width));
+    const height = Math.max(1, Math.round(this.height));
+    if (this._sapaScene &&
+      this._sapaScene.width === width &&
+      this._sapaScene.height === height) {
+      return this._sapaScene;
     }
-    ctx.fill();
 
-    // Nửa dưới cabin (Đậm màu hơn)
-    ctx.fillStyle = bottomCol;
-    ctx.beginPath();
-    if (ctx.roundRect) {
-      ctx.roundRect(rx, ry + ch * 0.55, cw, ch * 0.45, [0, 0, 4, 4]);
-    } else {
-      ctx.rect(rx, ry + ch * 0.55, cw, ch * 0.45);
+    const scene = { width, height, view: this._saView(width, height) };
+    scene.A = this._saLayer(width, height, g => this._saBuildA(g));
+    scene.B = this._saLayer(width, height, g => this._saBuildB(g));
+    scene.glow = this._nbGlowSprite();
+
+    // Mây mù: [x, y, bán kính ngang, bán kính dọc, tốc độ, độ đậm]
+    scene.puffs = [
+      [200, 1400, 340, 100, 3, 0.8], [800, 1450, 400, 100, -2, 0.75],
+      [1150, 1420, 300, 100, 2.5, 0.8], [420, 1260, 270, 80, -3, 0.7],
+      [950, 1210, 300, 90, 2, 0.6], [1200, 1110, 260, 80, -2, 0.5],
+      [600, 1130, 300, 80, 3, 0.5], [300, 800, 250, 70, 2, 0.6],
+      [1150, 830, 230, 70, -2, 0.5], [700, 1330, 260, 70, 2.2, 0.55]
+    ];
+
+    scene.birds = [
+      [700, 1030, 22], [780, 1075, 16], [1100, 1150, 18]
+    ].map((b, i) => ({ x: b[0], y: b[1], s: b[2], p: i * 2 }));
+
+    scene.motes = [];
+    for (let i = 0; i < 24; i++) {
+      scene.motes.push({
+        x: 130 + this._nbRnd(i + 9) * 1180,
+        y: 1600 + this._nbRnd(i + 19) * 900,
+        p: this._nbRnd(i) * 6
+      });
     }
-    ctx.fill();
 
-    // 3 ô cửa kính phản quang
-    ctx.fillStyle = '#cde8f6';
-    ctx.fillRect(rx + 2, ry + 3, 3.5, 5.5);
-    ctx.fillRect(rx + 6.8, ry + 3, 4.4, 5.5);
-    ctx.fillRect(rx + 12.5, ry + 3, 3.5, 5.5);
-    ctx.restore();
+    scene.cabs = [
+      ['#f5a020', '#d07810'],
+      ['#2a9a50', '#1a6a38'],
+      ['#d03050', '#9a1c38'],
+      ['#2a70c0', '#1a4a90']
+    ];
+
+    this._sapaScene = scene;
+    return scene;
   }
 
-  // Vẽ từng bậc thang lúa có vách đất 3D
-  _drawTerraceStep(ctx, x, y, w, h, topCol, sideCol, isLeft) {
-    ctx.save();
-    const cx = isLeft ? x + w : x;
-
-    // Vách đất dựng đứng (Side lip)
-    ctx.fillStyle = sideCol;
-    ctx.beginPath();
-    ctx.ellipse(cx, y + 9, w, h, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Mặt ruộng lúa phía trên (Top surface)
-    ctx.fillStyle = topCol;
-    ctx.beginPath();
-    ctx.ellipse(cx, y, w, h * 0.88, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Đường viền bờ ruộng sắc nét
-    ctx.strokeStyle = 'rgba(60, 45, 20, 0.35)';
-    ctx.lineWidth = 1.2;
-    ctx.stroke();
-    ctx.restore();
+  // ------------------------------------------
+  // HÀM VẼ CƠ BẢN
+  // ------------------------------------------
+  _saPoly(g, p, fill) {
+    g.fillStyle = fill;
+    g.beginPath();
+    p.forEach((a, i) => (i ? g.lineTo(a[0], a[1]) : g.moveTo(a[0], a[1])));
+    g.closePath();
+    g.fill();
   }
 
-  // Vẽ thảm ruộng bậc thang tiền cảnh chảy tràn màn hình
-  _drawFullWaveTerrace(ctx, y, topCol, sideCol, thick, dir) {
-    const w = this.width;
-    const h = this.height;
-    ctx.save();
-
-    // Vách đất
-    ctx.fillStyle = sideCol;
-    ctx.beginPath();
-    ctx.moveTo(0, y + thick);
-    ctx.bezierCurveTo(w * 0.35, y + thick - 28 * dir, w * 0.65, y + thick + 28 * dir, w, y + thick - 10 * dir);
-    ctx.lineTo(w, h);
-    ctx.lineTo(0, h);
-    ctx.closePath();
-    ctx.fill();
-
-    // Mặt lúa
-    ctx.fillStyle = topCol;
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.bezierCurveTo(w * 0.35, y - 28 * dir, w * 0.65, y + 28 * dir, w, y - 10 * dir);
-    ctx.lineTo(w, y + thick - 10 * dir);
-    ctx.bezierCurveTo(w * 0.65, y + thick + 28 * dir, w * 0.35, y + thick - 28 * dir, 0, y + thick);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
+  _saMix(a, b, u) {
+    const parse = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+    const A = parse(a);
+    const B = parse(b);
+    return '#' + A.map((v, i) => Math.round(v + (B[i] - v) * u).toString(16).padStart(2, '0')).join('');
   }
 
-  // Vẽ nhà sàn / chòi gỗ trên ruộng bậc thang
-  _drawWoodenHut(ctx, x, y, scale) {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.scale(scale, scale);
-
-    // Bóng đổ dưới đất
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
-    ctx.beginPath();
-    ctx.ellipse(0, 12, 22, 5, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Cột nhà sàn
-    ctx.fillStyle = '#3d2616';
-    ctx.fillRect(-13, 3, 2.5, 9);
-    ctx.fillRect(-4, 4, 2.5, 8);
-    ctx.fillRect(5, 4, 2.5, 8);
-    ctx.fillRect(12, 3, 2.5, 9);
-
-    // Vách gỗ
-    ctx.fillStyle = '#7c5333';
-    ctx.fillRect(-15, -10, 30, 14);
-    ctx.fillStyle = '#5c3b22'; // Vách hông tối hơn
-    ctx.fillRect(4, -10, 11, 14);
-
-    // Ô cửa tối
-    ctx.fillStyle = '#29170b';
-    ctx.fillRect(-8, -5, 6, 9);
-
-    // Mái tranh / Mái gỗ
-    ctx.fillStyle = '#4a301c';
-    ctx.beginPath();
-    ctx.moveTo(-20, -9);
-    ctx.lineTo(-4, -20);
-    ctx.lineTo(19, -20);
-    ctx.lineTo(6, -9);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.fillStyle = '#362112';
-    ctx.beginPath();
-    ctx.moveTo(6, -9);
-    ctx.lineTo(19, -20);
-    ctx.lineTo(22, -9);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.restore();
+  // Lấy mẫu đường Bezier bậc 3 nối chuỗi điểm (mỗi đoạn 4 điểm)
+  _saCubic(pts) {
+    const out = [];
+    for (let s = 0; s + 3 < pts.length; s += 3) {
+      for (let i = (s ? 1 : 0); i <= 24; i++) {
+        const u = i / 24;
+        const v = 1 - u;
+        const a = pts[s];
+        const b = pts[s + 1];
+        const c = pts[s + 2];
+        const d = pts[s + 3];
+        out.push([
+          v * v * v * a[0] + 3 * v * v * u * b[0] + 3 * v * u * u * c[0] + u * u * u * d[0],
+          v * v * v * a[1] + 3 * v * v * u * b[1] + 3 * v * u * u * c[1] + u * u * u * d[1]
+        ]);
+      }
+    }
+    return out;
   }
 
-  // Vẽ cụm đá tảng góc cạnh và thảm hoa dại
-  _drawRockAndFlowers(ctx, x, y) {
-    ctx.save();
-    ctx.translate(x, y);
+  _saRoundRect(g, x, y, w, h, r) {
+    const rad = Array.isArray(r) ? r : [r, r, r, r];
+    const max = Math.min(w, h) / 2;
+    const [tl, tr, br, bl] = rad.map(v => Math.min(v, max));
+    g.beginPath();
+    g.moveTo(x + tl, y);
+    g.lineTo(x + w - tr, y);
+    g.quadraticCurveTo(x + w, y, x + w, y + tr);
+    g.lineTo(x + w, y + h - br);
+    g.quadraticCurveTo(x + w, y + h, x + w - br, y + h);
+    g.lineTo(x + bl, y + h);
+    g.quadraticCurveTo(x, y + h, x, y + h - bl);
+    g.lineTo(x, y + tl);
+    g.quadraticCurveTo(x, y, x + tl, y);
+    g.closePath();
+  }
 
-    const drawPolyRock = (pts, col) => {
-      ctx.fillStyle = col;
-      ctx.beginPath();
-      pts.forEach((p, idx) => idx === 0 ? ctx.moveTo(p[0], p[1]) : ctx.lineTo(p[0], p[1]));
-      ctx.closePath();
-      ctx.fill();
+  // ------------------------------------------
+  // LỚP TĨNH A: TRỜI, FANSIPAN, DÃY NÚI GIỮA
+  // ------------------------------------------
+  _saBuildA(g) {
+    g.fillStyle = this._nbLG(g, 0, 0, 0, 2600, [
+      [0, '#5e7e92'], [0.15, '#7896a8'], [0.27, '#a8c4d6'], [0.36, '#d4e6f2'], [1, '#d2e4f0']
+    ]);
+    g.fillRect(0, 0, 1400, 2600);
+
+    // Đỉnh Fansipan
+    this._saPoly(g, [
+      [560, 1560], [600, 1032], [700, 952], [830, 862], [900, 802], [990, 732],
+      [1035, 690], [1080, 730], [1130, 790], [1200, 832], [1252, 882], [1340, 860], [1340, 1560]
+    ], this._nbLG(g, 600, 0, 1300, 0, [[0, '#7488a4'], [0.5, '#5a6e88'], [1, '#4a5e78']]));
+
+    this._saPoly(g, [
+      [1035, 690], [900, 802], [830, 862], [780, 930], [860, 1000], [960, 880], [1020, 780]
+    ], 'rgba(40,60,96,.18)');
+
+    // Tuyết phủ đỉnh
+    this._saPoly(g, [
+      [1035, 692], [1080, 730], [1130, 790], [1165, 815], [1130, 828], [1100, 822], [1090, 862],
+      [1062, 836], [1040, 884], [1020, 842], [990, 862], [974, 822], [934, 842], [900, 802], [960, 745], [1000, 716]
+    ], '#eff1f8');
+    this._saPoly(g, [
+      [1035, 692], [1000, 716], [960, 745], [900, 802], [934, 842], [974, 822], [990, 862],
+      [1020, 842], [1030, 780]
+    ], '#bcc8dc');
+
+    g.strokeStyle = 'rgba(40,56,90,.35)';
+    g.lineWidth = 5;
+    g.lineCap = 'round';
+    [[1020, 870, 1015, 1010], [1100, 840, 1130, 960], [940, 880, 900, 980]].forEach(([a, b, d, e]) => {
+      g.beginPath();
+      g.moveTo(a, b);
+      g.lineTo(d, e);
+      g.stroke();
+    });
+
+    // Dãy núi giữa
+    const M = (p, f, lit) => {
+      this._saPoly(g, p, f);
+      if (lit) this._saPoly(g, lit, 'rgba(130,152,184,.32)');
     };
 
-    // Các khối đá xếp chồng
-    drawPolyRock([[-45, 18], [-32, -8], [-8, -12], [12, 18]], '#4a4e52');
-    drawPolyRock([[-8, -12], [15, -22], [38, -5], [25, 20], [12, 18]], '#34373b');
-    drawPolyRock([[-25, 22], [-10, 2], [18, 4], [30, 25]], '#5a5f63');
-    drawPolyRock([[5, 25], [20, 5], [45, 8], [52, 28]], '#2b2d30');
+    M([[109, 1560], [109, 1052], [150, 1022], [215, 970], [240, 962], [300, 1016], [330, 1010],
+      [462, 905], [520, 972], [560, 1010], [605, 1032], [660, 1100], [700, 1180], [780, 1560]],
+      this._nbLG(g, 109, 0, 780, 0, [[0, '#506680'], [1, '#3c506a']]),
+      [[462, 905], [520, 972], [560, 1010], [605, 1032], [660, 1100], [700, 1180], [780, 1560],
+        [520, 1560], [470, 1100], [455, 960]]);
 
-    // Khóm cỏ xanh dưới chân đá
-    ctx.fillStyle = '#3a6629';
-    [[-35, 18], [-10, 22], [18, 25], [38, 26], [8, 2]].forEach(([gx, gy]) => {
+    M([[560, 1560], [620, 1062], [740, 1026], [790, 1070], [860, 1132], [960, 1192], [1040, 1560]],
+      '#4a5e78',
+      [[740, 1026], [790, 1070], [860, 1132], [960, 1192], [1040, 1560], [800, 1560]]);
+
+    M([[900, 1560], [1000, 1222], [1080, 1130], [1180, 1058], [1250, 1120], [1340, 1160], [1340, 1560]],
+      '#3e5270',
+      [[1180, 1058], [1250, 1120], [1340, 1160], [1340, 1560], [1150, 1560], [1160, 1120]]);
+
+    g.strokeStyle = 'rgba(120,142,176,.4)';
+    g.lineWidth = 4;
+    [[462, 905, 380, 1100], [462, 905, 520, 1060], [240, 962, 190, 1120],
+      [740, 1026, 700, 1130], [1180, 1058, 1100, 1180]].forEach(([a, b, d, e]) => {
+        g.beginPath();
+        g.moveTo(a, b);
+        g.lineTo(d, e);
+        g.stroke();
+      });
+
+    // Sương thung lũng
+    g.fillStyle = this._nbLG(g, 0, 1000, 0, 1620, [
+      [0, 'rgba(214,230,244,0)'], [0.3, 'rgba(214,230,244,.38)'],
+      [0.6, 'rgba(214,230,244,.88)'], [0.9, '#d2e4f0'], [1, '#d2e4f0']
+    ]);
+    g.fillRect(100, 1000, 1260, 620);
+  }
+
+  // ------------------------------------------
+  // LỚP TĨNH B: RUỘNG BẬC THANG, NHÀ SÀN, ĐÁ, HOA
+  // ------------------------------------------
+  _saBuildB(g) {
+    const P = [[109, 1522], [330, 1498], [560, 1560], [760, 1732], [810, 1768], [880, 1802], [1010, 1872]];
+    const R = [[1340, 1496], [1150, 1494], [950, 1520], [840, 1598], [785, 1636], [742, 1668], [730, 1724]];
+
+    const band = (poly, off, fill, wall) => {
+      const q = poly.map(p => [p[0], p[1] + off]);
+      const a = q[0];
+      const z = q[q.length - 1];
+      g.fillStyle = fill;
+      g.beginPath();
+      q.forEach((p, i) => (i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])));
+      g.lineTo(z[0], 2620);
+      g.lineTo(a[0], 2620);
+      g.closePath();
+      g.fill();
+
+      g.lineCap = 'butt';
+      g.lineJoin = 'round';
+      g.strokeStyle = this._saMix('#6a3e22', '#8a5a30', 0.4);
+      g.lineWidth = wall;
+      g.beginPath();
+      q.forEach((p, i) => (i ? g.lineTo(p[0], p[1] + wall / 2) : g.moveTo(p[0], p[1] + wall / 2)));
+      g.stroke();
+
+      g.strokeStyle = 'rgba(255,245,170,.4)';
+      g.lineWidth = 3;
+      g.beginPath();
+      q.forEach((p, i) => (i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])));
+      g.stroke();
+    };
+
+    const pal = [['#8ea834', '#b8c038'], ['#d0b82e', '#e2b42a']];
+    const rp = this._saCubic(R);
+    const lp = this._saCubic(P);
+
+    for (let k = 0; k < 9; k++) {
+      band(rp, k * 46 + k * k * 2.4, this._saMix(pal[0][k % 2], pal[1][k % 2], k / 9), 14 + k * 1.5);
+    }
+    for (let k = 0; k < 11; k++) {
+      band(lp, k * 56 + k * k * 2.2, this._saMix(pal[0][k % 2], pal[1][k % 2], 0.15 + k / 14), 16 + k * 1.8);
+    }
+    for (let k = 0; k < 11; k++) {
+      const a = 1940 + k * 98 + k * k * 6;
+      const b = 2020 + k * 128 + k * k * 5;
+      const wv = Math.sin(k * 1.7) * 60;
+      const pts = [[109, a + 40], [380, a - 90 + wv], [820, b - 230 - wv], [1340, b]];
+      band(this._saCubic(pts), 0, this._saMix('#c4bc36', '#e2b42c', k / 10 * 0.8 + (k % 2) * 0.1), 24 + k * 3.5);
+    }
+
+    g.fillStyle = this._nbLG(g, 0, 2300, 0, 2576, [
+      [0, 'rgba(90,60,20,0)'], [1, 'rgba(90,60,20,.25)']
+    ]);
+    g.fillRect(109, 2300, 1230, 280);
+
+    // Nhà sàn
+    this._saHut(g, 250, 1905, 1.2);
+    this._saHut(g, 1215, 1496, 0.78);
+
+    // Đá + hoa
+    const rock = (p, f, hl) => {
+      this._saPoly(g, p, f);
+      this._saPoly(g, hl, 'rgba(120,120,140,.45)');
+    };
+    rock([[940, 1962], [985, 1902], [1050, 1856], [1130, 1840], [1192, 1902], [1204, 1992], [1080, 2022]],
+      '#3a3a44', [[985, 1902], [1050, 1856], [1130, 1840], [1100, 1900], [1020, 1930]]);
+    rock([[1190, 1792], [1252, 1782], [1340, 1750], [1340, 2012], [1252, 2032], [1215, 1952]],
+      '#2e2e38', [[1190, 1792], [1252, 1782], [1300, 1770], [1270, 1850], [1225, 1880]]);
+    rock([[1062, 2012], [1132, 1962], [1242, 1952], [1262, 2042], [1162, 2052]],
+      '#4a4a54', [[1132, 1962], [1242, 1952], [1200, 1990], [1120, 2000]]);
+    rock([[1192, 2062], [1252, 2002], [1340, 2002], [1340, 2102], [1232, 2112]],
+      '#3a3a44', [[1252, 2002], [1340, 2002], [1300, 2030]]);
+
+    const flowerColors = ['#e8609c', '#f0d030', '#a478e8', '#ffffff', '#f08060'];
+    for (let i = 0; i < 70; i++) {
+      const x = 925 + this._nbRnd(i) * 400;
+      const y = 1890 + this._nbRnd(i + 7) * 230;
+      g.strokeStyle = '#2a6a30';
+      g.lineWidth = 2;
+      g.beginPath();
+      g.moveTo(x, y + 12);
+      g.lineTo(x, y);
+      g.stroke();
+      g.fillStyle = flowerColors[i % 5];
+      g.beginPath();
+      g.arc(x, y, 3.5 + this._nbRnd(i + 3) * 3, 0, 7);
+      g.fill();
+    }
+  }
+
+  _saHut(g, x, y, s) {
+    g.save();
+    g.translate(x, y);
+    g.scale(s, s);
+
+    g.fillStyle = 'rgba(60,40,10,.3)';
+    g.beginPath();
+    g.ellipse(0, 52, 84, 11, 0, 0, 7);
+    g.fill();
+
+    g.fillStyle = '#5a4028';
+    [-38, 0, 32].forEach(px => g.fillRect(px, 14, 6, 40));
+
+    g.strokeStyle = '#5a4028';
+    g.lineWidth = 3;
+    g.beginPath();
+    g.moveTo(48, 20);
+    g.lineTo(58, 54);
+    g.moveTo(56, 20);
+    g.lineTo(66, 54);
+    for (let i = 0; i < 4; i++) {
+      g.moveTo(50 + i * 2.5, 28 + i * 8);
+      g.lineTo(58 + i * 2.5, 28 + i * 8);
+    }
+    g.stroke();
+
+    g.fillStyle = this._nbLG(g, -45, 0, 45, 0, [[0, '#b08a5c'], [1, '#8a6642']]);
+    g.fillRect(-46, -12, 92, 28);
+    g.strokeStyle = 'rgba(60,40,20,.4)';
+    g.lineWidth = 1.5;
+    for (let i = -40; i < 46; i += 11) {
+      g.beginPath();
+      g.moveTo(i, -12);
+      g.lineTo(i, 16);
+      g.stroke();
+    }
+
+    g.fillStyle = '#3a2a1c';
+    g.fillRect(-8, -2, 16, 18);
+
+    g.fillStyle = '#8a6a46';
+    g.beginPath();
+    g.moveTo(-66, -10);
+    g.lineTo(-2, -50);
+    g.lineTo(62, -10);
+    g.lineTo(50, 4);
+    g.lineTo(-54, 4);
+    g.closePath();
+    g.fill();
+
+    g.strokeStyle = 'rgba(50,34,18,.45)';
+    g.lineWidth = 2;
+    for (let i = -50; i < 50; i += 10) {
+      g.beginPath();
+      g.moveTo(i * 0.35, -42);
+      g.lineTo(i * 1.1, 2);
+      g.stroke();
+    }
+    g.restore();
+  }
+
+  // ------------------------------------------
+  // LỚP ĐỘNG
+  // ------------------------------------------
+  _saDrawFlag(ctx, t, kx = 1) {
+    ctx.save();
+    // Bù biến dạng để lá cờ không bị dẹt khi tranh co giãn theo chiều dọc
+    ctx.translate(1030, 0);
+    ctx.scale(kx, 1);
+    ctx.translate(-1030, 0);
+
+    ctx.fillStyle = '#4a4a5a';
+    ctx.fillRect(1028, 620, 4, 72);
+
+    ctx.fillStyle = '#d8232a';
+    ctx.beginPath();
+    ctx.moveTo(1032, 622);
+    for (let i = 0; i <= 12; i++) {
+      ctx.lineTo(1032 + i * 4.4, 622 + Math.sin(t * 4 - i * 0.6) * (1 + i * 0.3));
+    }
+    for (let i = 12; i >= 0; i--) {
+      ctx.lineTo(1032 + i * 4.4, 658 + Math.sin(t * 4 - i * 0.6) * (1 + i * 0.3));
+    }
+    ctx.fill();
+
+    // Sao vàng
+    ctx.fillStyle = '#ffd21f';
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const r = i % 2 ? 4.5 : 11;
+      const a = -Math.PI / 2 + i * Math.PI / 5;
+      ctx.lineTo(1058 + Math.cos(a) * r, 640 + Math.sin(a) * r);
+    }
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  _saDrawClouds(ctx, t, scene) {
+    ctx.save();
+    scene.puffs.forEach(([x, y, rx, ry, sp, al], i) => {
+      const px = ((x + t * sp * 4 + 400) % 1700) - 400 + 109 + (i % 2) * 20;
+      ctx.save();
+      ctx.translate(px, y);
+      ctx.scale(1, ry * 1.4 / rx);
+      const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+      grad.addColorStop(0, `rgba(236,244,250,${al})`);
+      grad.addColorStop(0.6, `rgba(226,236,246,${al * 0.6})`);
+      grad.addColorStop(1, 'rgba(226,236,246,0)');
+      ctx.fillStyle = grad;
       ctx.beginPath();
-      ctx.arc(gx, gy, 8, Math.PI, 0);
+      ctx.arc(0, 0, rx, 0, 7);
       ctx.fill();
+      ctx.restore();
+    });
+    ctx.restore();
+  }
+
+  _saDrawBirds(ctx, t, scene) {
+    ctx.strokeStyle = '#3a4a64';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    for (const b of scene.birds) {
+      const x = b.x + Math.sin(t * 0.4 + b.p) * 40;
+      const y = b.y + Math.sin(t * 0.8 + b.p) * 10;
+      const f = Math.sin(t * 5 + b.p) * 5;
+      ctx.beginPath();
+      ctx.moveTo(x - b.s, y - 8 + f);
+      ctx.quadraticCurveTo(x - b.s / 2, y + 3, x, y + 2);
+      ctx.quadraticCurveTo(x + b.s / 2, y + 3, x + b.s, y - 8 + f);
+      ctx.stroke();
+    }
+  }
+
+  // Điểm trên dây cáp: u = 0..1 dọc theo nhịp cáp, k = 0/1 cho hai sợi
+  _saCablePoint(u, k) {
+    const y0 = [660, 690][k];
+    const y1 = [978, 1012][k];
+    const cy = [795, 830][k];
+    const v = 1 - u;
+    return [109 + u * 1220, v * v * y0 + 2 * v * u * cy + u * u * y1];
+  }
+
+  _saDrawCable(ctx, t, scene, kx = 1) {
+    ctx.strokeStyle = '#4a5264';
+    ctx.lineWidth = 2.6;
+    [0, 1].forEach(k => {
+      ctx.beginPath();
+      for (let i = 0; i <= 30; i++) {
+        const p = this._saCablePoint(i / 30, k);
+        if (i) ctx.lineTo(p[0], p[1]);
+        else ctx.moveTo(p[0], p[1]);
+      }
+      ctx.stroke();
     });
 
-    // Hoa dại nhiều màu (Hồng, Vàng, Trắng, Tím)
-    const flowers = [
-      [-38, 16, '#ff4d6d'], [-32, 14, '#ffd166'], [-14, 20, '#ff4d6d'],
-      [-6, 19, '#ffffff'], [14, 22, '#ff4d6d'], [22, 24, '#ffd166'],
-      [35, 23, '#b5838d'], [42, 25, '#ff4d6d'], [6, 0, '#ff4d6d'], [11, -2, '#ffd166']
-    ];
-    flowers.forEach(([fx, fy, col]) => {
-      ctx.fillStyle = col;
+    scene.cabs.forEach((col, i) => {
+      const u = (t * 0.014 + i / scene.cabs.length) % 1;
+      const p = this._saCablePoint(u, 0);
+      const q = this._saCablePoint(u, 1);
+      this._saCab(ctx, (p[0] + q[0]) / 2, (p[1] + q[1]) / 2 - 4, col, kx);
+    });
+  }
+
+  _saCab(ctx, x, y, col, kx = 1) {
+    ctx.save();
+    ctx.translate(x, y);
+    // Bù biến dạng để cabin vẫn vuông vức sau khi tranh co giãn
+    ctx.scale(kx, 1);
+
+    ctx.strokeStyle = '#3a4252';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(0, 52);
+    ctx.stroke();
+    ctx.fillStyle = '#3a4252';
+    ctx.fillRect(-6, -4, 12, 10);
+
+    ctx.fillStyle = col[1];
+    this._saRoundRect(ctx, -30, 52, 60, 12, 5);
+    ctx.fill();
+
+    ctx.fillStyle = col[0];
+    this._saRoundRect(ctx, -30, 50, 60, 46, [8, 8, 6, 6]);
+    ctx.fill();
+
+    ctx.fillStyle = col[1];
+    ctx.fillRect(-30, 86, 60, 10);
+
+    [[-24, 60], [2, 60]].forEach(([wx, wy]) => {
+      ctx.fillStyle = this._nbLG(ctx, wx, wy, wx + 22, wy + 22, [[0, '#4a90b0'], [1, '#1e4a6a']]);
+      ctx.fillRect(wx, wy, 22, 22);
+      ctx.fillStyle = 'rgba(255,255,255,.3)';
       ctx.beginPath();
-      ctx.arc(fx, fy, 2.2, 0, Math.PI * 2);
+      ctx.moveTo(wx + 3, wy + 18);
+      ctx.lineTo(wx + 10, wy + 2);
+      ctx.lineTo(wx + 14, wy + 2);
+      ctx.lineTo(wx + 7, wy + 18);
       ctx.fill();
     });
 
     ctx.restore();
   }
 
-  // Vẽ mây nền tròn trịa
-  _drawSoftClouds(ctx, baseY, alpha, count) {
+  _saDrawSunSweep(ctx, t) {
     ctx.save();
-    ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
-    for (let i = 0; i < count; i++) {
-      const cx = ((i * 130 + this.scrollX * 0.25) % (this.width + 160)) - 80;
-      const cy = baseY + (i % 2) * 18;
-      ctx.beginPath();
-      ctx.arc(cx, cy, 28, 0, Math.PI * 2);
-      ctx.arc(cx + 22, cy - 8, 34, 0, Math.PI * 2);
-      ctx.arc(cx + 48, cy, 26, 0, Math.PI * 2);
-      ctx.fill();
+    ctx.globalCompositeOperation = 'lighter';
+    const sx = ((t * 60) % 2200) - 500;
+    ctx.fillStyle = this._nbLG(ctx, sx, 1500, sx + 360, 2300, [
+      [0, 'rgba(255,240,170,0)'], [0.5, 'rgba(255,240,170,.1)'], [1, 'rgba(255,240,170,0)']
+    ]);
+    ctx.fillRect(109, 1500, 1230, 1076);
+    ctx.restore();
+  }
+
+  _saDrawMotes(ctx, t, scene) {
+    if (!scene.glow) return;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (const m of scene.motes) {
+      const x = m.x + Math.sin(t * 0.6 + m.p) * 26;
+      const y = 1500 + ((m.y - 1500 - t * 14 + 4000) % 1000);
+      const a = 0.25 + 0.5 * Math.abs(Math.sin(t + m.p));
+      ctx.globalAlpha = a;
+      ctx.drawImage(scene.glow, x - 12, y - 12, 24, 24);
     }
     ctx.restore();
   }
-
-  // Vẽ dải sương mù thung lũng trôi nhẹ
-  _drawValleyMist(ctx, y, color, speedMult) {
-    ctx.save();
-    ctx.fillStyle = color;
-    const shift = Math.sin(this.animTimer * speedMult) * 25;
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.bezierCurveTo(this.width * 0.3 + shift, y - 22, this.width * 0.7 - shift, y + 22, this.width, y - 8);
-    ctx.lineTo(this.width, y + 65);
-    ctx.lineTo(0, y + 65);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-  }
-
 
   // ==========================================
   // PANEL 2: NINH BÌNH (Tràng An - Tam Cốc Bích Động)
+  // Toàn cảnh sông Ngô Đồng: bầu trời hoàng kim, dãy karst Tràng An,
+  // chùa cổ ven bờ, thuyền nan và rặng cọ tiền cảnh.
+  //
+  // Tranh được dựng trong hệ toạ độ gốc 2213 x 1652 (theo tranh tham khảo),
+  // sau đó "cover" vào khung vẽ hiện tại nên giữ đúng tỉ lệ trên mọi màn hình.
+  // Lớp tĩnh -> dựng sẵn một lần vào canvas đệm; lớp động -> vẽ mỗi khung hình.
   // ==========================================
   _drawNinhBinh(ctx) {
-    ctx.save();
     const w = this.width;
     const h = this.height;
+    const t = this.animTimer || 0;
+    const scene = this._getNinhBinhScene();
+    const view = scene.view;
 
-    // 1. Bầu trời (Warm Sunlight & Soft Gradient)
-    const sky = ctx.createLinearGradient(0, 0, 0, h * 0.55);
-    sky.addColorStop(0, '#fefae0'); // Nắng vàng nhạt phía trên
-    sky.addColorStop(0.35, '#fde1b1');
-    sky.addColorStop(0.7, '#f4cf9a');
-    sky.addColorStop(1, '#e2efeb'); // Mờ dần khi xuống gần thung lũng
-    ctx.fillStyle = sky;
-    ctx.fillRect(0, 0, w, h * 0.55);
+    ctx.save();
 
-    // 2. Mây bồng bềnh sau núi
-    this._drawSoftNBMistyClouds(ctx, h * 0.32, 0.28, 3);
+    // 1. Bầu trời hoàng kim
+    ctx.drawImage(scene.sky, 0, 0, w, h);
 
-    // 3. Những cánh chim bay (Cảnh sắc Tràng An tự nhiên)
-    this._drawFlockOfBirds(ctx);
+    // 2. Mây trôi rất chậm
+    ctx.save();
+    ctx.translate(Math.sin(t * 0.12) * 26 * view.s, 0);
+    ctx.drawImage(scene.clouds, 0, 0, w, h);
+    ctx.restore();
 
-    // 4. Quần thể núi đá vôi trùng điệp (Núi phía xa)
-    ctx.fillStyle = '#6b7a5a'; // Núi xa nhất (Đồng màu sương)
-    ctx.beginPath();
-    ctx.moveTo(w * 0.2, h * 0.48);
-    ctx.lineTo(w * 0.45, h * 0.32);
-    ctx.lineTo(w * 0.52, h * 0.42);
-    ctx.lineTo(w * 0.61, h * 0.28);
-    ctx.lineTo(w * 0.72, h * 0.45);
-    ctx.lineTo(w, h * 0.3);
-    ctx.lineTo(w, h * 0.52);
-    ctx.lineTo(w * 0.2, h * 0.52);
-    ctx.closePath();
-    ctx.fill();
+    // 3. Núi karst, chùa cổ, sông Ngô Đồng
+    ctx.drawImage(scene.land, 0, 0, w, h);
 
-    // Dãy núi đá vôi hùng vĩ trung cảnh (Tầng núi chính)
-    ctx.fillStyle = '#415a45'; // Tông xanh lá sẫm tự nhiên của thảm thực vật ôm núi
-    ctx.beginPath();
-    ctx.moveTo(0, h * 0.44);
-    ctx.lineTo(w * 0.12, h * 0.36);
-    ctx.lineTo(w * 0.22, h * 0.34);
-    ctx.lineTo(w * 0.36, h * 0.43);
-    ctx.lineTo(w * 0.48, h * 0.29);
-    ctx.lineTo(w * 0.58, h * 0.45);
-    ctx.lineTo(w * 0.7, h * 0.31);
-    ctx.lineTo(w * 0.85, h * 0.27); // Ngọn núi nhô cao bên phải
-    ctx.lineTo(w * 0.95, h * 0.38);
-    ctx.lineTo(w, h * 0.32);
-    ctx.lineTo(w, h * 0.6);
-    ctx.lineTo(0, h * 0.6);
-    ctx.closePath();
-    ctx.fill();
+    // 4. Các chi tiết động vẽ trong hệ toạ độ tranh gốc
+    ctx.save();
+    ctx.setTransform(view.s, 0, 0, view.s, -view.offX * view.s, -view.offY * view.s);
 
-    // Tạo khối đá cho các ngọn núi trung cảnh (Vách đá tối & sáng)
-    ctx.fillStyle = '#314234'; // Bóng vách tối
-    ctx.beginPath();
-    ctx.moveTo(w * 0.12, h * 0.36);
-    ctx.lineTo(w * 0.18, h * 0.44);
-    ctx.lineTo(w * 0.28, h * 0.39);
-    ctx.lineTo(w * 0.36, h * 0.43);
-    ctx.lineTo(w * 0.48, h * 0.29);
-    ctx.lineTo(w * 0.44, h * 0.4);
-    ctx.closePath();
-    ctx.fill();
+    this._nbDrawWater(ctx, t);
+    for (const boat of scene.boats) this._nbBoat(ctx, boat, t);
+    this._nbDrawRays(ctx, t, scene);
+    this._nbDrawMotes(ctx, t, scene);
+    this._nbDrawBirds(ctx, t, scene);
 
-    ctx.fillStyle = '#5c7f55'; // Sườn núi nhận sáng nắng vàng
-    ctx.beginPath();
-    ctx.moveTo(w * 0.7, h * 0.31);
-    ctx.lineTo(w * 0.85, h * 0.27);
-    ctx.lineTo(w * 0.81, h * 0.42);
-    ctx.closePath();
-    ctx.fill();
+    ctx.restore();
 
-    // 5. Cổng tam quan đền đài cổ (Góc trái bờ sông)
-    this._drawAncientTempleGate(ctx, w * 0.24, h * 0.63, 0.85);
+    // 5. Rặng cọ tiền cảnh
+    ctx.drawImage(scene.fg, 0, 0, w, h);
 
-    // 6. Dòng sông Ngô Đồng (Sông xanh biếc, hiền hòa, trù phú)
-    const riverY = h * 0.62;
-    const rivGrad = ctx.createLinearGradient(0, riverY, 0, h);
-    rivGrad.addColorStop(0, '#2a9d8f'); // Xanh ngọc bích Tràng An
-    rivGrad.addColorStop(0.5, '#264653');
-    rivGrad.addColorStop(1, '#1b3438');
-    ctx.fillStyle = rivGrad;
-    ctx.fillRect(0, riverY, w, h - riverY);
+    // 6. Khung lá tối góc dưới cho khung dọc vẫn có tiền cảnh
+    this._nbDrawFrame(ctx, w, h);
 
-    // Vệt nước lấp lánh tự nhiên trên sông
-    this._drawWaterRipples(ctx, riverY);
+    ctx.restore();
+  }
 
-    // Dòng sông uốn lượn hình chữ S
-    ctx.strokeStyle = '#327f71';
-    ctx.lineWidth = 14;
-    ctx.beginPath();
-    ctx.moveTo(w * 0.5, riverY);
-    ctx.bezierCurveTo(w * 0.35, h * 0.72, w * 0.75, h * 0.84, w * 0.45, h);
-    ctx.stroke();
+  // Chọn khung nhìn "cover" trong tranh gốc: giữ mặt đất ở đáy, cắt bớt hai bên khi khung dọc
+  _nbView(w, h) {
+    const artX0 = 105;      // tranh gốc chỉ có nội dung từ x = 105 tới x = 2108
+    const artW = 2003;
+    const artH = 1652;
+    // Khung dọc: phóng thêm một chút để cảnh không bị loãng hai bên
+    const zoom = (w / h) < 0.9 ? 1.14 : 1;
+    const s = Math.max(w / artW, h / artH) * zoom;
+    const vw = w / s;
+    const vh = h / s;
+    const centerX = artX0 + artW * 0.40;
+    let offX = centerX - vw / 2;
+    offX = Math.min(Math.max(offX, artX0), Math.max(artX0, artX0 + artW - vw));
+    const offY = Math.max(0, artH - vh);
+    return { s, offX, offY };
+  }
 
-    // 7. Thuyền nan mộc mạc và người lái thuyền (Floating on Ngo Dong River)
-    const boats = [
-      { x: w * 0.38, y: h * 0.71, scale: 0.6, oarPhase: 0 },
-      { x: w * 0.62, y: h * 0.76, scale: 0.55, oarPhase: 1.5 },
-      { x: w * 0.48, y: h * 0.85, scale: 0.7, oarPhase: 0.8 },
-      { x: w * 0.53, y: h * 0.91, scale: 0.65, oarPhase: 2.1 }
-    ];
-    boats.forEach((b, idx) => {
-      const bob = Math.sin(this.animTimer * 2.5 + idx) * 3;
-      this._drawNinhBinhRowboat(ctx, b.x, b.y + bob, b.scale, b.oarPhase);
+  _nbStaticLayer(w, h, draw) {
+    const layer = document.createElement('canvas');
+    layer.width = Math.max(1, Math.round(w));
+    layer.height = Math.max(1, Math.round(h));
+    const g = layer.getContext('2d');
+    const view = this._nbView(w, h);
+    g.setTransform(view.s, 0, 0, view.s, -view.offX * view.s, -view.offY * view.s);
+    draw(g);
+    return layer;
+  }
+
+  // Sprite quầng sáng dùng lại cho bụi sáng (nhanh hơn tạo gradient mỗi khung hình)
+  _nbGlowSprite() {
+    const size = 64;
+    const sprite = document.createElement('canvas');
+    sprite.width = size;
+    sprite.height = size;
+    const g = sprite.getContext('2d');
+    const grad = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    grad.addColorStop(0, 'rgba(255, 246, 200, 1)');
+    grad.addColorStop(0.32, 'rgba(255, 226, 140, 0.8)');
+    grad.addColorStop(1, 'rgba(255, 210, 110, 0)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, size, size);
+    return sprite;
+  }
+
+  _getNinhBinhScene() {
+    const width = Math.max(1, Math.round(this.width));
+    const height = Math.max(1, Math.round(this.height));
+    if (this._ninhBinhScene &&
+      this._ninhBinhScene.width === width &&
+      this._ninhBinhScene.height === height) {
+      return this._ninhBinhScene;
+    }
+
+    const scene = {
+      width,
+      height,
+      view: this._nbView(width, height)
+    };
+
+    scene.sky = this._nbStaticLayer(width, height, g => this._nbDrawSky(g));
+    scene.clouds = this._nbStaticLayer(width, height, g => this._nbDrawCloudLayer(g));
+    scene.land = this._nbStaticLayer(width, height, g => this._nbDrawLand(g));
+    scene.fg = this._nbStaticLayer(width, height, g => this._nbDrawFgLayer(g));
+
+    // Thuyền nan chèo trên sông: [x, y, tỉ lệ, hướng, số người, pha]
+    scene.boats = [
+      [878, 1430, 0.9, 1, 1, 0],
+      [1035, 1355, 0.7, -1, 2, 1.3],
+      [1163, 1287, 0.35, 1, 1, 2.6],
+      [1168, 1503, 1.15, 1, 2, 3.9],
+      [1325, 1528, 1.05, -1, 2, 5.2]
+    ].map(b => ({ x: b[0], y: b[1], s: b[2], d: b[3], n: b[4], p: b[5] }));
+
+    // Đàn chim trời
+    scene.birds = [
+      [1035, 205, 28], [1100, 685, 26], [1160, 705, 16], [1330, 495, 34], [1280, 508, 24]
+    ].map((b, i) => ({ x: b[0], y: b[1], s: b[2], p: i * 1.7 }));
+
+    // Bụi sáng lơ lửng trong nắng
+    scene.motes = [];
+    for (let i = 0; i < 26; i++) {
+      scene.motes.push({
+        x: 800 + this._nbRnd(i + 9) * 800,
+        y: 900 + this._nbRnd(i + 19) * 500,
+        p: this._nbRnd(i) * 6
+      });
+    }
+
+    this._ninhBinhScene = scene;
+    return scene;
+  }
+
+  // ------------------------------------------
+  // HÀM VẼ CƠ BẢN (hệ toạ độ tranh gốc)
+  // ------------------------------------------
+  _nbRnd(n) {
+    const value = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+    return value - Math.floor(value);
+  }
+
+  _nbLG(g, x0, y0, x1, y1, stops) {
+    const grad = g.createLinearGradient(x0, y0, x1, y1);
+    stops.forEach(st => grad.addColorStop(st[0], st[1]));
+    return grad;
+  }
+
+  _nbRG(g, x, y, r0, r1, stops) {
+    const grad = g.createRadialGradient(x, y, r0, x, y, r1);
+    stops.forEach(st => grad.addColorStop(st[0], st[1]));
+    return grad;
+  }
+
+  _nbSmoothPath(g, p) {
+    const n = p.length;
+    g.beginPath();
+    g.moveTo((p[0][0] + p[n - 1][0]) / 2, (p[0][1] + p[n - 1][1]) / 2);
+    for (let i = 0; i < n; i++) {
+      const a = p[i];
+      const b = p[(i + 1) % n];
+      g.quadraticCurveTo(a[0], a[1], (a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+    }
+    g.closePath();
+  }
+
+  // Đa giác gồ ghề: chèn thêm điểm lệch ngẫu nhiên để vách đá không thẳng đơ
+  _nbPoly(g, p) {
+    const q = [];
+    p.forEach((a, i) => {
+      const b = p[(i + 1) % p.length];
+      q.push(a);
+      for (let k = 1; k < 4; k++) {
+        const u = k / 4;
+        const j = (this._nbRnd(i * 9 + k + a[0]) - 0.5) * 26;
+        q.push([a[0] + (b[0] - a[0]) * u + j, a[1] + (b[1] - a[1]) * u + j * 0.6]);
+      }
+    });
+    g.beginPath();
+    q.forEach((a, i) => (i ? g.lineTo(a[0], a[1]) : g.moveTo(a[0], a[1])));
+    g.closePath();
+  }
+
+  _nbMtn(g, p, fill, extra) {
+    this._nbPoly(g, p);
+    g.fillStyle = fill;
+    g.fill();
+    if (extra) {
+      g.save();
+      this._nbPoly(g, p);
+      g.clip();
+      extra();
+      g.restore();
+    }
+  }
+
+  _nbVeins(g, sd, x0, x1, y0, y1, n, col, lw) {
+    g.strokeStyle = col;
+    g.lineWidth = lw;
+    g.lineCap = 'round';
+    for (let i = 0; i < n; i++) {
+      let x = x0 + this._nbRnd(sd + i) * (x1 - x0);
+      let y = y0 + this._nbRnd(sd + i + 50) * (y1 - y0);
+      g.beginPath();
+      g.moveTo(x, y);
+      for (let k = 0; k < 4; k++) {
+        x += 20 + this._nbRnd(sd + i * 7 + k) * 40;
+        y += 40 + this._nbRnd(sd + i * 3 + k) * 70;
+        g.lineTo(x, y);
+      }
+      g.stroke();
+    }
+  }
+
+  _nbCloudPuff(g, circs, base, body, rim) {
+    g.save();
+    g.beginPath();
+    g.rect(0, 0, 2300, base + 140);
+    g.clip();
+    g.fillStyle = rim;
+    g.beginPath();
+    circs.forEach(o => {
+      g.moveTo(o[0] + o[2], o[1]);
+      g.arc(o[0], o[1], o[2], 0, 7);
+    });
+    g.fill();
+    g.fillStyle = body;
+    g.beginPath();
+    circs.forEach(o => {
+      g.moveTo(o[0] + o[2], o[1] + 12);
+      g.arc(o[0], o[1] + 12, o[2], 0, 7);
+    });
+    g.fill();
+    g.restore();
+  }
+
+  _nbBladeShape(g, x, y, L, a, w, col) {
+    g.fillStyle = col;
+    g.beginPath();
+    g.moveTo(x - w, y);
+    g.quadraticCurveTo(x + Math.cos(a) * L * 0.6 - w, y + Math.sin(a) * L * 0.6, x + Math.cos(a) * L, y + Math.sin(a) * L);
+    g.quadraticCurveTo(x + Math.cos(a) * L * 0.6 + w, y + Math.sin(a) * L * 0.6, x + w, y);
+    g.fill();
+  }
+
+  _nbPalmTree(g, x, y, r, c1, c2, trunk) {
+    if (trunk) {
+      g.strokeStyle = '#3a2a20';
+      g.lineWidth = 7;
+      g.beginPath();
+      g.moveTo(x, y + trunk);
+      g.quadraticCurveTo(x + 6, y + trunk / 2, x, y);
+      g.stroke();
+    }
+    const n = 26;
+    for (let i = 0; i < n; i++) {
+      this._nbBladeShape(
+        g, x, y,
+        r * (0.7 + this._nbRnd(i + x) * 0.45),
+        -3.3 + (i / n) * 3.6 + (this._nbRnd(i) - 0.5) * 0.2,
+        3.2,
+        i % 2 ? c1 : c2
+      );
+    }
+  }
+
+  _nbRoofShape(g, x0, x1, y, roofH, col, edge) {
+    g.fillStyle = col;
+    g.beginPath();
+    g.moveTo(x0 - 18, y + roofH + 4);
+    g.quadraticCurveTo(x0 + 8, y + roofH, x0 + (x1 - x0) * 0.12, y + roofH * 0.4);
+    g.lineTo(x0 + (x1 - x0) * 0.22, y);
+    g.lineTo(x1 - (x1 - x0) * 0.22, y);
+    g.lineTo(x1 - (x1 - x0) * 0.12, y + roofH * 0.4);
+    g.quadraticCurveTo(x1 - 8, y + roofH, x1 + 18, y + roofH + 4);
+    g.lineTo(x1, y + roofH + 8);
+    g.lineTo(x0, y + roofH + 8);
+    g.closePath();
+    g.fill();
+    g.strokeStyle = edge;
+    g.lineWidth = 2.5;
+    g.beginPath();
+    g.moveTo(x0 - 14, y + roofH + 3);
+    g.quadraticCurveTo(x0 + 10, y + roofH - 2, x0 + (x1 - x0) * 0.12, y + roofH * 0.4);
+    g.lineTo(x0 + (x1 - x0) * 0.22, y);
+    g.lineTo(x1 - (x1 - x0) * 0.22, y);
+    g.lineTo(x1 - (x1 - x0) * 0.12, y + roofH * 0.4);
+    g.quadraticCurveTo(x1 - 10, y + roofH - 2, x1 + 14, y + roofH + 3);
+    g.stroke();
+  }
+
+  // ------------------------------------------
+  // LỚP TĨNH
+  // ------------------------------------------
+  _nbDrawSky(g) {
+    g.fillStyle = this._nbLG(g, 0, 0, 0, 1300, [
+      [0, '#cfe6f4'], [0.3, '#f0ecc4'], [0.6, '#f8e0a0'], [1, '#fcd484']
+    ]);
+    g.fillRect(0, 0, 2300, 1300);
+
+    g.fillStyle = this._nbLG(g, 105, 0, 1300, 0, [
+      [0, 'rgba(236,230,150,.6)'], [1, 'rgba(236,230,150,0)']
+    ]);
+    g.fillRect(0, 0, 2300, 900);
+
+    g.fillStyle = this._nbLG(g, 1300, 0, 2108, 0, [
+      [0, 'rgba(190,226,250,0)'], [1, 'rgba(190,226,250,.85)']
+    ]);
+    g.fillRect(0, 0, 2300, 1300);
+
+    g.fillStyle = this._nbRG(g, 1170, 1180, 10, 560, [
+      [0, 'rgba(255,214,120,1)'], [0.5, 'rgba(255,214,120,.5)'], [1, 'rgba(255,214,120,0)']
+    ]);
+    g.fillRect(0, 500, 2300, 800);
+  }
+
+  _nbDrawCloudLayer(g) {
+    this._nbCloudPuff(g, [[240, 250, 110], [380, 210, 130], [540, 260, 120], [700, 330, 90], [160, 300, 70]], 430, '#fff6d4', '#fffbe8');
+    this._nbCloudPuff(g, [[300, 620, 90], [450, 590, 110], [600, 620, 90], [720, 660, 60]], 700, '#fff0cc', '#fffae0');
+    this._nbCloudPuff(g, [[1900, 180, 100], [2020, 120, 90], [2100, 190, 80], [1780, 210, 70]], 260, '#fdfcff', '#ffffff');
+    this._nbCloudPuff(g, [[1850, 600, 100], [1990, 530, 120], [2100, 600, 90], [1740, 630, 70]], 700, '#fffaf0', '#ffffff');
+    this._nbCloudPuff(g, [[1000, 770, 80], [1130, 740, 100], [1260, 780, 70], [900, 790, 50]], 850, '#ffe8b8', '#fff4d4');
+    this._nbCloudPuff(g, [[1400, 980, 80], [1500, 950, 90], [1250, 990, 60]], 1040, '#ffe6b0', '#fff0cc');
+  }
+
+  _nbDrawLand(g) {
+    const M = (p, f, e) => this._nbMtn(g, p, f, e);
+    const haze = (a) => {
+      g.fillStyle = `rgba(252,226,150,${a})`;
+      g.fillRect(0, 400, 2300, 900);
+    };
+
+    // Núi xa bên phải
+    M([[1650, 1300], [1690, 780], [1760, 600], [1810, 522], [1860, 512], [1910, 580], [1960, 740], [2000, 950], [2060, 1300]],
+      this._nbLG(g, 1650, 0, 2000, 0, [[0, '#a8984a'], [1, '#b8883a']]), () => {
+        g.fillStyle = 'rgba(70,90,40,.25)';
+        g.fillRect(1850, 500, 200, 800);
+        this._nbVeins(g, 300, 1700, 1980, 560, 1000, 9, 'rgba(110,70,30,.5)', 6);
+      });
+
+    M([[900, 1300], [920, 950], [950, 805], [990, 772], [1040, 830], [1100, 1000], [1160, 1300]],
+      this._nbLG(g, 900, 0, 1150, 0, [[0, '#b09a40'], [1, '#d4b458']]), () =>
+        this._nbVeins(g, 330, 930, 1120, 800, 1100, 6, 'rgba(120,90,30,.4)', 5));
+
+    M([[300, 1300], [320, 800], [380, 692], [440, 662], [500, 702], [560, 820], [610, 1300]],
+      this._nbLG(g, 300, 0, 600, 0, [[0, '#d0ac5c'], [1, '#9a8c46']]), null);
+
+    haze(0.1);
+
+    M([[1130, 1300], [1170, 1050], [1230, 872], [1292, 812], [1340, 832], [1390, 950], [1425, 1100], [1450, 1300]],
+      this._nbLG(g, 1130, 0, 1440, 0, [[0, '#d8b85a'], [0.5, '#9aa448'], [1, '#6a8a3c']]), () =>
+        this._nbVeins(g, 360, 1180, 1400, 850, 1200, 7, 'rgba(70,90,30,.4)', 5));
+
+    haze(0.08);
+
+    // Núi lớn giữa - trái
+    M([[430, 1300], [450, 900], [540, 722], [600, 652], [662, 612], [732, 626], [802, 682], [862, 762], [922, 902], [1002, 1102], [1052, 1300]],
+      this._nbLG(g, 430, 0, 1050, 0, [[0, '#0f4034'], [0.45, '#1c5a46'], [0.62, '#4a7a40'], [1, '#c8a24a']]), () => {
+        g.fillStyle = 'rgba(224,180,80,.4)';
+        g.beginPath();
+        g.moveTo(770, 650); g.lineTo(862, 762); g.lineTo(922, 902); g.lineTo(1002, 1102); g.lineTo(1052, 1300);
+        g.lineTo(930, 1300); g.lineTo(860, 960); g.lineTo(790, 780);
+        g.fill();
+        g.fillStyle = 'rgba(10,50,40,.5)';
+        g.beginPath();
+        g.moveTo(610, 650); g.lineTo(700, 700); g.lineTo(660, 900); g.lineTo(600, 1300);
+        g.lineTo(520, 1300); g.lineTo(560, 900);
+        g.fill();
+        this._nbVeins(g, 400, 520, 900, 700, 1100, 8, 'rgba(8,36,30,.55)', 6);
+        this._nbVeins(g, 420, 720, 960, 760, 1100, 5, 'rgba(230,190,90,.4)', 4);
+      });
+
+    // Vách phải
+    M([[1900, 1330], [1930, 900], [1990, 700], [2050, 592], [2108, 540], [2108, 1330]],
+      this._nbLG(g, 1900, 0, 2108, 0, [[0, '#8a8a3c'], [1, '#4a7a38']]), () => {
+        g.fillStyle = 'rgba(40,110,50,.7)';
+        for (let i = 0; i < 14; i++) {
+          g.beginPath();
+          g.arc(2020 + this._nbRnd(i) * 70, 600 + i * 28 + this._nbRnd(i + 3) * 20, 20 + this._nbRnd(i + 6) * 20, 0, 7);
+          g.fill();
+        }
+        this._nbVeins(g, 440, 1920, 2100, 700, 1200, 6, 'rgba(90,60,20,.45)', 5);
+      });
+
+    M([[1380, 1330], [1420, 1050], [1480, 852], [1540, 730], [1600, 696], [1652, 722], [1702, 802], [1762, 952], [1812, 1102], [1862, 1330]],
+      this._nbLG(g, 1380, 0, 1860, 0, [[0, '#a8a448'], [0.38, '#6a8a3c'], [0.62, '#1c5a44'], [1, '#0e3a30']]), () => {
+        g.fillStyle = 'rgba(230,190,80,.3)';
+        g.beginPath();
+        g.moveTo(1420, 1050); g.lineTo(1480, 852); g.lineTo(1540, 730); g.lineTo(1580, 740);
+        g.lineTo(1500, 960); g.lineTo(1470, 1330); g.lineTo(1380, 1330);
+        g.fill();
+        this._nbVeins(g, 460, 1560, 1840, 760, 1250, 8, 'rgba(6,34,28,.55)', 6);
+      });
+
+    // Vách trái tối
+    M([[105, 470], [200, 520], [262, 622], [332, 762], [402, 952], [472, 1152], [562, 1322], [105, 1330]],
+      this._nbLG(g, 105, 0, 560, 0, [[0, '#0e3a2e'], [1, '#1c5a44']]), () => {
+        this._nbVeins(g, 480, 110, 540, 520, 1250, 10, 'rgba(210,170,70,.65)', 6);
+        this._nbVeins(g, 510, 110, 500, 600, 1200, 6, 'rgba(6,30,24,.6)', 8);
+      });
+
+    M([[330, 1300], [350, 1000], [388, 850], [424, 962], [472, 1152], [530, 1300]], '#1c5040', () =>
+      this._nbVeins(g, 540, 340, 480, 870, 1200, 4, 'rgba(210,170,70,.55)', 5));
+
+    // Dải xanh chân núi
+    g.fillStyle = '#2c6a3a';
+    g.beginPath();
+    g.moveTo(520, 1300);
+    g.bezierCurveTo(540, 1230, 700, 1210, 800, 1215);
+    g.bezierCurveTo(900, 1210, 1020, 1200, 1060, 1250);
+    g.lineTo(1110, 1300);
+    g.fill();
+
+    // Chùa cổ
+    const wall = (x, y, w2, h2) => {
+      g.fillStyle = this._nbLG(g, x, 0, x + w2, 0, [[0, '#a89480'], [1, '#8a7260']]);
+      g.fillRect(x, y, w2, h2);
+    };
+    wall(540, 1165, 215, 55);
+    wall(585, 1112, 130, 56);
+    wall(745, 1210, 100, 40);
+    wall(830, 1190, 100, 60);
+    wall(930, 1215, 40, 35);
+
+    g.fillStyle = '#2e2018';
+    [[630, 1180, 50, 40], [610, 1130, 24, 28], [680, 1130, 24, 28], [855, 1200, 52, 50]].forEach(([x, y, w2, h2]) => {
+      g.beginPath();
+      g.moveTo(x, y + h2);
+      g.lineTo(x, y + w2 * 0.4);
+      g.quadraticCurveTo(x + w2 / 2, y - w2 * 0.2, x + w2, y + w2 * 0.4);
+      g.lineTo(x + w2, y + h2);
+      g.fill();
     });
 
-    // 8. Rặng cây, thảm cỏ, lau sậy rậm rạp hai bên bờ
-    this._drawLushFoliagePlanks(ctx, 0, h * 0.60, 1);
-    this._drawLushFoliagePlanks(ctx, w, h * 0.65, -1);
+    this._nbRoofShape(g, 536, 760, 1140, 30, '#6a5048', '#d0aa80');
+    this._nbRoofShape(g, 560, 740, 1088, 28, '#6a5048', '#d0aa80');
+    this._nbRoofShape(g, 826, 938, 1160, 26, '#6a5048', '#d0aa80');
 
-    // 9. Cây bụi lớn rậm rạp sẫm màu tiền cảnh phía dưới
-    this._drawForegroundRiverside(ctx, w * 0.05, h * 0.81);
+    g.fillStyle = '#6a5048';
+    g.fillRect(644, 1066, 8, 24);
+    g.beginPath();
+    g.arc(648, 1064, 6, 0, 7);
+    g.fill();
 
-    ctx.restore();
+    for (let i = 0; i < 16; i++) {
+      g.fillStyle = i % 2 ? '#1e5230' : '#2c6a3a';
+      g.beginPath();
+      g.arc(530 + i * 36 + this._nbRnd(i) * 20, 1245 - this._nbRnd(i + 4) * 24, 30 + this._nbRnd(i + 8) * 18, 0, 7);
+      g.fill();
+    }
+    [[760, 1190], [800, 1200]].forEach(([x, y]) => {
+      g.fillStyle = '#1e4a2c';
+      g.beginPath();
+      g.arc(x, y, 34, 0, 7);
+      g.fill();
+    });
+
+    // Đồng cỏ
+    g.fillStyle = this._nbLG(g, 0, 1260, 0, 1652, [[0, '#4a8a3e'], [0.4, '#2e6a38'], [1, '#1c5230']]);
+    g.beginPath();
+    g.moveTo(105, 1330);
+    g.bezierCurveTo(400, 1330, 600, 1300, 1100, 1262);
+    g.lineTo(1300, 1262);
+    g.lineTo(2108, 1250);
+    g.lineTo(2108, 1652);
+    g.lineTo(105, 1652);
+    g.fill();
+
+    g.fillStyle = this._nbLG(g, 0, 1250, 0, 1450, [[0, '#5a9a44'], [1, '#3a7a3a']]);
+    g.beginPath();
+    g.moveTo(1290, 1290); g.lineTo(1400, 1250); g.lineTo(2108, 1200); g.lineTo(2108, 1560);
+    g.lineTo(1480, 1525); g.lineTo(1100, 1490); g.lineTo(1045, 1445); g.lineTo(1250, 1330);
+    g.fill();
+
+    g.fillStyle = '#a89a50';
+    g.beginPath();
+    g.moveTo(1930, 1330); g.lineTo(2108, 1200); g.lineTo(2108, 1400);
+    g.fill();
+
+    // Sông Ngô Đồng
+    const riv = [
+      [1100, 1262], [1030, 1302], [930, 1352], [832, 1402], [772, 1472], [756, 1552], [790, 1652],
+      [2108, 1652], [2108, 1585], [1900, 1566], [1600, 1546], [1300, 1520], [1120, 1482],
+      [1046, 1446], [1070, 1406], [1160, 1362], [1250, 1326], [1288, 1296], [1252, 1268], [1180, 1258]
+    ];
+    this._nbSmoothPath(g, riv);
+    g.fillStyle = this._nbLG(g, 0, 1258, 0, 1652, [[0, '#8cc8a0'], [0.3, '#3a9a76'], [1, '#2a7a62']]);
+    g.fill();
+    g.strokeStyle = 'rgba(60,44,26,.85)';
+    g.lineWidth = 5;
+    g.stroke();
+
+    g.fillStyle = this._nbLG(g, 0, 1500, 0, 1652, [[0, 'rgba(120,190,200,0)'], [1, 'rgba(120,190,200,.5)']]);
+    g.fillRect(1500, 1520, 608, 132);
   }
 
-  // ==========================================
-  // CÁC HÀM PHỤ TRỢ CHI TIẾT NINH BÌNH
-  // ==========================================
+  _nbDrawFgLayer(g) {
+    [[180, 1240, 160], [270, 1310, 130], [450, 1300, 120], [560, 1350, 110], [160, 1440, 170], [340, 1450, 140]]
+      .forEach(([x, y, r], i) => this._nbPalmTree(g, x, y, r, i % 2 ? '#7a9a3a' : '#a4b84a', i % 2 ? '#2e6a3a' : '#5a8a38', 0));
 
-  // Vẽ đàn chim bay (Flock of Birds)
-  _drawFlockOfBirds(ctx) {
+    [[1400, 1372, 120], [1510, 1330, 130], [1700, 1332, 120], [1810, 1380, 120], [1920, 1410, 110]]
+      .forEach(([x, y, r], i) => this._nbPalmTree(g, x, y, r, i % 2 ? '#8aa83c' : '#b4c458', '#2e6a3a', 60));
+
+    g.fillStyle = '#10382e';
+    [[1300, 1370, 60], [1340, 1340, 50], [1330, 1400, 55], [1370, 1390, 40]].forEach(([x, y, r]) => {
+      g.beginPath();
+      g.arc(x, y, r, 0, 7);
+      g.fill();
+    });
+
+    g.fillStyle = '#2a7a36';
+    for (let i = 0; i < 12; i++) {
+      g.beginPath();
+      g.arc(2000 + this._nbRnd(i) * 108, 1300 + this._nbRnd(i + 3) * 200, 40 + this._nbRnd(i + 6) * 36, 0, 7);
+      g.fill();
+    }
+
+    for (let i = 0; i < 14; i++) {
+      this._nbBladeShape(g, 105 + i * 24, 1652, 280 + (i % 4) * 70, -1.6 - (i % 5) * 0.1 + 0.3, 11, i % 2 ? '#0c2a26' : '#143a30');
+    }
+
+    g.strokeStyle = '#6a4a30';
+    g.lineWidth = 5;
+    [[560, 1480], [640, 1530], [720, 1505]].forEach(([x, y]) => {
+      g.beginPath();
+      g.moveTo(x - 10, 1652);
+      g.quadraticCurveTo(x - 6, (y + 1652) / 2, x, y + 20);
+      g.stroke();
+      g.fillStyle = '#7a4a2a';
+      g.beginPath();
+      g.ellipse(x, y, 8, 26, 0.1, 0, 7);
+      g.fill();
+    });
+
+    for (let i = 0; i < 10; i++) {
+      this._nbBladeShape(g, 600 + i * 22, 1652, 160 + (i % 3) * 60, -1.5 + (i - 5) * 0.12, 8, i % 2 ? '#2a6a34' : '#4a8a3c');
+    }
+    for (let i = 0; i < 10; i++) {
+      this._nbBladeShape(g, 1860 + i * 24, 1652, 220 + (i % 3) * 60, -1.5 + (i - 5) * 0.1, 9, i % 2 ? '#0e3a2e' : '#1c5a40');
+    }
+
+    g.fillStyle = '#8a7a6a';
+    g.beginPath();
+    g.ellipse(900, 1620, 50, 18, 0, 0, 7);
+    g.fill();
+  }
+
+  // ------------------------------------------
+  // LỚP ĐỘNG
+  // ------------------------------------------
+  _nbDrawWater(ctx, t) {
     ctx.save();
-    ctx.strokeStyle = '#3d4a36';
-    ctx.lineWidth = 1.2;
-    const birds = [
-      { x: this.width * 0.68, y: this.height * 0.28, size: 6 },
-      { x: this.width * 0.74, y: this.height * 0.26, size: 5 },
-      { x: this.width * 0.62, y: this.height * 0.32, size: 7 },
-      { x: this.width * 0.54, y: this.height * 0.36, size: 6.5 },
-      { x: this.width * 0.49, y: this.height * 0.34, size: 5.5 }
+    ctx.lineCap = 'round';
+    const flows = [
+      [1150, 1285, 1080, 1330, 930, 1390, 850, 1470],
+      [1190, 1300, 1120, 1350, 1000, 1400, 900, 1500],
+      [850, 1540, 980, 1580, 1100, 1560, 1300, 1580],
+      [1000, 1590, 1200, 1620, 1500, 1620, 1700, 1610],
+      [1450, 1560, 1600, 1590, 1800, 1585, 2000, 1610],
+      [920, 1470, 960, 1510, 1010, 1550, 1060, 1560]
     ];
-    birds.forEach((bird, idx) => {
-      const swing = Math.sin(this.animTimer * 6 + idx) * 2;
-      const bx = bird.x - (this.animTimer * 10) % 250; // Trôi nhẹ qua trái
-      const by = bird.y;
 
+    flows.forEach((f, i) => {
+      ctx.setLineDash([70 + i * 8, 46]);
+      ctx.lineDashOffset = -t * (16 + i * 3);
+      ctx.strokeStyle = `rgba(230,250,235,${0.28 + 0.14 * Math.sin(t + i)})`;
+      ctx.lineWidth = 5 - (i > 1 ? 0 : 1);
       ctx.beginPath();
-      ctx.moveTo(bx, by);
-      ctx.quadraticCurveTo(bx + bird.size * 0.5, by - bird.size * 0.4 + swing, bx + bird.size, by);
-      ctx.quadraticCurveTo(bx + bird.size * 1.5, by - bird.size * 0.4 + swing, bx + bird.size * 2, by);
+      ctx.moveTo(f[0], f[1]);
+      ctx.bezierCurveTo(f[2], f[3], f[4], f[5], f[6], f[7]);
       ctx.stroke();
     });
+
+    ctx.setLineDash([]);
+    ctx.strokeStyle = 'rgba(240,255,240,.30)';
+    ctx.lineWidth = 2.5;
+    for (let i = 0; i < 26; i++) {
+      const x = 800 + this._nbRnd(i) * 1250;
+      const y = 1470 + this._nbRnd(i + 5) * 170;
+      if (y < 1460 + (x - 800) * 0.05) continue;
+      const len = 30 + this._nbRnd(i + 9) * 60;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + len, y + Math.sin(t * 2 + i) * 2);
+      ctx.stroke();
+    }
     ctx.restore();
   }
 
-  // Vẽ cổng tam quan đá cổ kính ẩn hiện (Ancient Temple Gate)
-  _drawAncientTempleGate(ctx, x, y, scale) {
+  _nbBoat(ctx, b, t) {
+    const bob = Math.sin(t * 1.6 + b.p) * 2 * b.s;
+    const dx = Math.sin(t * 0.35 + b.p) * 14 * b.s;
+
     ctx.save();
-    ctx.translate(x, y);
-    ctx.scale(scale, scale);
+    ctx.translate(b.x + dx, b.y + bob);
+    ctx.scale(b.s * b.d, b.s);
 
-    // Mái ngói đền cổ màu đỏ sẫm bám rêu
-    ctx.fillStyle = '#4a2318';
-    // Mái tầng trên
+    ctx.fillStyle = 'rgba(255,255,255,.28)';
     ctx.beginPath();
-    ctx.moveTo(-15, -18);
-    ctx.quadraticCurveTo(0, -28, 15, -18);
-    ctx.lineTo(12, -14);
-    ctx.quadraticCurveTo(0, -22, -12, -14);
-    ctx.closePath();
+    ctx.ellipse(0, 6, 54, 8, 0, 0, 7);
     ctx.fill();
 
-    // Mái tầng dưới rộng hơn
+    ctx.fillStyle = '#6a3e22';
     ctx.beginPath();
-    ctx.moveTo(-28, -6);
-    ctx.quadraticCurveTo(0, -14, 28, -6);
-    ctx.lineTo(24, -2);
-    ctx.quadraticCurveTo(0, -8, -24, -2);
-    ctx.closePath();
+    ctx.moveTo(-52, -4);
+    ctx.quadraticCurveTo(0, 14, 52, -4);
+    ctx.lineTo(44, -12);
+    ctx.lineTo(-44, -12);
     ctx.fill();
+    ctx.fillStyle = '#a07040';
+    ctx.fillRect(-44, -13, 88, 4);
 
-    // Thân tháp và cột trụ đá phong rêu
-    ctx.fillStyle = '#5c5247'; // Đá xám phong rêu
-    ctx.fillRect(-18, -14, 36, 12);
-    // Cổng chính
-    ctx.fillRect(-24, -2, 48, 18);
+    for (let i = 0; i < b.n; i++) {
+      const x = -18 + i * 38;
+      ctx.fillStyle = i % 2 ? '#2a6a8a' : '#6a8a4a';
+      ctx.fillRect(x - 6, -34, 12, 22);
+      ctx.fillStyle = '#c8905a';
+      ctx.beginPath();
+      ctx.arc(x, -40, 6, 0, 7);
+      ctx.fill();
+      ctx.fillStyle = '#e0c488';
+      ctx.beginPath();
+      ctx.moveTo(x - 16, -38);
+      ctx.lineTo(x, -56);
+      ctx.lineTo(x + 16, -38);
+      ctx.fill();
+    }
 
-    // Vòm cổng tam quan (Cổng đá cũ)
-    ctx.fillStyle = '#171513';
+    ctx.strokeStyle = '#5a3a22';
+    ctx.lineWidth = 3;
+    const o = Math.sin(t * 2 + b.p) * 6;
     ctx.beginPath();
-    ctx.arc(0, 16, 8, Math.PI, 0, false);
-    ctx.lineTo(8, 16);
-    ctx.lineTo(-8, 16);
-    ctx.closePath();
-    ctx.fill();
-
-    // Cổng phụ hai bên
-    ctx.beginPath();
-    ctx.arc(-16, 16, 4, Math.PI, 0, false);
-    ctx.lineTo(-12, 16);
-    ctx.lineTo(-20, 16);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.arc(16, 16, 4, Math.PI, 0, false);
-    ctx.lineTo(20, 16);
-    ctx.lineTo(12, 16);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.restore();
-  }
-
-  // Vẽ chiếc thuyền nan và người chèo (Thuyền nan mộc mạc)
-  _drawNinhBinhRowboat(ctx, x, y, scale, oarPhase) {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.scale(scale, scale);
-
-    // Thân thuyền nan mộc bằng tre đan/gỗ
-    ctx.fillStyle = '#a68058';
-    ctx.beginPath();
-    ctx.moveTo(-18, 0);
-    ctx.quadraticCurveTo(0, 6, 18, 0);
-    ctx.quadraticCurveTo(0, -4, -18, 0);
-    ctx.closePath();
-    ctx.fill();
-
-    // Lớp gỗ lót sẫm màu phía trong thuyền
-    ctx.fillStyle = '#7a5a3a';
-    ctx.beginPath();
-    ctx.moveTo(-14, 0);
-    ctx.quadraticCurveTo(0, 4, 14, 0);
-    ctx.quadraticCurveTo(0, -2, -14, 0);
-    ctx.closePath();
-    ctx.fill();
-
-    // Người row (Mặc quần áo sẫm, đội nón lá)
-    ctx.fillStyle = '#264653';
-    ctx.fillRect(-6, -8, 5, 8); // Áo bà ba sẫm
-    ctx.fillStyle = '#f4a261'; // Nón lá mộc mạc
-    ctx.beginPath();
-    ctx.moveTo(-10, -8);
-    ctx.lineTo(-4, -15);
-    ctx.lineTo(2, -8);
-    ctx.closePath();
-    ctx.fill();
-
-    // Du khách ngắm cảnh (Phía trước)
-    ctx.fillStyle = '#e76f51';
-    ctx.fillRect(4, -6, 5, 6);
-    ctx.fillStyle = '#e9c46a'; // Nón lá/Mũ du khách
-    ctx.beginPath();
-    ctx.moveTo(1, -6);
-    ctx.lineTo(6, -11);
-    ctx.lineTo(11, -6);
-    ctx.closePath();
-    ctx.fill();
-
-    // Mái chèo nhấp nhô dưới sông (Animated Oars)
-    const oarSway = Math.sin(this.animTimer * 2 + oarPhase) * 6;
-    ctx.strokeStyle = '#4a2f18';
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.moveTo(-3, -2);
-    ctx.lineTo(-10 + oarSway, 8);
-    ctx.moveTo(-3, -2);
-    ctx.lineTo(4 - oarSway, 8);
+    ctx.moveTo(-14, -28);
+    ctx.lineTo(-60, 10 + o);
+    ctx.moveTo(14, -28);
+    ctx.lineTo(60, 10 - o);
     ctx.stroke();
 
     ctx.restore();
   }
 
-  // Vẽ rặng lau sậy & cây cối rậm rạp hai bên sườn núi
-  _drawLushFoliagePlanks(ctx, startX, startY, dir) {
+  _nbDrawRays(ctx, t) {
     ctx.save();
-    ctx.fillStyle = '#1e3822'; // Màu bụi cỏ sẫm
-    ctx.beginPath();
-    ctx.moveTo(startX, startY);
-    ctx.quadraticCurveTo(startX + dir * 68, startY + 60, startX + dir * 52, this.height);
-    ctx.lineTo(startX, this.height);
-    ctx.closePath();
-    ctx.fill();
-
-    // Vẽ lá cọ, xum xuê thực vật (tropical palms / lau sậy)
-    ctx.strokeStyle = '#2d4a22';
-    ctx.lineWidth = 2.0;
-    for (let p = 0; p < 9; p++) {
-      const py = startY + 25 + p * 38;
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 6; i++) {
+      const a = -2.2 + i * 0.28;
+      const al = 0.02 + 0.015 * Math.sin(t * 0.8 + i);
+      ctx.fillStyle = `rgba(255,220,130,${al})`;
       ctx.beginPath();
-      ctx.moveTo(startX, py);
-      ctx.quadraticCurveTo(startX + dir * 62, py - 18, startX + dir * 78, py + 12);
-      ctx.stroke();
-    }
-    ctx.restore();
-  }
-
-  // Vẽ cảnh bụi cây rực rỡ và lau sậy tự nhiên ở mặt nước (Bên trái dưới cùng)
-  _drawForegroundRiverside(ctx, startX, startY) {
-    ctx.save();
-    ctx.translate(startX, startY);
-
-    // Cây bụi lớn rậm rạp màu xanh sẫm
-    ctx.fillStyle = '#0f241a';
-    ctx.beginPath();
-    ctx.arc(-20, 45, 32, 0, Math.PI * 2);
-    ctx.arc(8, 32, 28, 0, Math.PI * 2);
-    ctx.arc(38, 52, 24, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Lá cọ và cỏ dại nhô cao lấp lánh
-    ctx.strokeStyle = '#1d3f23';
-    ctx.lineWidth = 2.2;
-    for (let c = 0; c < 8; c++) {
-      const cy = 40 + c * 8;
-      const cx = -10 + c * 6;
-      ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.quadraticCurveTo(cx - 15, cy - 36, cx - 28, cy - 42);
-      ctx.stroke();
-    }
-
-    // Các cụm lau sậy nhỏ
-    ctx.fillStyle = '#d4a373'; // Màu bông lau vàng nhạt
-    for (let r = 0; r < 5; r++) {
-      const rx = 12 + r * 6;
-      const ry = 42 - r * 3;
-      ctx.fillRect(rx, ry, 2.5, 3.5);
-    }
-    ctx.restore();
-  }
-
-  // Vẽ mây sương nhạt trên đồi núi (Misty Clouds)
-  _drawSoftNBMistyClouds(ctx, baseY, alpha, count) {
-    ctx.save();
-    ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
-    for (let i = 0; i < count; i++) {
-      const cx = ((i * 150 + this.scrollX * 0.18) % (this.width + 180)) - 90;
-      const cy = baseY + (i % 2) * 14;
-      ctx.beginPath();
-      ctx.arc(cx, cy, 32, 0, Math.PI * 2);
-      ctx.arc(cx + 25, cy - 10, 38, 0, Math.PI * 2);
-      ctx.arc(cx + 52, cy, 30, 0, Math.PI * 2);
+      ctx.moveTo(1170, 1180);
+      ctx.lineTo(1170 + Math.cos(a - 0.025) * 1100, 1180 + Math.sin(a - 0.025) * 1100);
+      ctx.lineTo(1170 + Math.cos(a + 0.025) * 1100, 1180 + Math.sin(a + 0.025) * 1100);
       ctx.fill();
     }
     ctx.restore();
   }
 
-  // Vẽ vệt lấp lánh gợn nước sông tự nhiên
-  _drawWaterRipples(ctx, startY) {
+  _nbDrawMotes(ctx, t, scene) {
+    // Dùng một sprite phát sáng dựng sẵn để không phải tạo gradient mỗi khung hình
+    if (!scene.glow) scene.glow = this._nbGlowSprite();
     ctx.save();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-    ctx.lineWidth = 1.0;
-    for (let i = 0; i < 15; i++) {
-      const ry = startY + 22 + i * 26;
-      const rx = ((this.scrollX * 0.8 + i * 85) % this.width);
-      ctx.beginPath();
-      ctx.moveTo(rx, ry);
-      ctx.lineTo(rx + 42, ry);
-      ctx.stroke();
+    ctx.globalCompositeOperation = 'lighter';
+    for (const m of scene.motes) {
+      const x = m.x + Math.sin(t * 0.5 + m.p) * 30;
+      const y = m.y - ((t * 10 + m.p * 40) % 140);
+      const a = 0.35 + 0.55 * Math.abs(Math.sin(t + m.p));
+      ctx.globalAlpha = a;
+      ctx.drawImage(scene.glow, x - 11, y - 11, 22, 22);
     }
     ctx.restore();
   }
 
+  _nbDrawBirds(ctx, t, scene) {
+    ctx.strokeStyle = '#5a3a4a';
+    ctx.lineWidth = 3.5;
+    ctx.lineCap = 'round';
+    for (const b of scene.birds) {
+      const x = b.x + Math.sin(t * 0.4 + b.p) * 40;
+      const y = b.y + Math.sin(t * 0.8 + b.p) * 10;
+      const f = Math.sin(t * 5 + b.p) * 6;
+      ctx.beginPath();
+      ctx.moveTo(x - b.s, y - 10 + f);
+      ctx.quadraticCurveTo(x - b.s / 2, y + 4, x, y + 2);
+      ctx.quadraticCurveTo(x + b.s / 2, y + 4, x + b.s, y - 10 + f);
+      ctx.stroke();
+    }
+  }
+
+  // Khung lá tối ở hai góc dưới (dùng toạ độ khung vẽ, cho khung dọc vẫn có tiền cảnh)
+  _nbDrawFrame(ctx, w, h) {
+    const short = Math.min(w, h);
+
+    const crown = (x, y, len, rot, c1, c2) => {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(rot);
+      for (let i = 0; i < 9; i++) {
+        const ang = -Math.PI * 0.96 + (i / 8) * Math.PI * 0.9;
+        const l = len * (0.72 + this._nbRnd(i * 3 + 1) * 0.4);
+        const halfW = len * 0.07;
+        ctx.fillStyle = i % 2 ? c1 : c2;
+        ctx.beginPath();
+        ctx.moveTo(-halfW, 0);
+        ctx.quadraticCurveTo(Math.cos(ang) * l * 0.55 - halfW, Math.sin(ang) * l * 0.55,
+          Math.cos(ang) * l, Math.sin(ang) * l);
+        ctx.quadraticCurveTo(Math.cos(ang) * l * 0.55 + halfW, Math.sin(ang) * l * 0.55,
+          halfW, 0);
+        ctx.fill();
+      }
+      ctx.restore();
+    };
+
+    crown(-0.02 * w, h * 1.02, 0.30 * short, 0.30, '#0d3226', '#144533');
+    crown(w * 1.02, h * 1.03, 0.28 * short, -0.32, '#0c2f24', '#123f2f');
+
+    // Lớp tối mỏng ở đáy tranh
+    const base = ctx.createLinearGradient(0, h * 0.90, 0, h);
+    base.addColorStop(0, 'rgba(9, 34, 26, 0)');
+    base.addColorStop(1, 'rgba(9, 34, 26, 0.42)');
+    ctx.fillStyle = base;
+    ctx.fillRect(0, h * 0.90, w, h * 0.10);
+  }
 
   // ==========================================
   // PANEL 3: HÀ NỘI (Tháp Rùa Hồ Gươm & Cầu Long Biên)
@@ -1544,12 +2089,12 @@ export class ScenicLandmarksManager {
 
     // 1. Bầu trời hoàng hôn tím Cố Đô (Deep Royal Twilight Sky)
     c.fillStyle = this._hueLg(c, 0, 0, 0, 1000, [
-      [0, '#2b1a6e'],
-      [0.35, '#4d2486'],
-      [0.6, '#8a3a86'],
-      [0.8, '#d0607a'],
-      [0.93, '#f4975a'],
-      [1, '#ffb86a']
+      [0, '#2f7fc0'],
+      [0.35, '#5aa5d4'],
+      [0.6, '#96c8e0'],
+      [0.8, '#d7e4dc'],
+      [0.93, '#f6e8c4'],
+      [1, '#ffeccb']
     ]);
     c.fillRect(minX - 50, 0, baseW + 100, 1100);
 
@@ -1563,37 +2108,37 @@ export class ScenicLandmarksManager {
 
     // 3. Vầng trăng huyền ảo xứ Huế
     const moonX = isMobile ? 860 : 1760;
-    c.fillStyle = this._hueRg(c, moonX, 160, 20, isMobile ? 100 : 140, [
-      [0, 'rgba(255,230,240,.35)'],
-      [1, 'rgba(255,200,230,0)']
+    c.fillStyle = this._hueRg(c, moonX, 160, 20, isMobile ? 110 : 150, [
+      [0, 'rgba(255, 250, 225, .55)'],
+      [1, 'rgba(255, 240, 195, 0)']
     ]);
-    c.fillRect(moonX - 150, 0, 320, 320);
-    c.fillStyle = 'rgba(235,210,240,.55)';
+    c.fillRect(moonX - 160, 0, 340, 340);
+    c.fillStyle = 'rgba(255, 252, 236, .92)';
     c.beginPath();
-    c.arc(moonX, 160, isMobile ? 48 : 62, 0, Math.PI * 2);
+    c.arc(moonX, 160, isMobile ? 40 : 50, 0, Math.PI * 2);
     c.fill();
-    // Vầng trăng / tinh tú phụ
+    // Mây nhỏ phụ
     const secX = isMobile ? 670 : 1375;
-    c.fillStyle = '#c9b6d8';
+    c.fillStyle = 'rgba(255, 255, 255, .55)';
     c.beginPath();
-    c.arc(secX, 210, isMobile ? 24 : 32, 0, Math.PI * 2);
+    c.ellipse(secX, 210, isMobile ? 34 : 46, isMobile ? 10 : 13, 0, 0, Math.PI * 2);
     c.fill();
 
     // 4. Mây hoàng hôn bồng bềnh nhiều tầng
     if (isMobile) {
-      this._hueCloud(c, [[160, 520, 75], [260, 470, 90], [380, 500, 85], [480, 530, 60], [80, 540, 50]], 590, '#9a6a98', '#d9a0b0');
-      this._hueCloud(c, [[820, 640, 70], [920, 570, 100], [1010, 600, 75], [740, 660, 50]], 700, '#a46aa0', '#e8aab0');
-      this._hueCloud(c, [[600, 850, 75], [720, 790, 110], [840, 820, 85], [540, 880, 50]], 930, '#c07a96', '#ffb88a');
-      this._hueCloud(c, [[460, 720, 70], [550, 690, 80], [630, 740, 50]], 780, '#8c5a90', '#d490a8');
+      this._hueCloud(c, [[160, 520, 75], [260, 470, 90], [380, 500, 85], [480, 530, 60], [80, 540, 50]], 590, '#c9d8e4', '#eef4f6');
+      this._hueCloud(c, [[820, 640, 70], [920, 570, 100], [1010, 600, 75], [740, 660, 50]], 700, '#bfd2e0', '#e9f1f4');
+      this._hueCloud(c, [[600, 850, 75], [720, 790, 110], [840, 820, 85], [540, 880, 50]], 930, '#d9e4ea', '#f8eedb');
+      this._hueCloud(c, [[460, 720, 70], [550, 690, 80], [630, 740, 50]], 780, '#c2d2de', '#e8f0f2');
     } else {
-      this._hueCloud(c, [[300, 520, 90], [420, 470, 110], [560, 500, 100], [700, 530, 70], [180, 540, 60]], 590, '#9a6a98', '#d9a0b0');
-      this._hueCloud(c, [[1750, 640, 80], [1880, 570, 120], [2000, 600, 90], [1650, 660, 60]], 700, '#a46aa0', '#e8aab0');
-      this._hueCloud(c, [[1250, 850, 90], [1400, 790, 130], [1560, 820, 100], [1180, 880, 60]], 930, '#c07a96', '#ffb88a');
-      this._hueCloud(c, [[950, 720, 80], [1060, 690, 90], [1150, 740, 60]], 780, '#8c5a90', '#d490a8');
+      this._hueCloud(c, [[300, 520, 90], [420, 470, 110], [560, 500, 100], [700, 530, 70], [180, 540, 60]], 590, '#c9d8e4', '#eef4f6');
+      this._hueCloud(c, [[1750, 640, 80], [1880, 570, 120], [2000, 600, 90], [1650, 660, 60]], 700, '#bfd2e0', '#e9f1f4');
+      this._hueCloud(c, [[1250, 850, 90], [1400, 790, 130], [1560, 820, 100], [1180, 880, 60]], 930, '#d9e4ea', '#f8eedb');
+      this._hueCloud(c, [[950, 720, 80], [1060, 690, 90], [1150, 740, 60]], 780, '#c2d2de', '#e8f0f2');
     }
 
     // 5. Đồi núi xa & Rừng cây tím hoàng hôn
-    c.fillStyle = '#4a2c64';
+    c.fillStyle = '#4c6b52';
     c.beginPath();
     const hillStartX = isMobile ? 650 : 1500;
     c.moveTo(hillStartX, 1000);
@@ -1863,22 +2408,22 @@ export class ScenicLandmarksManager {
 
     // 9. DÒNG SÔNG HƯƠNG (PERFUME RIVER)
     c.fillStyle = this._hueLg(c, 0, 1090, 0, 1652, [
-      [0, '#4a2c70'],
-      [0.3, '#2c1a52'],
-      [1, '#1a1038']
+      [0, '#6ba0b8'],
+      [0.3, '#4a7f9b'],
+      [1, '#2f5c76']
     ]);
     c.fillRect(minX - 50, 1090, baseW + 100, 562);
 
     // Ánh hoàng hôn rọi sáng trên mặt nước sông
     c.fillStyle = this._hueLg(c, 0, 1090, 0, 1260, [
-      [0, 'rgba(255,150,120,.4)'],
-      [1, 'rgba(255,150,120,0)']
+      [0, 'rgba(255, 244, 210, .30)'],
+      [1, 'rgba(255, 244, 210, 0)']
     ]);
     c.fillRect(minX - 50, 1090, baseW + 100, 170);
 
     // 10. TRỤ CẦU & BẢN MẶT ĐƯỜNG CẦU TRÀNG TIỀN
     const deckStartX = isMobile ? 480 : 850;
-    c.fillStyle = '#2a2050';
+    c.fillStyle = '#6b7f8e';
     if (isMobile) {
       c.fillRect(720, 1100, 90, 110);
       c.fillRect(980, 1100, 90, 120);
@@ -1988,10 +2533,10 @@ export class ScenicLandmarksManager {
     arches.forEach(([x0, x1, h, k]) => {
       const n = Math.round((x1 - x0) / 20);
       const top = (u, hh) => dY - 8 - hh * 4 * u * (1 - u);
-      const col = (u, l, a) => `hsla(${this._hueColor(t * 0.12 + k * 0.33 + u * 0.35)},100%,${l}%,${a})`;
+      const col = (u, l, a) => `hsla(${200 + this._hueColor(k * 0.33 + u * 0.35) * 30}, 45%, ${Math.min(96, l + 26)}%, ${a * 0.5})`;
 
-      // Nền vòm cầu tối
-      c.fillStyle = 'rgba(22,10,64,.55)';
+      // Nền vòm cầu (thép sáng ban ngày)
+      c.fillStyle = 'rgba(96, 116, 132, .45)';
       c.beginPath();
       c.moveTo(x0, dY - 6);
       for (let i = 0; i <= 40; i++) {
@@ -2014,10 +2559,10 @@ export class ScenicLandmarksManager {
         }
       };
 
-      stroke(h, 26, 50, 0.10);  // Tán sáng ngoài rộng
-      stroke(h, 14, 55, 0.18);  // Vầng hào quang neon
-      stroke(h, 7, 68, 1.0);    // Lõi vòm sáng chính
-      stroke(h * 0.84, 3, 70, 0.85); // Thanh giằng cong phụ
+      stroke(h, 26, 50, 0.05);   // Tán sáng ngoài rộng (dịu)
+      stroke(h, 14, 55, 0.10);   // Vầng sáng
+      stroke(h, 7, 68, 0.55);    // Thân vòm
+      stroke(h * 0.84, 3, 70, 0.45); // Thanh giằng cong phụ
 
       // Thanh giằng đứng & chéo
       for (let i = 0; i <= n; i++) {
@@ -2098,8 +2643,8 @@ export class ScenicLandmarksManager {
 
     const glowX = isMobile ? 660 : 1000;
     c.fillStyle = this._hueRg(c, glowX, 1140, 10, 900, [
-      [0, 'rgba(255,150,110,.28)'],
-      [1, 'rgba(255,150,110,0)']
+      [0, 'rgba(255, 238, 196, .22)'],
+      [1, 'rgba(255, 238, 196, 0)']
     ]);
     c.fillRect(minX - 50, 1112, scene.baseW + 100, 540);
 
@@ -2111,10 +2656,9 @@ export class ScenicLandmarksManager {
       const y = 1130 + i * (isMobile ? 7.2 : 4.4) + this._hueRnd(i) * 6;
       const x = spanStartX + this._hueRnd(i + 20) * spanW;
       const w = 70 + this._hueRnd(i + 40) * (isMobile ? 120 : 190);
-      const hue = this._hueColor(t * 0.12 + ((x - spanStartX) / spanW) * 1.0);
       const a = (0.2 + 0.4 * Math.abs(Math.sin(t * 1.8 + i))) * (y < 1420 ? 1 : 0.5);
 
-      c.strokeStyle = `hsla(${hue},100%,62%,${a * 0.35})`;
+      c.strokeStyle = `rgba(226, 244, 250, ${a * 0.30})`;
       c.lineWidth = 9;
       c.beginPath();
       c.moveTo(x - w / 2, y);
@@ -2123,7 +2667,7 @@ export class ScenicLandmarksManager {
       }
       c.stroke();
 
-      c.strokeStyle = `hsla(${hue},100%,78%,${a})`;
+      c.strokeStyle = `rgba(255, 255, 255, ${a * 0.75})`;
       c.lineWidth = 2.6;
       c.stroke();
     }
@@ -2274,7 +2818,12 @@ export class ScenicLandmarksManager {
 
     // 8. Tiền cảnh: quảng trường lan can đá & rặng dừa nhiệt đới
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.drawImage(scene.fg, 0, 0);
+    if (scene.portrait) {
+      // Khung dọc: rặng dừa tiền cảnh vẽ riêng ở hai góc dưới để không che đầu rồng
+      this._danangFrame(ctx, scene.W, scene.H);
+    } else {
+      ctx.drawImage(scene.fg, 0, 0);
+    }
 
     // 9. Lớp vignette mềm mại bao quanh viền tranh
     this._danangT(ctx, scene);
@@ -2285,6 +2834,51 @@ export class ScenicLandmarksManager {
     ctx.fillRect(105, 0, 2003, 1652);
 
     ctx.restore();
+  }
+
+  // Khung dọc: rặng dừa tối ở hai góc dưới — giữ tiền cảnh mà không che đầu rồng
+  _danangFrame(ctx, w, h) {
+    const short = Math.min(w, h);
+
+    const crown = (x, y, len, rot, c1, c2, rim) => {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(rot);
+      for (let i = 0; i < 11; i++) {
+        const ang = -Math.PI * 0.99 + (i / 10) * Math.PI * 0.98;
+        const l = len * (0.7 + this._danangRnd(i * 3 + 1) * 0.5);
+        const hw = len * 0.055;
+        const tipX = Math.cos(ang) * l;
+        const tipY = Math.sin(ang) * l;
+        const midX = Math.cos(ang) * l * 0.55;
+        const midY = Math.sin(ang) * l * 0.55;
+        ctx.fillStyle = i % 2 ? c1 : c2;
+        ctx.beginPath();
+        ctx.moveTo(-hw, 0);
+        ctx.quadraticCurveTo(midX - hw, midY, tipX, tipY);
+        ctx.quadraticCurveTo(midX + hw, midY, hw, 0);
+        ctx.closePath();
+        ctx.fill();
+        if (rim) {
+          ctx.strokeStyle = rim;
+          ctx.lineWidth = Math.max(0.7, w * 0.0022);
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.quadraticCurveTo(midX - hw * 0.2, midY - 2, tipX, tipY);
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+    };
+
+    crown(-0.02 * w, h * 1.10, 0.30 * short, 0.26, '#03131c', '#062330', 'rgba(110,190,210,.35)');
+    crown(w * 1.03, h * 1.12, 0.28 * short, -0.28, '#03131c', '#05202a', 'rgba(110,190,210,.3)');
+
+    const base = ctx.createLinearGradient(0, h * 0.9, 0, h);
+    base.addColorStop(0, 'rgba(3, 10, 22, 0)');
+    base.addColorStop(1, 'rgba(3, 10, 22, 0.5)');
+    ctx.fillStyle = base;
+    ctx.fillRect(0, h * 0.9, w, h * 0.1);
   }
 
   _getDaNangScene() {
@@ -2298,9 +2892,15 @@ export class ScenicLandmarksManager {
 
     const W = width;
     const H = height;
-    const K = Math.max(W / 2003, H / 1652);
-    const offsetX = (W - 2003 * K) / 2 - 105 * K;
-    const offsetY = (H - 1652 * K) / 2;
+
+    // Khung dọc: neo thẳng vào Cầu Rồng (đầu rồng, nhịp vòm và skyline Mỹ Khê)
+    // thay vì cắt giữa tranh — nhờ vậy rồng phun lửa vẫn nằm trong khung.
+    const portrait = W / H < 1;
+    const K = portrait ? H / 1652 : Math.max(W / 2003, H / 1652);
+    const offsetX = portrait
+      ? W / 2 - 1580 * K
+      : (W - 2003 * K) / 2 - 105 * K;
+    const offsetY = portrait ? 0 : (H - 1652 * K) / 2;
 
     const scene = {
       W,
@@ -2308,6 +2908,7 @@ export class ScenicLandmarksManager {
       K,
       offsetX,
       offsetY,
+      portrait,
       lamps: [],
       stars: Array.from({ length: 70 }, (_, i) => {
         const x = 105 + this._danangRnd(i + 7) * 2003;
@@ -3392,11 +3993,58 @@ export class ScenicLandmarksManager {
     const m = { x: 1742, y: 1007 };
     const mode = ((this.animTimer || 0) % 14) < 7 ? 'fire' : 'water';
     const fire = mode === 'fire';
+
+    // 1. Thân lửa / tia nước: vẽ đè bình thường để không bị bệt trắng trên nền phố sáng
+    if (fire) {
+      const ang = -0.42;
+      const len = 280 + Math.sin(t * 9) * 22;
+      const dx = Math.cos(ang);
+      const dy = Math.sin(ang);
+      const nx = -dy;
+      const ny = dx;
+
+      const flame = (w0, w1, stops) => {
+        const grad = c.createLinearGradient(m.x, m.y, m.x + dx * len, m.y + dy * len);
+        stops.forEach(s => grad.addColorStop(s[0], s[1]));
+        c.fillStyle = grad;
+        c.beginPath();
+        c.moveTo(m.x + nx * w0, m.y + ny * w0);
+        c.quadraticCurveTo(
+          m.x + dx * len * 0.5 + nx * w1, m.y + dy * len * 0.5 + ny * w1,
+          m.x + dx * len, m.y + dy * len
+        );
+        c.quadraticCurveTo(
+          m.x + dx * len * 0.5 - nx * w1, m.y + dy * len * 0.5 - ny * w1,
+          m.x - nx * w0, m.y - ny * w0
+        );
+        c.closePath();
+        c.fill();
+      };
+
+      flame(14, 52, [
+        [0, 'rgba(255,120,25,0.55)'],
+        [0.28, 'rgba(255,104,20,0.72)'],
+        [0.72, 'rgba(255,80,15,0.42)'],
+        [1, 'rgba(255,60,10,0)']
+      ]);
+      flame(9, 30, [
+        [0, 'rgba(255,196,60,0.85)'],
+        [0.36, 'rgba(255,160,45,0.7)'],
+        [1, 'rgba(255,120,30,0)']
+      ]);
+      flame(4, 11, [
+        [0, 'rgba(255,250,215,0.95)'],
+        [0.5, 'rgba(255,232,150,0.5)'],
+        [1, 'rgba(255,200,80,0)']
+      ]);
+    }
+
+    // 2. Quầng sáng và hạt: cộng sáng cho rực rỡ
     c.save();
     c.globalCompositeOperation = 'lighter';
     if (fire) {
       c.fillStyle = this._danangRg(c, 1880, 830, 20, 520, [
-        [0, `rgba(255,140,40,${0.3 + 0.08 * Math.sin(t * 9)})`],
+        [0, `rgba(255,140,40,${0.22 + 0.07 * Math.sin(t * 9)})`],
         [1, 'rgba(255,120,30,0)']
       ]);
       c.fillRect(1300, 400, 810, 800);
@@ -3405,19 +4053,22 @@ export class ScenicLandmarksManager {
         c.fillRect(1560 + i * 24 + Math.sin(t * 3 + i) * 8, 1290 + i * 15, 330 - i * 14, 7);
       }
     }
-    c.fillStyle = this._danangRg(c, m.x, m.y, 4, 110, [
-      [0, fire ? 'rgba(255,235,150,.95)' : 'rgba(205,238,255,.8)'],
-      [1, 'rgba(255,150,40,0)']
+    const glowR = fire ? 50 : 110;
+    c.fillStyle = this._danangRg(c, m.x, m.y, 4, glowR, [
+      [0, fire ? 'rgba(255,160,60,.38)' : 'rgba(205,238,255,.75)'],
+      [1, fire ? 'rgba(255,110,30,0)' : 'rgba(150,200,255,0)']
     ]);
     c.beginPath();
-    c.arc(m.x, m.y, 110, 0, Math.PI * 2);
+    c.arc(m.x, m.y, glowR, 0, Math.PI * 2);
     c.fill();
 
+    // Hạt lửa vẽ đè (không cộng sáng) để không bị bệt trắng trên nền phố
+    c.globalCompositeOperation = fire ? 'source-over' : 'lighter';
     if (this.daNangParts) {
       this.daNangParts.forEach(p => {
         if (p.k === 'f') {
-          const r = 10 + (1 - p.l) * 58;
-          c.fillStyle = `hsla(${6 + 52 * p.l},100%,${44 + 24 * p.l}%,${Math.min(1, p.l * 1.2) * 0.5})`;
+          const r = 12 + (1 - p.l) * 74;
+          c.fillStyle = `hsla(${6 + 52 * p.l},100%,${44 + 24 * p.l}%,${Math.min(1, p.l * 1.2) * 0.55})`;
           c.beginPath();
           c.arc(p.x, p.y, r, 0, Math.PI * 2);
           c.fill();
@@ -5091,13 +5742,13 @@ export class ScenicLandmarksManager {
     const w = this.width;
     const h = this.height;
 
-    // 1. Bầu trời đêm đô thị (Navy - Tím - Hồng neon ở chân trời)
+    // 1. Bầu trời ban ngày Sài Gòn (xanh trong, hửng nắng ở chân trời)
     const sky = ctx.createLinearGradient(0, 0, 0, h * 0.52);
-    sky.addColorStop(0, '#060927');
-    sky.addColorStop(0.35, '#1d1050');
-    sky.addColorStop(0.65, '#5a1f86');
-    sky.addColorStop(0.88, '#c23aa6');
-    sky.addColorStop(1, '#ff6fc0');
+    sky.addColorStop(0, '#1e7fc4');
+    sky.addColorStop(0.35, '#4ea6dc');
+    sky.addColorStop(0.65, '#8fd0e6');
+    sky.addColorStop(0.88, '#e2e2ce');
+    sky.addColorStop(1, '#f4ecd6');
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, w, h * 0.52);
 
@@ -5112,9 +5763,9 @@ export class ScenicLandmarksManager {
 
     // 5. Mặt đất đô thị
     const land = ctx.createLinearGradient(0, h * 0.5, 0, h);
-    land.addColorStop(0, '#231452');
-    land.addColorStop(0.4, '#171040');
-    land.addColorStop(1, '#0d0930');
+    land.addColorStop(0, '#6d7f6a');
+    land.addColorStop(0.4, '#556652');
+    land.addColorStop(1, '#3f4c3e');
     ctx.fillStyle = land;
     ctx.fillRect(0, h * 0.5, w, h * 0.5);
 
@@ -5162,40 +5813,47 @@ export class ScenicLandmarksManager {
   // BỘ HÀM PHỤ TRỢ MỸ THUẬT CHI TIẾT
   // =========================================================================
 
-  // Sao đêm & mây tím
+  // Mây trắng & chim trời (bầu trời ban ngày)
   _drawAtmosphereEffects(ctx) {
     const w = this.width;
     const h = this.height;
     ctx.save();
-    for (let i = 0; i < 70; i++) {
-      const sx = this._rnd(i + 1) * w;
-      const sy = this._rnd(i + 91) * h * 0.34;
-      const alpha = (0.2 + 0.7 * Math.abs(Math.sin(this.animTimer * 1.6 + i))) * (1 - sy / (h * 0.4));
-      ctx.fillStyle = `rgba(255, 255, 255, ${Math.max(0, alpha)})`;
-      if (i % 9 === 0) {
-        ctx.fillRect(sx - 2, sy - 0.5, 4, 1);
-        ctx.fillRect(sx - 0.5, sy - 2, 1, 4);
-      } else {
-        ctx.fillRect(sx, sy, 1.1, 1.1);
-      }
-    }
 
     const clouds = [
-      { y: 0.16, len: 150, spd: 0.08, a: 0.38 },
-      { y: 0.27, len: 190, spd: 0.05, a: 0.34 },
-      { y: 0.07, len: 120, spd: 0.11, a: 0.30 },
-      { y: 0.36, len: 170, spd: 0.06, a: 0.30 }
+      { y: 0.14, len: 170, spd: 0.07, a: 0.55 },
+      { y: 0.26, len: 200, spd: 0.045, a: 0.42 },
+      { y: 0.06, len: 130, spd: 0.1, a: 0.5 },
+      { y: 0.35, len: 180, spd: 0.055, a: 0.34 }
     ];
     clouds.forEach((c, i) => {
       const cx = ((this.scrollX * c.spd * 3 + i * 170) % (w + c.len * 2)) - c.len;
       const cy = h * c.y;
-      ctx.fillStyle = `rgba(110, 70, 170, ${c.a})`;
+      ctx.fillStyle = `rgba(255, 255, 255, ${c.a})`;
       ctx.beginPath();
       ctx.ellipse(cx, cy, c.len * 0.5, 11, 0, 0, Math.PI * 2);
       ctx.ellipse(cx + c.len * 0.2, cy - 8, c.len * 0.3, 10, 0, 0, Math.PI * 2);
       ctx.ellipse(cx - c.len * 0.22, cy - 4, c.len * 0.26, 8, 0, 0, Math.PI * 2);
       ctx.fill();
+      // bóng mây nhẹ phía dưới
+      ctx.fillStyle = 'rgba(180, 205, 220, 0.22)';
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + 8, c.len * 0.42, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
     });
+
+    // Vài chú chim liệng
+    ctx.strokeStyle = 'rgba(70, 90, 105, 0.55)';
+    ctx.lineWidth = 1.2;
+    for (let i = 0; i < 5; i++) {
+      const bx = (this._rnd(i + 21) * w + this.animTimer * (12 + i * 3)) % (w + 60) - 30;
+      const by = h * (0.14 + this._rnd(i + 55) * 0.18);
+      const flap = Math.sin(this.animTimer * 6 + i) * 2.4;
+      ctx.beginPath();
+      ctx.moveTo(bx - 4, by + flap);
+      ctx.quadraticCurveTo(bx, by - 2, bx, by);
+      ctx.quadraticCurveTo(bx, by - 2, bx + 4, by + flap);
+      ctx.stroke();
+    }
     ctx.restore();
   }
 
@@ -5203,9 +5861,9 @@ export class ScenicLandmarksManager {
   _drawCityGlow(ctx, y) {
     ctx.save();
     const g = ctx.createLinearGradient(0, y - 120, 0, y + 6);
-    g.addColorStop(0, 'rgba(255, 80, 200, 0)');
-    g.addColorStop(0.7, 'rgba(255, 90, 210, 0.28)');
-    g.addColorStop(1, 'rgba(255, 140, 220, 0.5)');
+    g.addColorStop(0, 'rgba(255, 236, 200, 0)');
+    g.addColorStop(0.7, 'rgba(255, 232, 190, 0.22)');
+    g.addColorStop(1, 'rgba(255, 240, 205, 0.4)');
     ctx.fillStyle = g;
     ctx.fillRect(0, y - 120, this.width, 126);
     ctx.restore();
@@ -5216,8 +5874,8 @@ export class ScenicLandmarksManager {
     const w = this.width;
     ctx.save();
     const layers = [
-      { col: '#3b2380', step: 11, min: 24, max: 96, seed: 5, win: 'rgba(255, 190, 240, 0.55)' },
-      { col: '#241564', step: 9, min: 16, max: 66, seed: 41, win: 'rgba(255, 215, 150, 0.6)' }
+      { col: '#74879a', step: 11, min: 24, max: 96, seed: 5, win: 'rgba(228, 238, 245, 0.42)' },
+      { col: '#5d6f80', step: 9, min: 16, max: 66, seed: 41, win: 'rgba(240, 240, 228, 0.45)' }
     ];
     layers.forEach((L, li) => {
       for (let x = -4, i = 0; x < w + 6; x += L.step, i++) {
@@ -5292,22 +5950,22 @@ export class ScenicLandmarksManager {
     const h = this.height;
     const blocks = [
       // Bên trái Landmark
-      { x: 0.00, b: 0.62, bw: 16, bh: 74, col: '#1a2f66', win: '#33f0e0', neon: '#22d3ee' },
-      { x: 0.04, b: 0.64, bw: 20, bh: 96, col: '#17275c', win: '#ffd166', neon: null },
-      { x: 0.095, b: 0.63, bw: 16, bh: 60, col: '#102248', win: '#33f0e0', neon: '#22d3ee' },
-      { x: 0.14, b: 0.60, bw: 22, bh: 112, col: '#1d3a78', win: '#8ef5ff', neon: '#38e8ff' },
+      { x: 0.00, b: 0.62, bw: 16, bh: 74, col: '#5d6f80', win: '#dfeef4', neon: null },
+      { x: 0.04, b: 0.64, bw: 20, bh: 96, col: '#4f6070', win: '#f5ebd2', neon: null },
+      { x: 0.095, b: 0.63, bw: 16, bh: 60, col: '#465666', win: '#dfeef4', neon: null },
+      { x: 0.14, b: 0.60, bw: 22, bh: 112, col: '#62748a', win: '#e8f4f8', neon: null },
       // Giữa Landmark và sông
-      { x: 0.31, b: 0.585, bw: 16, bh: 70, col: '#1b2d66', win: '#ffd166', neon: null },
-      { x: 0.345, b: 0.56, bw: 14, bh: 54, col: '#2a1c70', win: '#ff9de0', neon: '#ff4fd8' },
+      { x: 0.31, b: 0.585, bw: 16, bh: 70, col: '#5a6b7c', win: '#f5ebd2', neon: null },
+      { x: 0.345, b: 0.56, bw: 14, bh: 54, col: '#6b6273', win: '#efe0e6', neon: null },
       // Bờ phải, trái Bitexco
-      { x: 0.55, b: 0.545, bw: 14, bh: 48, col: '#241a66', win: '#ffd166', neon: null },
-      { x: 0.585, b: 0.555, bw: 18, bh: 76, col: '#17306c', win: '#33f0e0', neon: '#22d3ee' },
-      { x: 0.63, b: 0.565, bw: 16, bh: 56, col: '#2d1f78', win: '#ff9de0', neon: '#ff4fd8' },
+      { x: 0.55, b: 0.545, bw: 14, bh: 48, col: '#565060', win: '#f5ebd2', neon: null },
+      { x: 0.585, b: 0.555, bw: 18, bh: 76, col: '#4c6274', win: '#dfeef4', neon: null },
+      { x: 0.63, b: 0.565, bw: 16, bh: 56, col: '#66596e', win: '#efe0e6', neon: null },
       // Phải Bitexco
-      { x: 0.825, b: 0.63, bw: 40, bh: 66, col: '#c2693c', win: '#ffe3a0', neon: null },
-      { x: 0.915, b: 0.62, bw: 20, bh: 168, col: '#142a66', win: '#9af6ff', neon: '#22d3ee' },
-      { x: 0.955, b: 0.64, bw: 26, bh: 130, col: '#3a1a78', win: '#ff9de0', neon: '#ff4fd8' },
-      { x: 0.865, b: 0.655, bw: 22, bh: 42, col: '#d9895a', win: '#fff0c0', neon: null }
+      { x: 0.825, b: 0.63, bw: 40, bh: 66, col: '#c2693c', win: '#f6ecd6', neon: null },
+      { x: 0.915, b: 0.62, bw: 20, bh: 168, col: '#546678', win: '#e4f2f6', neon: null },
+      { x: 0.955, b: 0.64, bw: 26, bh: 130, col: '#635673', win: '#efe0e6', neon: null },
+      { x: 0.865, b: 0.655, bw: 22, bh: 42, col: '#d9895a', win: '#f8f2de', neon: null }
     ];
     blocks.forEach(b => {
       this._drawBlock(ctx, w * b.x, h * b.b, b.bw, b.bh, b.col, b.win, b.neon);
@@ -5321,7 +5979,7 @@ export class ScenicLandmarksManager {
 
     // Hào quang xanh quanh tháp
     const aura = ctx.createRadialGradient(cx, baseY - 170, 10, cx, baseY - 170, 190);
-    aura.addColorStop(0, 'rgba(40, 210, 255, 0.30)');
+    aura.addColorStop(0, 'rgba(150, 205, 235, 0.16)');
     aura.addColorStop(1, 'rgba(40, 210, 255, 0)');
     ctx.fillStyle = aura;
     ctx.beginPath();
@@ -5375,9 +6033,9 @@ export class ScenicLandmarksManager {
 
       // Viền neon hai cạnh
       ctx.save();
-      ctx.strokeStyle = '#4ff3ff';
+      ctx.strokeStyle = '#dff4fb';
       ctx.lineWidth = 1.3;
-      ctx.shadowColor = '#22d3ee';
+      ctx.shadowColor = 'rgba(160, 205, 225, 0.5)';
       ctx.shadowBlur = 8;
       ctx.beginPath();
       ctx.moveTo(x, y);
@@ -5434,8 +6092,8 @@ export class ScenicLandmarksManager {
 
     // Quầng sáng tím
     const aura = ctx.createRadialGradient(bx, base - 130, 8, bx, base - 130, 140);
-    aura.addColorStop(0, 'rgba(170, 70, 255, 0.35)');
-    aura.addColorStop(1, 'rgba(170, 70, 255, 0)');
+    aura.addColorStop(0, 'rgba(150, 200, 230, 0.16)');
+    aura.addColorStop(1, 'rgba(150, 200, 230, 0)');
     ctx.fillStyle = aura;
     ctx.beginPath();
     ctx.arc(bx, base - 130, 140, 0, Math.PI * 2);
@@ -5443,9 +6101,9 @@ export class ScenicLandmarksManager {
 
     // Thân tháp
     const g = ctx.createLinearGradient(bx - 22, 0, bx + 24, 0);
-    g.addColorStop(0, '#3a1a8a');
-    g.addColorStop(0.55, '#7a34e0');
-    g.addColorStop(1, '#b24cf0');
+    g.addColorStop(0, '#5f8fb8');
+    g.addColorStop(0.55, '#7fb2cf');
+    g.addColorStop(1, '#a8d4e4');
     body();
     ctx.fillStyle = g;
     ctx.fill();
@@ -5454,7 +6112,7 @@ export class ScenicLandmarksManager {
     ctx.save();
     body();
     ctx.clip();
-    ctx.strokeStyle = 'rgba(255, 190, 255, 0.35)';
+    ctx.strokeStyle = 'rgba(240, 250, 255, 0.5)';
     ctx.lineWidth = 0.8;
     ctx.beginPath();
     for (let fy = base - 250; fy < base; fy += 5) {
@@ -5475,8 +6133,8 @@ export class ScenicLandmarksManager {
     ctx.lineTo(bx - 22, base - 170);
     ctx.quadraticCurveTo(bx - 22, base - 215, bx - 8, base - 250);
     ctx.stroke();
-    ctx.strokeStyle = '#ff4fd8';
-    ctx.shadowColor = '#ff4fd8';
+    ctx.strokeStyle = '#e6f2f8';
+    ctx.shadowColor = 'rgba(160, 205, 225, 0.5)';
     ctx.beginPath();
     ctx.moveTo(bx - 8, base - 250);
     ctx.lineTo(bx + 6, base - 205);
@@ -5487,7 +6145,7 @@ export class ScenicLandmarksManager {
 
     // Đèn đỉnh nhọn
     ctx.fillStyle = '#ffffff';
-    ctx.shadowColor = '#ff9de0';
+    ctx.shadowColor = 'rgba(160, 205, 225, 0.45)';
     ctx.shadowBlur = 8;
     ctx.beginPath();
     ctx.arc(bx - 8, base - 252, 2, 0, Math.PI * 2);
@@ -5497,9 +6155,9 @@ export class ScenicLandmarksManager {
     // Bãi đáp trực thăng
     const hx = bx + 35;
     const hy = base - 126;
-    ctx.fillStyle = '#26175e';
+    ctx.fillStyle = '#4a5f70';
     ctx.fillRect(bx + 22, hy, 30, 3);
-    ctx.fillStyle = '#4ff3ff';
+    ctx.fillStyle = '#e8f6fb';
     ctx.fillRect(bx + 22, hy + 3, 30, 1);
 
     // Chùm đèn pha từ trực thăng
@@ -5526,7 +6184,7 @@ export class ScenicLandmarksManager {
     ctx.globalAlpha = 1;
 
     // Trực thăng
-    ctx.fillStyle = '#120b34';
+    ctx.fillStyle = '#3b4d5c';
     ctx.beginPath();
     ctx.ellipse(hcx, hcy, 7, 3, 0, 0, Math.PI * 2);
     ctx.fill();
@@ -5547,11 +6205,11 @@ export class ScenicLandmarksManager {
     ctx.save();
     this._riverPath(ctx);
     const g = ctx.createLinearGradient(0, h * 0.5, 0, h);
-    g.addColorStop(0, '#9a58c8');
-    g.addColorStop(0.1, '#6a46b8');
-    g.addColorStop(0.35, '#3f2f92');
-    g.addColorStop(0.7, '#21186a');
-    g.addColorStop(1, '#0e0a38');
+    g.addColorStop(0, '#8fc0d2');
+    g.addColorStop(0.1, '#6ba7bd');
+    g.addColorStop(0.35, '#4a869f');
+    g.addColorStop(0.7, '#33677f');
+    g.addColorStop(1, '#24506a');
     ctx.fillStyle = g;
     ctx.fill();
 
@@ -5562,8 +6220,8 @@ export class ScenicLandmarksManager {
       const rx = w * 0.30 + i * 8;
       const sh = Math.sin(this.animTimer * 1.8 + i) * 4;
       const ga = ctx.createLinearGradient(0, h * 0.54, 0, h * 0.86);
-      ga.addColorStop(0, 'rgba(60, 230, 255, 0.28)');
-      ga.addColorStop(1, 'rgba(60, 230, 255, 0)');
+      ga.addColorStop(0, 'rgba(210, 240, 250, 0.26)');
+      ga.addColorStop(1, 'rgba(210, 240, 250, 0)');
       ctx.fillStyle = ga;
       ctx.fillRect(rx + sh, h * 0.54, 3, h * 0.32);
     }
@@ -5572,14 +6230,14 @@ export class ScenicLandmarksManager {
       const rx = w * 0.55 + i * 7;
       const sh = Math.sin(this.animTimer * 1.5 + i * 1.3) * 4;
       const ga = ctx.createLinearGradient(0, h * 0.54, 0, h * 0.80);
-      ga.addColorStop(0, 'rgba(255, 90, 220, 0.26)');
-      ga.addColorStop(1, 'rgba(255, 90, 220, 0)');
+      ga.addColorStop(0, 'rgba(230, 240, 240, 0.18)');
+      ga.addColorStop(1, 'rgba(230, 240, 240, 0)');
       ctx.fillStyle = ga;
       ctx.fillRect(rx + sh, h * 0.54, 3, h * 0.26);
     }
 
     // Gợn sóng ngang trôi
-    ctx.strokeStyle = 'rgba(210, 180, 255, 0.16)';
+    ctx.strokeStyle = 'rgba(226, 244, 250, 0.22)';
     ctx.lineWidth = 1;
     for (let i = 0; i < 26; i++) {
       const y = h * 0.52 + i * (h * 0.02);

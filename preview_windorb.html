@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Drunk Rocket — Preview Ngọn Gió Lành</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 12px; background: #0b0e14; color: #dfe6ff; font-family: ui-monospace, monospace; display: flex; gap: 14px; }
+    figure { margin: 0; }
+    figcaption { font-size: 12px; color: #8fa0c8; padding-bottom: 6px; }
+    canvas { display: block; border: 1px solid #2e3856; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <figure>
+    <figcaption>TRÊN NỀN TỐI (Đà Nẵng)</figcaption>
+    <canvas id="dark" width="360" height="260"></canvas>
+  </figure>
+  <figure>
+    <figcaption>TRÊN NỀN SÁNG (Ninh Bình)</figcaption>
+    <canvas id="light" width="360" height="260"></canvas>
+  </figure>
+
+  <script type="module">
+    import { EnergyCellManager, EnergyCell } from './src/entities/energyCell.js';
+
+    const dark = document.getElementById('dark');
+    const light = document.getElementById('light');
+    const dctx = dark.getContext('2d');
+    const lctx = light.getContext('2d');
+
+    const mgr = new EnergyCellManager(360, 260);
+    const makeCells = () => {
+      const list = [];
+      const xs = [80, 180, 280];
+      xs.forEach((x, i) => {
+        const c = new EnergyCell(x, 130);
+        c.pulsePhase = i * 1.7;
+        if (i === 2) c.isMagnetized = true;
+        list.push(c);
+      });
+      return list;
+    };
+    mgr.cells = makeCells();
+
+    let last = performance.now();
+    function frame(now) {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      for (const c of mgr.cells) c.pulsePhase += dt * 2.5;
+
+      const gd = dctx.createLinearGradient(0, 0, 0, 260);
+      gd.addColorStop(0, '#0b1240');
+      gd.addColorStop(1, '#1c2a6a');
+      dctx.fillStyle = gd;
+      dctx.fillRect(0, 0, 360, 260);
+      mgr.draw(dctx);
+
+      const gl = lctx.createLinearGradient(0, 0, 0, 260);
+      gl.addColorStop(0, '#bfe3c9');
+      gl.addColorStop(1, '#3f7d55');
+      lctx.fillStyle = gl;
+      lctx.fillRect(0, 0, 360, 260);
+      mgr.draw(lctx);
+
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+    window.__ready = true;
+  </script>
+</body>
+</html>

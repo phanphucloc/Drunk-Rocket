@@ -1,12 +1,9 @@
 /**
- * Heads-Up Display (HUD) and UI Overlay Manager for Drunk Rocket 2.5
- * Layout matches Vietnam Panorama Expedition reference image:
- * - Score counter at Y=46
- * - Tier Badge at Y=68
- * - Spherical Cyber Energy Orb at Y=96
- * - Overdrive requirement indicator at Y=122
- * - Editorial Magazine Banner at bottom footer (Y=630-664), non-obstructive & collision-free
+ * Heads-Up Display (HUD) and UI Overlay Manager for Drunk Rocket 3.0 — "Diều Say Gió"
+ * Palette: mực (ink) · giấy dó (paper) · vàng thếp (gold) · ngọc bích (jade) · đỏ son (red)
  */
+import { t, getLang } from '../i18n.js';
+
 export class HUD {
   constructor(gameWidth = 400, gameHeight = 700) {
     this.gameWidth = gameWidth;
@@ -38,7 +35,7 @@ export class HUD {
   }
 
   showNearMiss(pointsBonus = 2) {
-    this.nearMissText = `NEAR-MISS! +${pointsBonus}`;
+    this.nearMissText = t('hud.nearMiss', { n: pointsBonus });
     this.nearMissTimer = 0.7; // Display for 0.7s
   }
 
@@ -62,6 +59,50 @@ export class HUD {
     }
   }
 
+  /** Cắt chữ thành tối đa `maxLines` dòng vừa bề rộng maxW. */
+  _wrapText(ctx, text, maxW, maxLines = 2) {
+    const words = String(text).split(' ');
+    const lines = [];
+    let cur = '';
+    for (const word of words) {
+      const t2 = cur ? cur + ' ' + word : word;
+      if (ctx.measureText(t2).width > maxW && cur) {
+        lines.push(cur);
+        cur = word;
+        if (lines.length === maxLines - 1) break;
+      } else {
+        cur = t2;
+      }
+    }
+    if (cur) lines.push(cur);
+    return lines.slice(0, maxLines);
+  }
+
+  /**
+   * Tìm cỡ chữ lớn nhất còn vừa khung, có cache theo (chữ + width) để
+   * không phải measureText lặp lại mỗi frame.
+   */
+  _fitFontSize(text, start, min, maxWidth, fontOf) {
+    if (!this._fontSizeCache) this._fontSizeCache = new Map();
+    const key = maxWidth + '|' + text;
+    const hit = this._fontSizeCache.get(key);
+    if (hit !== undefined) return hit;
+
+    let size = start;
+    this.ctx = this.ctx || null;
+    const ctx = this._measureCtx || (this._measureCtx = (typeof OffscreenCanvas !== 'undefined'
+      ? new OffscreenCanvas(1, 1).getContext('2d')
+      : document.createElement('canvas').getContext('2d')));
+    ctx.font = fontOf(size);
+    while (size > min && ctx.measureText(text).width > maxWidth) {
+      size -= 0.25;
+      ctx.font = fontOf(size);
+    }
+    if (this._fontSizeCache.size > 64) this._fontSizeCache.clear();
+    this._fontSizeCache.set(key, size);
+    return size;
+  }
+
   getShakeOffset() {
     if (this.shakeDuration > 0) {
       return {
@@ -72,7 +113,7 @@ export class HUD {
     return { x: 0, y: 0 };
   }
 
-  draw(ctx, state, score, bestScore, time, timeSinceDeath, drunkMeter = 0, isSmashActive = false, smashChainCount = 1, currentTheme = null) {
+  draw(ctx, state, score, bestScore, time, timeSinceDeath, drunkMeter = 0, isSmashActive = false, smashChainCount = 1, currentTheme = null, options = {}) {
     const cx = this.gameWidth / 2;
 
     // Draw Screen Flash
@@ -85,30 +126,66 @@ export class HUD {
     ctx.textAlign = 'center';
 
     if (state === 'READY') {
-      // 1. Ready Title
-      ctx.fillStyle = '#ffd13b';
-      ctx.font = 'bold 34px monospace';
-      ctx.fillText('DRUNK ROCKET 2.5', cx, 170);
+      // Nền giấy mờ để chữ luôn đọc được trên mọi phông tranh (ngày / đêm / mưa)
+      const panelW = 332;
+      const panelH = 202;
+      const panelX = cx - panelW / 2;
+      const panelY = 128;
+      ctx.fillStyle = 'rgba(10, 20, 17, 0.66)';
+      ctx.fillRect(panelX, panelY, panelW, panelH);
+      ctx.strokeStyle = 'rgba(232, 184, 75, 0.55)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(panelX + 0.5, panelY + 0.5, panelW - 1, panelH - 1);
+      ctx.fillStyle = 'rgba(232, 184, 75, 0.4)';
+      ctx.fillRect(panelX + 10, panelY + 6, panelW - 20, 1);
 
-      ctx.fillStyle = '#00f0ff';
-      ctx.font = 'bold 15px monospace';
-      ctx.fillText('⚡ VIETNAM PANORAMA EXPEDITION ⚡', cx, 205);
+      // 1. Ready Title
+      ctx.fillStyle = '#e8b84b';
+      ctx.font = '800 30px "Be Vietnam Pro", ui-monospace, monospace';
+      ctx.fillText(t('brand.name'), cx, 170);
+
+      ctx.fillStyle = '#2fb894';
+      ctx.font = '700 12px "Be Vietnam Pro", ui-monospace, monospace';
+      ctx.letterSpacing = '1.2px';
+      ctx.fillText(t('brand.tagline'), cx, 202);
 
       // Controls info
-      ctx.fillStyle = '#a6b0cf';
-      ctx.font = '13px monospace';
-      ctx.fillText('Single Tap: Bay  |  Double Tap: Smash', cx, 240);
+      ctx.fillStyle = '#a9bfb4';
+      ctx.font = '13px "Be Vietnam Pro", ui-monospace, monospace';
+      ctx.letterSpacing = '0px';
+      ctx.fillText(t('ready.controls'), cx, 238);
+
+      // Cấp diều hiện tại
+      if (options && options.kiteStage) {
+        ctx.fillStyle = 'rgba(127, 227, 196, 0.95)';
+        ctx.font = '700 11px "Be Vietnam Pro", ui-monospace, monospace';
+        ctx.fillText(`${t('ready.kite')}: ${t('kite.' + Math.min(5, options.kiteStage))}`, cx, 266);
+      }
+
+      // Câu chuyện của địa danh hiện tại (đọc lúc rảnh, không che lúc bay)
+      if (options && options.theme && options.theme.story) {
+        const lang = getLang();
+        const story = lang === 'en' ? (options.theme.storyEn || options.theme.story) : options.theme.story;
+        ctx.fillStyle = 'rgba(207, 195, 168, 0.92)';
+        ctx.font = 'italic 9.5px "Be Vietnam Pro", ui-monospace, monospace';
+        const lines = this._wrapText(ctx, story, panelW - 34, 2);
+        let sy = 288;
+        for (const line of lines) {
+          ctx.fillText(line, cx, sy);
+          sy += 13;
+        }
+      }
 
       // Blinking prompt
       if (Math.sin(time * 6) > -0.2) {
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 15px monospace';
-        ctx.fillText('CHẠM HOẶC SPACE ĐỂ BAY', cx, 460);
+        ctx.fillStyle = '#f3ead6';
+        ctx.font = '800 14px "Be Vietnam Pro", ui-monospace, monospace';
+        ctx.fillText(t('ready.tap'), cx, 460);
       }
 
-      ctx.fillStyle = '#05ffa1';
-      ctx.font = '14px monospace';
-      ctx.fillText(`KỶ LỤC CỦA BẠN: ${bestScore}`, cx, 520);
+      ctx.fillStyle = '#8fd6b8';
+      ctx.font = '600 13px "Be Vietnam Pro", ui-monospace, monospace';
+      ctx.fillText(`${t('ready.best')}: ${bestScore}`, cx, 520);
     } else if (state === 'PLAYING') {
       // Top Caret Accent (matching reference image)
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
@@ -127,14 +204,25 @@ export class HUD {
       ctx.fillStyle = '#ffffff';
       ctx.fillText(`${score}`, cx, 52);
 
-      // 3. Tier Badge (Centered at Y=70, matching reference image)
-      if (currentTheme && currentTheme.badgeText) {
-        ctx.font = '900 11px monospace';
+      // 3. Chapter Badge: VÒNG · ĐỊA DANH (có "viên thuốc" tối để luôn đọc rõ)
+      if (currentTheme) {
+        const lapNo = (options && options.lapNumber) || 1;
+        const badge = `${t('hud.lap')} ${lapNo} · ${currentTheme.name}`;
+        ctx.font = '800 11px "Be Vietnam Pro", ui-monospace, monospace';
         ctx.letterSpacing = '1.2px';
-        ctx.fillStyle = currentTheme.laserColor || '#ff4d6d';
+        const bw = Math.min(this.gameWidth - 24, ctx.measureText(badge).width + 16);
+        ctx.fillStyle = 'rgba(10, 20, 17, 0.5)';
+        if (typeof ctx.roundRect === 'function') {
+          ctx.beginPath();
+          ctx.roundRect(cx - bw / 2, 61, bw, 16, 8);
+          ctx.fill();
+        } else {
+          ctx.fillRect(cx - bw / 2, 61, bw, 16);
+        }
+        ctx.fillStyle = currentTheme.laserColor || '#e8b84b';
         ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
         ctx.shadowBlur = 4;
-        ctx.fillText(currentTheme.badgeText, cx, 70);
+        ctx.fillText(badge, cx, 72);
         ctx.shadowBlur = 0;
       }
 
@@ -150,8 +238,8 @@ export class HUD {
         const pulse = Math.sin(time * 12) * 4;
         const auraGrad = ctx.createRadialGradient(orbX, orbY, orbR * 0.5, orbX, orbY, orbR + 14 + pulse);
         auraGrad.addColorStop(0, 'rgba(255, 209, 59, 0.45)');
-        auraGrad.addColorStop(0.5, 'rgba(0, 240, 255, 0.35)');
-        auraGrad.addColorStop(1, 'rgba(0, 240, 255, 0)');
+        auraGrad.addColorStop(0.5, 'rgba(65, 217, 176, 0.35)');
+        auraGrad.addColorStop(1, 'rgba(65, 217, 176, 0)');
         ctx.fillStyle = auraGrad;
         ctx.beginPath();
         ctx.arc(orbX, orbY, orbR + 14 + pulse, 0, Math.PI * 2);
@@ -172,9 +260,9 @@ export class HUD {
         }
       } else {
         ctx.save();
-        ctx.shadowColor = '#00f0ff';
+        ctx.shadowColor = '#41d9b0';
         ctx.shadowBlur = 8;
-        ctx.strokeStyle = 'rgba(0, 240, 255, 0.35)';
+        ctx.strokeStyle = 'rgba(65, 217, 176, 0.35)';
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.arc(orbX, orbY, orbR + 3, 0, Math.PI * 2);
@@ -189,7 +277,7 @@ export class HUD {
       ctx.fill();
 
       // Socket notches
-      ctx.fillStyle = isFull ? '#ffd13b' : '#00f0ff';
+      ctx.fillStyle = isFull ? '#ffd13b' : '#41d9b0';
       const notchAngles = [0, Math.PI / 2, Math.PI, Math.PI * 1.5];
       for (const na of notchAngles) {
         const nx = orbX + Math.cos(na) * (orbR + 2);
@@ -230,14 +318,14 @@ export class HUD {
           fluidGrad.addColorStop(1, '#9b0024');
         } else {
           fluidGrad.addColorStop(0, '#ffffff');
-          fluidGrad.addColorStop(0.2, '#00f0ff');
-          fluidGrad.addColorStop(0.7, '#05ffa1');
-          fluidGrad.addColorStop(1, '#005249');
+          fluidGrad.addColorStop(0.2, '#d8fff2');
+          fluidGrad.addColorStop(0.7, '#41d9b0');
+          fluidGrad.addColorStop(1, '#0a5a48');
         }
         ctx.fillStyle = fluidGrad;
         ctx.fill();
 
-        ctx.strokeStyle = isFull ? '#ffffff' : '#00f0ff';
+        ctx.strokeStyle = isFull ? '#ffffff' : '#bff5e4';
         ctx.lineWidth = 1.2;
         ctx.stroke();
       }
@@ -252,7 +340,7 @@ export class HUD {
 
       // Glass Ring Rim
       ctx.lineWidth = 1.8;
-      ctx.strokeStyle = isFull ? (Math.sin(time * 14) > 0 ? '#ffd13b' : '#00f0ff') : '#2e3856';
+      ctx.strokeStyle = isFull ? (Math.sin(time * 14) > 0 ? '#ffd13b' : '#41d9b0') : '#2e3856';
       ctx.beginPath();
       ctx.arc(orbX, orbY, orbR, 0, Math.PI * 2);
       ctx.stroke();
@@ -262,91 +350,84 @@ export class HUD {
       ctx.letterSpacing = '0.5px';
       if (isSmashActive) {
         ctx.fillStyle = '#ff3b5c';
-        ctx.fillText('💥 SUPERNOVA SMASH ACTIVE! 💥', cx, 122);
+        ctx.fillText(t('hud.smashing'), cx, 122);
       } else if (isFull) {
-        ctx.fillStyle = '#ffd13b';
-        ctx.fillText('⚡ DOUBLE TAP: SMASH READY! ⚡', cx, 122);
+        ctx.fillStyle = '#e8b84b';
+        ctx.fillText(t('hud.smashReady'), cx, 122);
       } else {
-        ctx.fillStyle = 'rgba(240, 244, 255, 0.82)';
-        const req = currentTheme ? (currentTheme.pointsRequired || 10) : 10;
-        const base = currentTheme ? (currentTheme.baseScore || 0) : 0;
-        const currentInTier = Math.max(0, score - base);
+        // Nhãn năng lượng gió: đặt trên một "viên thuốc" tối để luôn đọc được
+        // trên mọi phông tranh (ngày nắng, đêm, mưa).
         const pct = Math.floor(drunkMeter);
-        const chainTag = smashChainCount >= 2 ? ' [2 CỘT]' : '';
-        ctx.fillText(`OVERDRIVE: ${pct}% (CẦN ${req} ĐIỂM: ${currentInTier}/${req})${chainTag}`, cx, 122);
+        const chainTag = smashChainCount >= 2 ? ' ' + t('hud.chain') : '';
+        const label = `${t('hud.overdrive')}: ${pct}% · ${t('hud.need')} ${Math.max(0, 100 - pct)}%${chainTag}`;
+        ctx.font = '700 10px "Be Vietnam Pro", ui-monospace, monospace';
+        ctx.letterSpacing = '0.3px';
+        const tw = Math.min(this.gameWidth - 24, ctx.measureText(label).width + 18);
+        ctx.fillStyle = 'rgba(10, 20, 17, 0.55)';
+        if (typeof ctx.roundRect === 'function') {
+          ctx.beginPath();
+          ctx.roundRect(cx - tw / 2, 112, tw, 17, 9);
+          ctx.fill();
+        } else {
+          ctx.fillRect(cx - tw / 2, 112, tw, 17);
+        }
+        ctx.fillStyle = '#f3ead6';
+        ctx.fillText(label, cx, 124);
+        ctx.shadowBlur = 0;
       }
 
       // 6. Near-Miss Floating Notification
       if (this.nearMissText) {
-        ctx.fillStyle = '#05ffa1';
-        ctx.font = '900 20px monospace';
+        ctx.fillStyle = '#2fb894';
+        ctx.font = '900 20px "Be Vietnam Pro", ui-monospace, monospace';
         ctx.fillText(this.nearMissText, cx, 185);
       }
 
-      // 7. EDITORIAL MAGAZINE LANDMARK BANNER (Bottom Footer: Y=636-668, 100% collision-free)
-      if (currentTheme && currentTheme.editorialDesc) {
-        const bannerY = this.gameHeight - 60; // Y = 640
-        const bannerH = 34;
-
-        ctx.save();
-        // Translucent luxury backdrop
-        ctx.fillStyle = 'rgba(10, 14, 24, 0.78)';
-        ctx.fillRect(20, bannerY - 14, this.gameWidth - 40, bannerH);
-
-        // Elegant hairline border
-        ctx.strokeStyle = 'rgba(244, 244, 246, 0.35)';
-        ctx.lineWidth = 0.8;
-        ctx.strokeRect(20, bannerY - 14, this.gameWidth - 40, bannerH);
-
-        // Line 1: Issue & Region (All-Caps, letter-spaced)
-        ctx.fillStyle = 'rgba(244, 244, 246, 0.75)';
-        ctx.font = '600 7.5px -apple-system, "Segoe UI", Roboto, monospace';
-        ctx.letterSpacing = '1.8px';
-        ctx.fillText(currentTheme.editorialIssue || 'VIETNAM PANORAMA EXPEDITION', cx, bannerY - 1);
-
-        // Line 2: Landmark & Cinematic Feature (All-Caps Serif)
-        ctx.fillStyle = '#f4f4f6';
-        ctx.font = '700 10.5px "Times New Roman", Georgia, serif';
-        ctx.letterSpacing = '1.4px';
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
-        ctx.shadowBlur = 4;
-        ctx.fillText(currentTheme.editorialDesc || currentTheme.name, cx, bannerY + 13);
-        ctx.restore();
-      }
+      // (Banner mô tả địa danh đã bỏ — thông tin chuyển sang ô giới thiệu góc phải)
     } else if (state === 'GAMEOVER') {
       const cardY = 180;
       const cardW = 310;
       const cardH = 240;
 
-      ctx.fillStyle = 'rgba(22, 28, 46, 0.95)';
+      // Thẻ giấy dó: nền sáng, viền vàng thếp, chữ mực
+      ctx.fillStyle = 'rgba(243, 234, 214, 0.96)';
       ctx.fillRect(cx - cardW / 2, cardY, cardW, cardH);
-      ctx.lineWidth = 2.5;
-      ctx.strokeStyle = '#2e3856';
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#c9a24a';
       ctx.strokeRect(cx - cardW / 2, cardY, cardW, cardH);
+      ctx.fillStyle = 'rgba(201, 162, 74, 0.35)';
+      ctx.fillRect(cx - cardW / 2 + 6, cardY + 6, cardW - 12, 2);
 
-      ctx.fillStyle = '#ff3b5c';
-      ctx.font = '900 28px monospace';
-      ctx.fillText('NỔ TÀU!', cx, cardY + 45);
+      ctx.fillStyle = '#b3172a';
+      ctx.font = '800 24px "Be Vietnam Pro", ui-monospace, monospace';
+      ctx.fillText(t('gameover.title'), cx, cardY + 46);
 
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 18px monospace';
-      ctx.fillText(`ĐIỂM: ${score}`, cx, cardY + 85);
+      ctx.fillStyle = '#1c2b26';
+      ctx.font = '700 17px "Be Vietnam Pro", ui-monospace, monospace';
+      ctx.fillText(`${t('gameover.score')}: ${score}`, cx, cardY + 86);
 
-      ctx.fillStyle = '#ffd13b';
-      ctx.font = 'bold 16px monospace';
-      ctx.fillText(`KỶ LỤC: ${bestScore}`, cx, cardY + 115);
+      ctx.fillStyle = '#8a6210';
+      ctx.font = '700 15px "Be Vietnam Pro", ui-monospace, monospace';
+      ctx.fillText(`${t('gameover.best')}: ${bestScore}`, cx, cardY + 114);
+
+      // Cấp bậc = cấp diều của vòng hiện tại (mỗi vòng lên 1 cấp)
+      const stageNo = Math.max(1, Math.min(5, (options && options.kiteStage) || 1));
+      const lapNo = (options && options.lapNumber) || 1;
+      ctx.fillStyle = '#197a5f';
+      ctx.font = '800 13px "Be Vietnam Pro", ui-monospace, monospace';
+      ctx.fillText(`${t('gameover.rank')}: ${t('kite.' + stageNo)} · ${t('hud.lap')} ${lapNo}`, cx, cardY + 138);
 
       if (timeSinceDeath > 0.4) {
         if (Math.sin(time * 8) > -0.2) {
-          ctx.fillStyle = '#00f0ff';
-          ctx.font = 'bold 14px monospace';
-          ctx.fillText('CHẠM ĐỂ BAY LẠI', cx, cardY + 160);
+          ctx.fillStyle = '#b3172a';
+          ctx.font = '800 13px "Be Vietnam Pro", ui-monospace, monospace';
+          ctx.fillText(t('gameover.tap'), cx, cardY + 164);
         }
       }
 
-      ctx.fillStyle = '#7d8aa8';
-      ctx.font = '11px monospace';
-      ctx.fillText('Né laser & nhặt Energy Orb để Overdrive!', cx, cardY + 210);
+      ctx.fillStyle = 'rgba(60, 78, 70, 0.85)';
+      ctx.font = '11px "Be Vietnam Pro", ui-monospace, monospace';
+      ctx.fillText(t('gameover.hint'), cx, cardY + 210);
     }
 
     ctx.restore();

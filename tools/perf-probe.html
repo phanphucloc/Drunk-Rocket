@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>perf</title>
+  <style>body{margin:0;background:#000;color:#0f0;font:12px monospace}canvas{display:block}</style>
+</head>
+<body>
+  <canvas id="c" width="400" height="700"></canvas>
+  <pre id="out">running...</pre>
+  <script type="module">
+    const out = document.getElementById('out');
+    const lines = [];
+    const log = (s) => { lines.push(s); out.textContent = lines.join('\n'); console.log(s); };
+
+    try {
+      const { Game } = await import('../src/core/game.js');
+
+      const canvas = document.getElementById('c');
+      const game = new Game(canvas);
+      game.state = 'PLAYING';
+      game.score = 20;
+      game.drunkMeter = 40;
+
+      function bench(label, frames, setup) {
+        const times = [];
+        for (let i = 0; i < frames; i++) {
+          try {
+            if (setup) setup(i);
+            const t0 = performance.now();
+            game.update(1 / 60);
+            game.render();
+            times.push(performance.now() - t0);
+            game.rocket.y = 350;
+            game.rocket.vy = 0;
+            game.rocket.vx = 0;
+            game.state = 'PLAYING';
+          } catch (e) {
+            log('ERR in ' + label + ' frame ' + i + ': ' + (e && e.message));
+            return;
+          }
+        }
+        times.sort((a, b) => a - b);
+        const avg = times.reduce((a, b) => a + b, 0) / times.length;
+        const p95 = times[Math.floor(times.length * 0.95)];
+        log(`${label}: avg=${avg.toFixed(2)}ms max=${times[times.length - 1].toFixed(1)}ms p95=${p95.toFixed(1)}ms long(>40ms)=${times.filter(t => t > 40).length}`);
+      }
+
+      bench('idle-pillars', 400);
+      bench('chapter-switch', 300, (i) => { if (i % 30 === 0) game.score += 6; });
+      bench('long-run', 1200, (i) => { if (i % 200 === 0) game.score += 1; });
+
+      const mem = performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) + 'MB' : 'n/a';
+      log('heap=' + mem);
+      log('DONE');
+    } catch (e) {
+      log('FATAL: ' + (e && (e.stack || e.message)));
+    }
+  </script>
+</body>
+</html>

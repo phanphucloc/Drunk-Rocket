@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>music-probe</title>
+  <style>body{margin:0;background:#000;color:#0f0;font:12px monospace}pre{white-space:pre-wrap}</style>
+</head>
+<body>
+  <pre id="out">running...</pre>
+  <script type="module">
+    import { sound } from '../src/audio/audioSynth.js';
+    import { TIER_THEMES } from '../src/graphics/themes.js';
+
+    const out = document.getElementById('out');
+    const lines = [];
+    const log = (s) => { lines.push(s); out.textContent = lines.join('\n'); };
+
+    const errors = [];
+    window.addEventListener('error', (e) => errors.push(e.message));
+
+    try {
+      // Mở khoá audio (Chrome headless cần cờ autoplay)
+      sound._ensureContext();
+      if (sound.ctx && sound.ctx.state === 'suspended') await sound.ctx.resume();
+      log('AudioContext: ' + (sound.ctx ? sound.ctx.state : 'none'));
+
+      const themes = Object.values(TIER_THEMES).sort((a, b) => a.tier - b.tier);
+      for (const theme of themes) {
+        const t0 = performance.now();
+        sound.setMusicTheme(theme.music, true);
+        // mô phỏng 2 giây nhạc (bước 0.05s)
+        for (let i = 0; i < 40; i++) sound.updateMusicTick(0.05);
+        const dt = performance.now() - t0;
+        log(`#${theme.tier} ${theme.id}: music=${theme.music ? theme.music.id : 'MISSING'} steps ok (${dt.toFixed(1)}ms)`);
+      }
+
+      // tắt/mở tiếng
+      sound.toggleMute();
+      sound.updateMusicTick(0.05);
+      sound.toggleMute();
+      log('mute toggle ok, isMuted=' + sound.isMuted);
+
+      // âm lượng
+      sound.setMusicVolume(0.35);
+      sound.setSfxVolume(0.6);
+      log('volume ok: music=' + sound.musicVolume + ' sfx=' + sound.sfxVolume);
+
+      // tiếng lên cấp diều cho 5 cấp
+      for (let stage = 1; stage <= 5; stage++) {
+        const t0 = performance.now();
+        sound.playKiteUpgrade(stage);
+        log(`kiteUpgrade stage ${stage} ok (${(performance.now() - t0).toFixed(1)}ms)`);
+      }
+
+      log('errors=' + errors.length);
+      log('DONE');
+    } catch (e) {
+      log('FATAL: ' + (e && (e.stack || e.message)));
+    }
+  </script>
+</body>
+</html>

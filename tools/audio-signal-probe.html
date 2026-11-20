@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>audio-signal</title>
+  <style>body{margin:0;background:#000;color:#0f0;font:12px monospace}pre{white-space:pre-wrap}</style>
+</head>
+<body>
+  <pre id="out">running...</pre>
+  <script type="module">
+    import { sound } from '../src/audio/audioSynth.js';
+    import { TIER_THEMES } from '../src/graphics/themes.js';
+
+    const out = document.getElementById('out');
+    const lines = [];
+    const log = (s) => { lines.push(s); out.textContent = lines.join('\n'); };
+
+    sound._ensureContext();
+    if (!sound.ctx) { log('NO CTX'); }
+    else {
+      if (sound.ctx.state === 'suspended') await sound.ctx.resume();
+      log('ctx=' + sound.ctx.state + ' sfxVolume=' + sound.sfxVolume + ' musicVolume=' + sound.musicVolume);
+      log('sfxGainNode=' + (sound.sfxGainNode ? 'yes' : 'NO') + ' gain=' + (sound.sfxGainNode ? sound.sfxGainNode.gain.value.toFixed(2) : 'n/a'));
+
+      const ctx = sound.ctx;
+      const an = ctx.createAnalyser();
+      an.fftSize = 2048;
+      const buf = new Float32Array(an.fftSize);
+
+      // Đo tín hiệu SFX: chèn analyser sau bus SFX
+      if (sound.sfxGainNode) {
+        sound.sfxGainNode.disconnect();
+        sound.sfxGainNode.connect(an);
+        an.connect(ctx.destination);
+      }
+      const rms = () => {
+        an.getFloatTimeDomainData(buf);
+        let sum = 0;
+        for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+        return Math.sqrt(sum / buf.length);
+      };
+
+      sound.playScore();
+      await new Promise(r => setTimeout(r, 120));
+      log('SFX rms (playScore) = ' + rms().toFixed(5));
+
+      // HIỆU CHUẨN: một oscillator thuần — nếu cái này cũng 0 thì phép đo
+      // trong chế độ virtual-time là không đáng tin (audio thread không chạy).
+      try {
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        g.gain.value = 0.5;
+        osc.frequency.value = 440;
+        osc.connect(g);
+        g.connect(an);
+        osc.start();
+        await new Promise(r => setTimeout(r, 150));
+        log('CALIBRATION rms (osc 440Hz) = ' + rms().toFixed(5));
+        osc.stop();
+      } catch (e) { log('calib err ' + e.message); }
+
+      sound.playKiteUpgrade(3);
+      await new Promise(r => setTimeout(r, 120));
+      log('SFX rms (kiteUpgrade) = ' + rms().toFixed(5));
+
+      // Đo nhạc: chèn analyser riêng sau musicGainNode
+      const an2 = ctx.createAnalyser();
+      an2.fftSize = 2048;
+      const buf2 = new Float32Array(an2.fftSize);
+      const theme = Object.values(TIER_THEMES)[0];
+      sound.setMusicTheme(theme.music, true);
+      if (sound.musicGainNode) {
+        sound.musicGainNode.disconnect();
+        sound.musicGainNode.connect(an2);
+        an2.connect(ctx.destination);
+      }
+      log('musicGain target = ' + sound._musicTargetGain().toFixed(3));
+      for (let i = 0; i < 30; i++) sound.updateMusicTick(0.05);
+      await new Promise(r => setTimeout(r, 150));
+      an2.getFloatTimeDomainData(buf2);
+      let s2 = 0;
+      for (let i = 0; i < buf2.length; i++) s2 += buf2[i] * buf2[i];
+      log('MUSIC rms = ' + Math.sqrt(s2 / buf2.length).toFixed(5));
+
+      log('DONE');
+    }
+  </script>
+</body>
+</html>

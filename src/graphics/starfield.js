@@ -19,6 +19,8 @@ export class Starfield {
     this.targetSkyTop = '#3b2d54';
     this.targetSkyBottom = '#ff9e79';
     this.weather = 'birds';
+    // Khi WeatherSystem bên ngoài đảm nhiệm thời tiết, starfield chỉ còn vẽ nền trời
+    this.externalWeather = false;
 
     // Entities
     this.birds = [];
@@ -42,7 +44,7 @@ export class Starfield {
     if (!theme) return;
     if (theme.skyTop) this.targetSkyTop = theme.skyTop;
     if (theme.skyBottom) this.targetSkyBottom = theme.skyBottom;
-    if (theme.weather) this.weather = theme.weather;
+    if (theme.weather && !this.externalWeather) this.weather = theme.weather;
   }
 
   _initElements() {

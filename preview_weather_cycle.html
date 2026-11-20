@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head><meta charset="UTF-8"><title>Kiểm tra chu kỳ thời tiết</title>
+<style>body{background:#0b0e14;color:#dfe6ff;font:13px ui-monospace,monospace;padding:14px}pre{white-space:pre-wrap}</style>
+</head>
+<body>
+<pre id="out">đang mô phỏng...</pre>
+<script type="module">
+  import { WeatherSystem, WEATHER_TYPES } from './src/graphics/weather.js';
+
+  const out = document.getElementById('out');
+  const w = new WeatherSystem(400, 700);
+  w.setWeather('birds', true);
+
+  const log = [];
+  const seen = new Set();
+  let last = w.current;
+  let t = 0;
+
+  // Mô phỏng 600 giây (10 phút chơi) với bước 0.05s
+  for (let i = 0; i < 12000; i++) {
+    w.update(0.05);
+    t += 0.05;
+    if (w.current !== last) {
+      log.push(`${t.toFixed(1)}s  ${last} -> ${w.current}`);
+      seen.add(w.current);
+      last = w.current;
+    }
+  }
+
+  const missing = WEATHER_TYPES.filter(x => !seen.has(x));
+  const lines = [
+    `Tổng số lần đổi thời tiết trong 600s: ${log.length}`,
+    `Các kiểu đã xuất hiện: ${[...seen].join(', ')}`,
+    `Kiểu chưa xuất hiện: ${missing.length ? missing.join(', ') : '(không — đủ cả ' + WEATHER_TYPES.length + ' kiểu)'}`,
+    '',
+    '10 lần đổi đầu tiên:',
+    ...log.slice(0, 10).map(l => '  ' + l)
+  ];
+  out.textContent = lines.join('\n');
+  document.title = 'OK';
+</script>
+</body>
+</html>

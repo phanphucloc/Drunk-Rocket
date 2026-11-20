@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>crash2</title>
+  <style>body{margin:0;background:#000;color:#0f0;font:12px monospace}canvas{display:block}pre{white-space:pre-wrap}</style>
+</head>
+<body>
+  <canvas id="c" width="400" height="700"></canvas>
+  <pre id="out">running...</pre>
+  <script type="module">
+    import { Game } from '../src/core/game.js';
+    import { LaserPillar } from '../src/entities/laserPillar.js';
+
+    const out = document.getElementById('out');
+    const lines = [];
+    const log = (s) => { lines.push(s); out.textContent = lines.join('\n'); };
+
+    const canvas = document.getElementById('c');
+    const game = new Game(canvas);
+    game.state = 'PLAYING';
+
+    const errors = [];
+    try {
+      // Đi qua rất nhiều chương + nhiều vòng để chạm mọi nhánh:
+      // scenic.setTier, weather.setTheme, story.showChapter, spawn hạt gió, âm thanh.
+      for (let i = 0; i < 420; i++) {
+        game.score = i;
+        const pillar = new LaserPillar(300, 340, 150, 52, { theme: game.currentTheme, tier: game.currentTheme.tier });
+        try {
+          game._onScore(pillar);
+        } catch (e) {
+          errors.push(`score ${i}: ${e && (e.stack || e.message)}`);
+          if (errors.length > 3) break;
+        }
+        // vẽ thử ngay sau khi đổi chương
+        try {
+          game.render();
+        } catch (e) {
+          errors.push(`render after score ${i}: ${e && (e.stack || e.message)}`);
+          break;
+        }
+      }
+      log('scores processed; errors=' + errors.length);
+      errors.slice(0, 5).forEach(e => log('  ' + e.split('\n').slice(0, 3).join(' | ')));
+
+      // Thử xoay vòng thời tiết + đổi ngôn ngữ giữa chừng
+      const w = await import('../src/i18n.js');
+      w.setLang('en');
+      game.render();
+      log('EN render ok');
+      w.setLang('vi');
+      game.render();
+      log('VI render ok');
+
+      log('lastError=' + (game.lastError ? (game.lastError.stack || game.lastError.message) : 'none'));
+      log('DONE');
+    } catch (e) {
+      log('FATAL: ' + (e && (e.stack || e.message)));
+    }
+  </script>
+</body>
+</html>

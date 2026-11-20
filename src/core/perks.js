@@ -1,13 +1,17 @@
 /**
- * Micro-Roguelite Perk System for Drunk Rocket 2.0
+ * Micro-Roguelite Perk System for Drunk Rocket 3.0
  * Manages drafting cards, pillar-based durations, resetting durations, and continuous random availability.
  */
+import { t, getLang } from '../i18n.js';
+
 export const PERK_CATALOG = [
   {
     id: 'nano_hull',
-    name: 'Nano Hull',
-    icon: '🔬',
-    desc: 'Co nhỏ tàu 25% (Hiệu lực: qua 3 cột)',
+    name: 'Lá Sen Che Thân',
+    nameEn: 'Lotus Leaf Veil',
+    icon: '🍃',
+    desc: 'Diều nhỏ lại 25% (Hiệu lực: qua 3 cổng)',
+    descEn: 'Kite shrinks 25% (lasts 3 gates)',
     group: 'defense',
     durationPillars: 3,
     apply: (game) => {
@@ -23,9 +27,11 @@ export const PERK_CATALOG = [
   },
   {
     id: 'beer_bubble',
-    name: 'Beer Bubble',
+    name: 'Bọt Rượu Cần',
+    nameEn: 'Rice-Wine Bubble',
     icon: '🫧',
-    desc: 'Khiên bọt cồn đỡ 1 va chạm (Hiệu lực: qua 1 cột)',
+    desc: 'Khiên bọt đỡ 1 va chạm (Hiệu lực: qua 1 cổng)',
+    descEn: 'Bubble shield blocks 1 hit (lasts 1 gate)',
     group: 'defense',
     durationPillars: 1,
     apply: (game) => {
@@ -39,9 +45,11 @@ export const PERK_CATALOG = [
   },
   {
     id: 'quantum_drift',
-    name: 'Quantum Drift',
-    icon: '🌌',
-    desc: 'Tàng hình xuyên cột 1.8s sau mỗi cú tap (Hiệu lực: qua 2 cột)',
+    name: 'Xuyên Gió',
+    nameEn: 'Wind Walker',
+    icon: '👻',
+    desc: 'Tàng hình xuyên cổng 1.8s sau mỗi cú chạm (qua 2 cổng)',
+    descEn: 'Phase through gates 1.8s after each tap (2 gates)',
     group: 'defense',
     durationPillars: 2,
     apply: (game) => {
@@ -58,9 +66,11 @@ export const PERK_CATALOG = [
   },
   {
     id: 'adrenaline_junkie',
-    name: 'Adrenaline Junkie',
-    icon: '⚡',
-    desc: 'Điểm Near-Miss tăng gấp đôi (Hiệu lực: qua 3 cột)',
+    name: 'Mắt Diều Tinh',
+    nameEn: 'Keen Kite Eye',
+    icon: '👁',
+    desc: 'Điểm Near-Miss tăng gấp đôi (Hiệu lực: qua 3 cổng)',
+    descEn: 'Double Near-Miss score (lasts 3 gates)',
     group: 'offense',
     durationPillars: 3,
     apply: (game) => {
@@ -74,9 +84,11 @@ export const PERK_CATALOG = [
   },
   {
     id: 'chain_reaction',
-    name: 'Chain Reaction',
-    icon: '💥',
-    desc: 'Supernova Smash phá nổ 2 cột (Dùng 1 lần là hết)',
+    name: 'Pháo Dây Chuyền',
+    nameEn: 'Chain Firecrackers',
+    icon: '🧨',
+    desc: 'Lộng Gió phá 2 cổng liền (Dùng 1 lần là hết)',
+    descEn: 'Wind Burst smashes 2 gates (one use)',
     group: 'offense',
     durationPillars: 0,
     apply: (game) => {
@@ -88,9 +100,11 @@ export const PERK_CATALOG = [
   },
   {
     id: 'drunk_magnet',
-    name: 'Magnet Core',
-    icon: '🧲',
-    desc: 'Hút mọi hạt năng lượng 220px (Hiệu lực: qua 3 cột)',
+    name: 'Vó Hút Gió',
+    nameEn: 'Wind Net',
+    icon: '🌪',
+    desc: 'Hút mọi hạt gió trong 220px (Hiệu lực: qua 3 cổng)',
+    descEn: 'Pulls all wind orbs within 220px (lasts 3 gates)',
     group: 'utility',
     durationPillars: 3,
     apply: (game) => {
@@ -119,8 +133,8 @@ export class PerkDraftManager {
     this.draftCards = [];
     this.draftTimer = 0;
     this.draftMaxDuration = 3.5;
-    this.lastMilestoneScore = 0;
-    this.milestoneInterval = 7;
+    this.lastMilestoneScore = -6; // mốc đầu ở 6 điểm, sau đó 18, 30... (lệch với chương)
+    this.milestoneInterval = 12;
   }
 
   reset() {
@@ -133,7 +147,7 @@ export class PerkDraftManager {
     this.hoveredIndex = -1;
     this.draftCards = [];
     this.draftTimer = 0;
-    this.lastMilestoneScore = 0;
+    this.lastMilestoneScore = -6;
   }
 
   checkMilestone(currentScore) {
@@ -283,11 +297,11 @@ export class PerkDraftManager {
       ctx.textAlign = 'center';
       ctx.fillStyle = '#ffd13b';
       ctx.font = '900 24px monospace';
-      ctx.fillText('⚡ NÂNG CẤP KỸ NĂNG ⚡', width / 2, 320);
+      ctx.fillText('🎋 ' + t('perk.preDraft') + ' 🎋', width / 2, 320);
 
       ctx.fillStyle = '#00f0ff';
       ctx.font = 'bold 15px monospace';
-      ctx.fillText(`Đang mở kho thẻ bài... (${Math.max(0, this.preDraftTimer).toFixed(1)}s)`, width / 2, 360);
+      ctx.fillText(`${t('perk.opening')} (${Math.max(0, this.preDraftTimer).toFixed(1)}s)`, width / 2, 360);
       ctx.restore();
       return;
     }
@@ -301,15 +315,15 @@ export class PerkDraftManager {
       ctx.textAlign = 'center';
       ctx.fillStyle = '#05ffa1';
       ctx.font = '900 22px monospace';
-      ctx.fillText(`✔ ĐÃ CHỌN: ${this.selectedCard.icon} ${this.selectedCard.name}`, width / 2, 310);
+      ctx.fillText(`✔ ${t('perk.picked')}: ${this.selectedCard.icon} ${getLang() === 'en' ? (this.selectedCard.nameEn || this.selectedCard.name) : this.selectedCard.name}`, width / 2, 310);
 
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 14px monospace';
-      ctx.fillText(this.selectedCard.desc, width / 2, 340);
+      ctx.fillText(getLang() === 'en' ? (this.selectedCard.descEn || this.selectedCard.desc) : this.selectedCard.desc, width / 2, 340);
 
       ctx.fillStyle = '#ffd13b';
       ctx.font = '900 16px monospace';
-      ctx.fillText(`🚀 CHUẨN BỊ BAY TRONG: ${Math.max(0, this.postDraftTimer).toFixed(1)}s`, width / 2, 380);
+      ctx.fillText(`🪁 ${t('perk.ready')}: ${Math.max(0, this.postDraftTimer).toFixed(1)}s`, width / 2, 380);
       ctx.restore();
       return;
     }
@@ -323,11 +337,11 @@ export class PerkDraftManager {
     ctx.textAlign = 'center';
     ctx.fillStyle = '#ffd13b';
     ctx.font = '900 22px monospace';
-    ctx.fillText('⭐ CHỌN THẺ NÂNG CẤP (PERK) ⭐', width / 2, 170);
+    ctx.fillText('⭐ ' + t('perk.draftTitle') + ' ⭐', width / 2, 170);
 
     ctx.fillStyle = '#00f0ff';
     ctx.font = 'bold 13px monospace';
-    ctx.fillText(`Thời gian: ${Math.max(0, this.draftTimer).toFixed(1)}s (Rê chuột/chạm hoặc phím 1, 2, 3)`, width / 2, 200);
+    ctx.fillText(`${t('perk.timer')}: ${Math.max(0, this.draftTimer).toFixed(1)}s (1, 2, 3)`, width / 2, 200);
 
     const cardW = 320;
     const cardH = 75;
@@ -363,11 +377,16 @@ export class PerkDraftManager {
 
         ctx.fillStyle = '#ffd13b';
         ctx.font = '900 17px monospace';
-        ctx.fillText(`★  [${idx + 1}] ${card.icon} ${card.name} ★`, width / 2, cardY + 28);
+        ctx.fillText(`★  [${idx + 1}] ${card.icon} ${getLang() === 'en' ? (card.nameEn || card.name) : card.name} ★`, width / 2, cardY + 28);
 
         ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 12px monospace';
-        ctx.fillText(card.desc, width / 2, cardY + 54);
+        let descSizeH = 12;
+        ctx.font = `bold ${descSizeH}px monospace`;
+        while (descSizeH > 8 && ctx.measureText(getLang() === 'en' ? (card.descEn || card.desc) : card.desc).width > cardW - 22) {
+          descSizeH -= 0.5;
+          ctx.font = `bold ${descSizeH}px monospace`;
+        }
+        ctx.fillText(getLang() === 'en' ? (card.descEn || card.desc) : card.desc, width / 2, cardY + 54);
       } else {
         ctx.fillStyle = 'rgba(26, 31, 54, 0.92)';
         ctx.fillRect(cardX, cardY, cardW, cardH);
@@ -377,11 +396,16 @@ export class PerkDraftManager {
 
         ctx.fillStyle = '#ffd13b';
         ctx.font = 'bold 16px monospace';
-        ctx.fillText(`[${idx + 1}] ${card.icon} ${card.name}`, cardX + 90, cardY + 28);
+        ctx.fillText(`[${idx + 1}] ${card.icon} ${getLang() === 'en' ? (card.nameEn || card.name) : card.name}`, width / 2, cardY + 28);
 
         ctx.fillStyle = '#d0d7de';
-        ctx.font = '12px monospace';
-        ctx.fillText(card.desc, width / 2, cardY + 54);
+        let descSizeN = 12;
+        ctx.font = `${descSizeN}px monospace`;
+        while (descSizeN > 8 && ctx.measureText(getLang() === 'en' ? (card.descEn || card.desc) : card.desc).width > cardW - 22) {
+          descSizeN -= 0.5;
+          ctx.font = `${descSizeN}px monospace`;
+        }
+        ctx.fillText(getLang() === 'en' ? (card.descEn || card.desc) : card.desc, width / 2, cardY + 54);
       }
 
       ctx.restore();

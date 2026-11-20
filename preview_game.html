@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Drunk Rocket — Màn hình trong game (preview)</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { background: #0b0e14; }
+    #game-canvas { display: block; width: 400px; height: 700px; }
+    #err {
+      position: fixed; left: 0; top: 0; right: 0;
+      background: #7a1020; color: #fff;
+      font: 12px monospace; padding: 6px; white-space: pre-wrap;
+      z-index: 99; display: none;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game-canvas"></canvas>
+  <div id="err"></div>
+
+  <script type="module">
+    import { Game } from './src/core/game.js';
+    import { getProgression } from './src/core/progression.js';
+    import { setLang } from './src/i18n.js';
+    import { LaserPillar } from './src/entities/laserPillar.js';
+
+    const langParam = new URLSearchParams(location.search).get('lang');
+    if (langParam === 'en' || langParam === 'vi') setLang(langParam);
+
+    const showError = (e) => {
+      const box = document.getElementById('err');
+      box.style.display = 'block';
+      box.textContent = (e && (e.stack || e.message)) || String(e);
+      document.title = 'ERROR';
+    };
+    window.addEventListener('error', (e) => showError(e.error || e.message));
+
+    // ?tier=1..9 (mặc định 2 — Ninh Bình)
+    const tier = Math.min(9, Math.max(1, Number(new URLSearchParams(location.search).get('tier') || 2)));
+    // ?mode=fire|water — ép pha phun lửa / phun nước của Cầu Rồng để chụp ảnh
+    const forceMode = new URLSearchParams(location.search).get('mode');
+    // ?weather=rain|storm|stars|snow|fog|sun|clouds|birds — ép thời tiết để chụp ảnh
+    const forceWeather = new URLSearchParams(location.search).get('weather');
+    // Mặc định: mỗi chương 6 điểm -> chọn điểm để đúng địa danh tier
+    const scoreParam = new URLSearchParams(location.search).get('score');
+    const score = scoreParam !== null ? Number(scoreParam) : (tier - 1) * 6 + 2;
+
+    try {
+      const canvas = document.getElementById('game-canvas');
+      const game = new Game(canvas);
+
+      const prog = getProgression(score);
+      game.score = score;
+      game.bestScore = 12;
+      game.deathCount = 3;
+      game.currentTheme = prog.theme;
+      game.kiteStage = prog.kiteStage;
+      game.lapNumber = prog.lapNumber;
+      game.chapterNumber = prog.chapterNumber;
+      game._chapterGlobal = prog.globalChapter;
+      const scenicTier = prog.theme.tier;
+      game.scenic.setTier(scenicTier);
+      game.scenic.currentTier = scenicTier;
+      game.scenic.prevTier = scenicTier;
+      game.scenic.fadeProgress = 1;
+      game.drunkMeter = 34;
+      game.state = 'PLAYING';
+
+      // Hai cột cổng ở hai mép như tranh mẫu
+      const theme = game.currentTheme;
+      game.pillars.pillars = [
+        new LaserPillar(-28, 350, 152, 52, { theme, tier: scenicTier }),
+        new LaserPillar(376, 350, 152, 52, { theme, tier: scenicTier })
+      ];
+
+      const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      let last = performance.now();
+
+      if (forceWeather && game.weather) {
+        game.weather.setTheme(game.currentTheme);
+        game.weather.setWeather(forceWeather, true);
+        game.weather.holdTime = 9999;
+        game.weather.phaseTimer = 9999;
+        // Ảnh tĩnh: bật ngay đèn ban đêm nếu thời tiết làm tối
+        game.nightLevel = game.weather.isDark ? 1 : 0;
+      }
+      const wantBolt = new URLSearchParams(location.search).get('bolt');
+      // ?cells=1 — rải sẵn vài hạt gió để chụp ảnh kiểm tra
+      if (new URLSearchParams(location.search).get('cells') && game.energyCells) {
+        game.energyCells.spawnCluster(140, 300, 3);
+        game.energyCells.spawnCluster(255, 430, 2);
+      }
+
+      const q = new URLSearchParams(location.search);
+      // ?draft=1 — mở màn chọn bùa hộ mệnh
+      if (q.get('draft') && game.perks) {
+        game.perks.isDrafting = true;
+        game.perks.draftTimer = 999;
+        game.perks.hoveredIndex = 0;
+        game.perks.draftCards = [
+          { id: 'a', name: 'Lá Sen Che Thân', icon: '🍃', desc: 'Diều nhỏ lại 25% (Hiệu lực: qua 3 cổng)' },
+          { id: 'b', name: 'Bọt Rượu Cần', icon: '🫧', desc: 'Khiên bọt đỡ 1 va chạm (Hiệu lực: qua 1 cổng)' },
+          { id: 'c', name: 'Xuyên Gió', icon: '👻', desc: 'Tàng hình xuyên cổng 1.8s sau mỗi cú chạm (qua 2 cổng)' }
+        ];
+      }
+      // ?ghost=1 — hiện một chú diều đứt dây
+      if (q.get('ghost') && game.ghosts) {
+        game.ghosts.activeWrecks = [{ name: 'DIEU_SAY', x: 250, y: 360, passed: false }];
+      }
+      // ?over=1 — màn Game Over (kiểm tra cấp bậc)
+      if (q.get('over')) {
+        game.state = 'GAMEOVER';
+        game.timeSinceDeath = 2;
+      }
+      // ?story=1 — thẻ cốt truyện chương hiện tại
+      if (q.get('story') && game.story) {
+        game.story.showChapter(game.currentTheme, true, {
+          lap: game.lapNumber,
+          chapter: game.chapterNumber
+        });
+        game.story.elapsed = 0.8;
+      }
+      // ?dragon=1 — màn kết "Diều Rồng"
+      if (q.get('dragon') && game.story) {
+        game.story.showEnding(game.currentTheme);
+        game.story.elapsed = 1.2;
+      }
+
+      const frame = (now) => {
+        const dt = Math.min(0.05, (now - last) / 1000);
+        last = now;
+        if (!reduced) {
+          game.totalTime += dt;
+          game.scenic.update(dt, tier);
+          if (forceMode === 'fire') game.scenic.animTimer = 2;
+          if (forceMode === 'water') game.scenic.animTimer = 9;
+          game.rocket.totalTime += dt;
+          game.rocket.isThrusting = false;
+        }
+        game.render();
+        if (wantBolt && game.weather && game.weather.bolts.length === 0) {
+          game.weather._triggerStrike();
+        }
+        requestAnimationFrame(frame);
+      };
+      requestAnimationFrame(frame);
+
+      window.game = game;
+      window.__ready = true;
+    } catch (e) {
+      showError(e);
+    }
+  </script>
+</body>
+</html>

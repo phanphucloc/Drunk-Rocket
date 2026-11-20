@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>5 cấp diều</title>
+  <style>
+    body { margin: 0; background: #0f1a17; color: #e8b84b; font-family: monospace; }
+    .row { display: flex; gap: 6px; padding: 10px; }
+    figure { margin: 0; text-align: center; }
+    figcaption { font-size: 11px; padding-top: 4px; color: #7fe3c4; }
+    canvas { background: radial-gradient(circle at 50% 40%, #17332c, #0b1512); border: 1px solid #2a4a40; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <div class="row" id="row"></div>
+  <script type="module">
+    import { drawRocket } from '../src/graphics/renderer.js';
+    import { KITE_STAGES } from '../src/core/progression.js';
+
+    const row = document.getElementById('row');
+    const SIZE = 190;
+    for (const style of KITE_STAGES) {
+      const fig = document.createElement('figure');
+      const cv = document.createElement('canvas');
+      cv.width = SIZE; cv.height = SIZE;
+      fig.appendChild(cv);
+      const cap = document.createElement('figcaption');
+      cap.textContent = `${style.stage}. ${style.nameKey} (${style.shape})`;
+      fig.appendChild(cap);
+      row.appendChild(fig);
+
+      const ctx = cv.getContext('2d');
+      ctx.translate(SIZE / 2 - 6, SIZE / 2);
+      ctx.scale(2.6, 2.6);
+      // vẽ 3 frame khác nhau để thấy đuôi động
+      ctx.save();
+      ctx.globalAlpha = 0.28;
+      drawRocket(ctx, 0, 0, { stage: style.stage, dizzyTime: 0.4, isThrusting: true });
+      ctx.restore();
+      drawRocket(ctx, 0, 0, { stage: style.stage, dizzyTime: 1.1, isThrusting: true });
+    }
+  </script>
+</body>
+</html>

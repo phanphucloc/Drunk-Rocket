@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Drunk Rocket — Preview Cổng Tre</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 12px; background: #0b0e14; color: #dfe6ff;
+      font-family: ui-monospace, monospace; display: flex; gap: 14px; align-items: flex-start;
+    }
+    figure { margin: 0; }
+    figcaption { font-size: 12px; letter-spacing: 0.06em; color: #8fa0c8; padding-bottom: 6px; }
+    canvas { display: block; border: 1px solid #2e3856; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <figure>
+    <figcaption>CỔNG TRE — CHƯƠNG 2 (NINH BÌNH)</figcaption>
+    <canvas id="c1" width="400" height="700"></canvas>
+  </figure>
+  <figure>
+    <figcaption>CỔNG TRE — CHƯƠNG 5 (ĐÀ NẴNG, ban đêm)</figcaption>
+    <canvas id="c2" width="400" height="700"></canvas>
+  </figure>
+  <figure>
+    <figcaption>CỔNG TRE — CHƯƠNG 9 (MIỀN TÂY)</figcaption>
+    <canvas id="c3" width="400" height="700"></canvas>
+  </figure>
+
+  <script type="module">
+    import { drawLaserHazard } from './src/graphics/renderer.js';
+    import { getTierFromScore } from './src/graphics/themes.js';
+    import { TIER_THEMES } from './src/graphics/themes.js';
+
+    const configs = [
+      ['c1', 2, '#8fb3c9', '#3d5a6c'],
+      ['c2', 5, '#0b1240', '#1c2a6a'],
+      ['c3', 9, '#0d2532', '#1b4a44']
+    ];
+
+    let t0 = performance.now();
+    function frame(now) {
+      const time = (now - t0) / 1000;
+      for (const [id, tier, top, bottom] of configs) {
+        const cv = document.getElementById(id);
+        const ctx = cv.getContext('2d');
+        const g = ctx.createLinearGradient(0, 0, 0, 700);
+        g.addColorStop(0, top);
+        g.addColorStop(1, bottom);
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, 400, 700);
+
+        const theme = TIER_THEMES[tier];
+        const pillar = {
+          x: 174, width: 52, gapY: 350, gapHeight: 160,
+          topY: 350 - 80, bottomY: 350 + 80,
+          pulsePhase: time * 8, emitterHeight: 26, angle: 0
+        };
+        drawLaserHazard(ctx, pillar, 700, time, theme);
+      }
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+    window.__ready = true;
+    void getTierFromScore;
+  </script>
+</body>
+</html>

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>pause-probe</title>
+  <style>body{margin:0;background:#000;color:#0f0;font:12px monospace}canvas{display:block}pre{white-space:pre-wrap}</style>
+</head>
+<body>
+  <pre id="out">running...</pre>
+  <canvas id="c" width="400" height="700" style="opacity:0.15"></canvas>
+  <script type="module">
+    import { Game } from '../src/core/game.js';
+
+    const out = document.getElementById('out');
+    const lines = [];
+    const log = (s) => { lines.push(s); out.textContent = lines.join('\n'); };
+
+    try {
+      const canvas = document.getElementById('c');
+      const game = new Game(canvas);
+      game.state = 'PLAYING';
+
+      // 30 frame bình thường: diều rơi tự do -> y tăng
+      const y0 = game.rocket.y;
+      for (let i = 0; i < 30; i++) game.update(1 / 60);
+      const y1 = game.rocket.y;
+      log('bình thường: y ' + y0.toFixed(1) + ' -> ' + y1.toFixed(1) + ' (đổi=' + (y1 - y0).toFixed(1) + ')');
+
+      // PAUSE: y phải đứng yên
+      game.setPaused(true);
+      const y2 = game.rocket.y;
+      for (let i = 0; i < 120; i++) game.update(1 / 60);
+      const y3 = game.rocket.y;
+      log('khi pause: y ' + y2.toFixed(1) + ' -> ' + y3.toFixed(1) + ' (đổi=' + (y3 - y2).toFixed(3) + ', paused=' + game.paused + ')');
+
+      // RESUME
+      game.setPaused(false);
+      for (let i = 0; i < 30; i++) game.update(1 / 60);
+      const y4 = game.rocket.y;
+      log('sau resume: y ' + y3.toFixed(1) + ' -> ' + y4.toFixed(1) + ' (đổi=' + (y4 - y3).toFixed(1) + ')');
+
+      const ok = Math.abs(y3 - y2) < 0.001 && Math.abs(y4 - y3) > 1;
+      log(ok ? 'PAUSE OK' : 'PAUSE FAIL');
+      log('DONE');
+    } catch (e) {
+      log('FATAL: ' + (e && (e.stack || e.message)));
+    }
+  </script>
+</body>
+</html>

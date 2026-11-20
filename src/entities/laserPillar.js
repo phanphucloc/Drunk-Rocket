@@ -1,5 +1,5 @@
 import { PhysicsEngine } from '../core/physics.js';
-import { getThemeForScore, getTierFromScore } from '../graphics/themes.js';
+import { getThemeForScore, getTierFromScore } from '../core/progression.js';
 
 export class LaserPillar {
   constructor(x, gapY, gapHeight, width = 52, options = {}) {
@@ -159,8 +159,11 @@ export class LaserPillarManager {
     this.pillars = [];
     this.baseSpeed = 190;
     this.speed = 190;           // Horizontal scroll speed (px/s)
-    this.spawnInterval = 1.85;  // Seconds between spawns
+    this.spawnInterval = 1.85;  // Seconds between spawns (game sẽ cập nhật theo vòng)
     this.spawnTimer = 0;
+    this.breatherEvery = 10;    // cứ N cổng thì chèn 1 nhịp nghỉ
+    this.breatherPause = 0.5;   // giây nghỉ thêm
+    this.spawnedCount = 0;
     this.minGapY = 160;
     this.maxGapY = 520;
     this.gapHeight = 148;       // Generous height of safe corridor
@@ -171,20 +174,33 @@ export class LaserPillarManager {
   reset() {
     this.pillars = [];
     this.speed = this.baseSpeed;
+    this.spawnedCount = 0;
     this.spawnTimer = 0.5; // Quick first obstacle
     this.currentScore = 0;
     this.lastPillarGapY = 350;
   }
 
-  update(dt, rocket, onScore, onNearMiss, score = 0) {
+  update(dt, rocket, onScore, onNearMiss, score = 0, difficulty = null) {
     this.currentScore = score;
     // Graceful slight horizontal speed scaling: +3 px/s every 5 points, capped at +24 px/s
     this.speed = this.baseSpeed + Math.min(Math.floor(score / 5) * 3, 24);
 
+    // Độ khó do game truyền vào (theo vòng). Không truyền -> giữ mặc định.
+    if (difficulty) {
+      if (typeof difficulty.spawnInterval === 'number') this.spawnInterval = difficulty.spawnInterval;
+      if (typeof difficulty.breatherEvery === 'number') this.breatherEvery = difficulty.breatherEvery;
+      if (typeof difficulty.breatherPause === 'number') this.breatherPause = difficulty.breatherPause;
+    }
+
     this.spawnTimer -= dt;
     if (this.spawnTimer <= 0) {
       this.spawn(score);
-      this.spawnTimer = this.spawnInterval;
+      this.spawnedCount++;
+      // Nhịp "thở": cứ N cổng thì nghỉ thêm 1 nhịp cho mắt đỡ mỏi
+      const rest = (this.breatherEvery > 0 && this.spawnedCount % this.breatherEvery === 0)
+        ? this.breatherPause
+        : 0;
+      this.spawnTimer = this.spawnInterval + rest;
     }
 
     for (let i = this.pillars.length - 1; i >= 0; i--) {

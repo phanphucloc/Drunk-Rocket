@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head><meta charset="UTF-8"><title>Test âm thanh sấm</title>
+<style>body{background:#0b0e14;color:#dfe6ff;font:13px ui-monospace,monospace;padding:14px}pre{white-space:pre-wrap}</style>
+</head>
+<body>
+<pre id="out">đang chạy...</pre>
+<script type="module">
+  import { AudioSynthesizer } from './src/audio/audioSynth.js';
+  const out = document.getElementById('out');
+  const log = [];
+  try {
+    const a = new AudioSynthesizer();
+    a.isMuted = false;
+    a._ensureContext();
+    log.push('AudioContext: ' + (a.ctx ? a.ctx.state : 'null'));
+
+    const t0 = performance.now();
+    a.playThunderClap();
+    log.push('playThunderClap OK, ' + (performance.now() - t0).toFixed(1) + 'ms');
+
+    a.setAmbientTheme('thunder', true);
+    log.push('setAmbientTheme(thunder) OK');
+
+    // Gọi liên tiếp để chắc không rò rỉ/không lỗi khi sấm chồng tiếng
+    for (let i = 0; i < 3; i++) a.playThunderClap(0.8);
+    log.push('gọi liên tiếp 3 lần OK');
+
+    a.updateAmbientTick(0.016);
+    log.push('updateAmbientTick OK');
+
+    log.push('sampleRate=' + a.ctx.sampleRate + ' noiseBuffer=' + (a._getNoiseBuffer() ? 'có' : 'không'));
+    document.title = 'OK';
+  } catch (e) {
+    log.push('ERROR: ' + (e && (e.stack || e.message)));
+    document.title = 'ERROR';
+  }
+  out.textContent = log.join('\n');
+</script>
+</body>
+</html>
