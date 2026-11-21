@@ -215,42 +215,32 @@ export class Game {
   }
 
   resize() {
-    // Container đã fixed inset:0 nên số đo của nó CHÍNH LÀ viewport (không phình theo canvas).
-    const host = this.canvas && this.canvas.parentElement;
-    const de = document.documentElement;
-    const windowWidth = Math.max(1,
-      (host && host.clientWidth) || de.clientWidth || window.innerWidth || 1);
-    const windowHeight = Math.max(1,
-      (host && host.clientHeight) || de.clientHeight || window.innerHeight || 1);
+    // Đo VISUAL VIEWPORT: đúng cả khi thanh địa chỉ mobile co giãn / desktop zoom.
+    const vv = window.visualViewport;
+    const vw = Math.max(1, Math.round((vv && vv.width) || window.innerWidth || 400));
+    const vh = Math.max(1, Math.round((vv && vv.height) || window.innerHeight || 700));
 
-    const scaleX = windowWidth / this.width;
-    const scaleY = windowHeight / this.height;
-    this.scale = Math.min(scaleX, scaleY);
+    const sc = Math.min(vw / this.width, vh / this.height);
+    const cssW = Math.max(1, Math.floor(this.width * sc));
+    const cssH = Math.max(1, Math.floor(this.height * sc));
+    this.scale = sc;
 
-    // Backing store = KÍCH THƯỚC HIỂN THỊ × DPR (trước đây chỉ 400×DPR nên khi canvas
-    // bị phóng to bằng CSS thì toàn bộ hình bị nhoè). Toạ độ logic vẫn 400x700.
-    // Giới hạn DPR: máy yếu (RAM ≤ 4GB hoặc ≤ 4 nhân) dùng 1.5x cho mượt,
-    // còn lại 2x (DPR 3 vẽ backing 3x rất tốn mà mắt gần như không phân biệt).
     const lowEnd = (navigator.deviceMemory && navigator.deviceMemory <= 4) ||
                    (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4);
     this.lowEnd = !!lowEnd;
-    const dprCap = lowEnd ? 1.5 : 2;
-    const dpr = Math.min(dprCap, Math.max(1, window.devicePixelRatio || 1));
+    const dpr = Math.min(lowEnd ? 1.5 : 2, Math.max(1, window.devicePixelRatio || 1));
     this.dpr = dpr;
-    const cssW = Math.max(1, Math.floor(this.width * this.scale));
-    const cssH = Math.max(1, Math.floor(this.height * this.scale));
+
+    this.canvas.style.width = cssW + 'px';
+    this.canvas.style.height = cssH + 'px';
     this.canvas.width = Math.round(cssW * dpr);
     this.canvas.height = Math.round(cssH * dpr);
+
     this.baseSX = this.canvas.width / this.width;
     this.baseSY = this.canvas.height / this.height;
     if (this.ctx && this.ctx.setTransform) {
       this.ctx.setTransform(this.baseSX, 0, 0, this.baseSY, 0, 0);
     }
-
-    // NHƯNG phải thu khung hiển thị (CSS) theo màn hình — trước đây thiếu bước này
-    // nên trên điện thoại hẹp (<400px) canvas tràn ra ngoài, cắt mất 2 bên.
-    this.canvas.style.width = cssW + 'px';
-    this.canvas.style.height = cssH + 'px';
 
     if (this.bgCanvas) {
       const bw = Math.max(64, Math.round(cssW / 6));
@@ -269,17 +259,13 @@ export class Game {
     if (this._autoFit) return;
     this._autoFit = true;
     const fit = () => {
-      const host = this.canvas && this.canvas.parentElement;
-      const de = document.documentElement;
-      const w = Math.max(1, (host && host.clientWidth) || de.clientWidth || window.innerWidth || 1);
-      const h = Math.max(1, (host && host.clientHeight) || de.clientHeight || window.innerHeight || 1);
-      const sc = Math.min(w / this.width, h / this.height);
+      const vv = window.visualViewport;
+      const vw = Math.max(1, Math.round((vv && vv.width) || window.innerWidth || 1));
+      const vh = Math.max(1, Math.round((vv && vv.height) || window.innerHeight || 1));
+      const sc = Math.min(vw / this.width, vh / this.height);
       const expW = Math.max(1, Math.floor(this.width * sc)) + 'px';
       const expH = Math.max(1, Math.floor(this.height * sc)) + 'px';
-      // Tự chữa: nếu khung hiện tại lệch với khung đúng thì resize lại
       if (this.canvas.style.width !== expW || this.canvas.style.height !== expH) {
-        this._lastFitW = w;
-        this._lastFitH = h;
         this.resize();
       }
     };

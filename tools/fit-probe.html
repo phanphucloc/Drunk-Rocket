@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>fit-probe</title>
+  <link rel="stylesheet" href="../style.css">
+  <style>
+    #probe-out{position:fixed;left:6px;top:6px;z-index:999;color:#0f0;background:rgba(0,0,0,.75);font:11px monospace;white-space:pre-wrap;padding:6px}
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <canvas id="game-canvas"></canvas>
+  </div>
+  <pre id="probe-out">running...</pre>
+  <script type="module">
+    import { Game } from '../src/core/game.js';
+
+    const out = document.getElementById('probe-out');
+    const log = (s) => { out.textContent += s + '\n'; };
+
+    const cv = document.getElementById('game-canvas');
+    const host = cv.parentElement;
+    const g = new Game(cv);
+
+    const dump = (tag) => {
+      const r = cv.getBoundingClientRect();
+      log(`${tag}: inner=${innerWidth}x${innerHeight} doc=${document.documentElement.clientWidth}x${document.documentElement.clientHeight} host=${host.clientWidth}x${host.clientHeight}`);
+      log(`   css=${cv.style.width}/${cv.style.height} rect=${Math.round(r.width)}x${Math.round(r.height)} backing=${cv.width}x${cv.height} scale=${g.scale.toFixed(3)} dpr=${g.dpr}`);
+    };
+
+    dump('after ctor');
+    g.resize();
+    dump('after resize');
+    setTimeout(() => dump('after 300ms'), 300);
+    setTimeout(() => { dump('after 1200ms'); log('DONE'); }, 1200);
+  </script>
+</body>
+</html>
