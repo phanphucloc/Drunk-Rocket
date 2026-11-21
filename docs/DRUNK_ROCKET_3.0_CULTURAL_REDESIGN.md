@@ -905,3 +905,39 @@ góc trên-trái của backing lớn ⇒ thuyền Ninh Bình trên trời, Hà N
   không còn phụ thuộc kích thước màn hình.
 - Đo trên máy thật vẫn nên bật DevTools Performance; nếu còn giật, bước tiếp theo là bake
   vignette/glow thành lớp tĩnh (đã liệt kê trong backlog).
+
+---
+
+## 36. Giải quyết CẢ HAI: cảnh đúng vị trí VÀ nét
+
+### A. Vì sao trước đây phải chọn một trong hai
+| Cách | Vị trí | Độ nét |
+|---|---|---|
+| Vẽ trực tiếp ở backing + transform DPR | ❌ `setTransform(1,…)` ghi đè ⇒ cảnh lệch | ✅ nét |
+| Vẽ vào buffer 400×700 rồi blit | ✅ đúng | ❌ phóng 400→800+ ⇒ mờ |
+
+### B. Cách giải cả hai (đang dùng)
+Tách **hai hệ toạ độ**:
+1. **Scenic vẽ trong hệ PIXEL BACKING** (`scenic.resize(canvas.width, canvas.height)`, ctx identity):
+   - Các lớp tranh được **bake đúng bằng kích thước backing** (713×1249, hoặc 800×1400 khi DPR 2)
+     ⇒ không còn phóng ảnh ⇒ **nét**.
+   - Các `setTransform` tuyệt đối trong 8.000 dòng vẽ cảnh **vẫn đúng** vì hệ này chính là backing.
+2. **Game (diều, cột, HUD, thời tiết) vẫn ở hệ 400×700** với transform nền `backing/400`.
+
+Thêm lớp bảo hiểm: mọi `setTransform` của scenic được **cộng dồn với transform nền**
+(`_viewT`, `_resetView`, WeakMap theo từng canvas) — nếu sau này có ai đổi hệ toạ độ, cảnh vẫn không lệch.
+
+### C. Load & hiệu năng
+- Bake 9 địa danh **một lần** ở màn hình "ĐANG TẢI…" (tiến độ 1/9 → 9/9), ở đúng độ phân giải backing.
+- Font Google **có timeout 1.5s**: mạng chậm/chặn font không làm kẹt màn hình tải.
+- DPR ≤ 2 (máy yếu ≤ 1.5) để chi phí bake/vẽ không tăng vô ích.
+- Không còn bake giữa lúc chơi; không còn blit toàn khung mỗi frame.
+
+### D. Kiểm chứng
+```
+tools/sharp-probe.html:  css=713×1249  backing=713×1249  transform=1.783
+                          -> PASS backing = css × dpr · PASS không phóng to
+tools/scenic-probe.html?tier=3&dpr=2:  backing 800×1400, Tháp Rùa + cầu Long Biên đúng khung, nét
+tools/scenic-probe.html?tier=2&dpr=2:  thuyền đúng mặt sông
+preview_game.html?tier=3:              trong game Hà Nội đúng, HUD nét
+```
