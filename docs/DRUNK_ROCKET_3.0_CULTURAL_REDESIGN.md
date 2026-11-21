@@ -1039,3 +1039,49 @@ Render call (audit): steady **0.4–3 ms**; `errors=0`.
 ### E. Ghi chú
 Bản "lớp cảnh riêng ≤1.5×" đã thử nhưng gây **seam** ở màn cao (cảnh không phủ hết canvas),
 nên đã bỏ — ưu tiên đúng hiển thị hơn là tiết kiệm vài ms.
+
+---
+
+## 40. Vì sao mobile vẫn giật — và cách sửa
+
+### A. Thủ phạm thật: bloom của thời tiết đọc lại pixel mỗi frame
+`weather.drawSky()` khi có bloom:
+1. `drawImage(ctx.canvas, …)` thu nhỏ **toàn bộ canvas** vào scratch,
+2. **`getImageData()`** để đo độ sáng khung hình,
+3. composite `multiply`/`lighter` phủ lại toàn canvas.
+
+`getImageData` buộc GPU **đọc ngược về CPU** ⇒ stall pipeline; Chrome còn cảnh báo
+*"Multiple readback operations using getImageData are faster with willReadFrequently"*.
+Trên điện thoại đây là nguyên nhân giật chính, không phải cảnh nền.
+
+### B. Đã sửa
+| Việc | Trước | Sau |
+|---|---|---|
+| scratch canvas | 1/4, không cờ | **1/6 (1/8 máy yếu)** + `willReadFrequently: true` |
+| `getImageData` | mỗi 12 frame | **mỗi 24 frame** |
+| Cả khối bloom | mỗi frame | **mỗi 2 frame**; **máy yếu: tắt hẳn** |
+| Hạt hiệu ứng | luôn đầy | máy yếu: **giảm 1/2** |
+| shadowBlur HUD | luôn bật | máy yếu: **tắt** (chữ vẫn nét, chỉ bỏ quầng) |
+
+### C. Tự điều chỉnh theo FPS thực (quan trọng nhất)
+Trong `loop()` đo **EMA thời gian khung** (dt thật, nên phản ánh cả lúc GPU nghẽn):
+- `> 19ms` (~dưới 52fps) → hạ 1 bậc; `< 15ms` → nâng lại 1 bậc.
+| Bậc | DPR trần | Bloom | Khác |
+|---|---|---|---|
+| 0 | 2.0 | bật | — |
+| 1 | 1.5 | **tắt** | — |
+| 2 | 1.25 | tắt | tắt shadow HUD, giảm 1/2 hạt |
+
+### D. Đo (`tools/perf-layers.html`, cùng canvas 199×349 css)
+| Bậc | render | weather.sky | backing |
+|---|---|---|---|
+| 0 | 5.22 ms | 9.74 ms | 398×698 |
+| 1 | **1.01 ms** | **0.05 ms** | 299×524 |
+| 2 | **0.91 ms** | **0.06 ms** | 249×436 |
+
+⇒ Máy yếu tự rơi về bậc 1–2 trong ~1.5 giây đầu, giật gần như biến mất.
+
+### E. Không đánh đổi 2 cam kết
+- **Không bể cảnh**: scenic vẫn vẽ ở hệ pixel backing, `setTransform` cộng dồn (`_viewT/_resetView`).
+- **Không mờ label**: HUD/entity vẽ ở hệ 400×700 với `backing/400`; chỉ hạ DPR khi máy **không đủ FPS**
+  (1.5× vẫn nét; 1.25× chỉ ở máy rất yếu, và tự nâng lại khi rảnh).
