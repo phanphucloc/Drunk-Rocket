@@ -8,6 +8,7 @@
 <body>
   <pre id="out">running...</pre>
   <canvas id="c" width="400" height="700"></canvas>
+  <script>const _d = Number(new URLSearchParams(location.search).get("dpr") || 0); if (_d) { Object.defineProperty(window, "devicePixelRatio", { value: _d, configurable: true }); }</script>
   <script type="module">
     import { Game } from '../src/core/game.js';
     import { getProgression } from '../src/core/progression.js';

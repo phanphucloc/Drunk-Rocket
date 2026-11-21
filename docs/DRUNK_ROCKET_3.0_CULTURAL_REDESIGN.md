@@ -834,3 +834,74 @@ PASS transform = backing/400 (1.783)
 SHARP TEST PASSED
 ```
 `tools/audit-runtime.html` → 27 render, `errors=0`.
+
+---
+
+## 34. Sửa lỗi cảnh bị lệch/nhoè (Ninh Bình thuyền trên núi, Hà Nội lệch)
+
+### A. Nguyên nhân
+Khi bật DPR, mình đặt transform nền cho canvas hiển thị (`backing/400`). Nhưng nhiều bộ vẽ cảnh
+dùng **transform tuyệt đối** để vẽ theo hệ toạ độ tranh gốc:
+- `scenicLandmarks.js`: `ctx.setTransform(view.s, …)` (Ninh Bình, Sa Pa) và
+  `ctx.setTransform(1,0,0,1,0,0)` + `drawImage(scene.bg, 0, 0)` (Hà Nội, Huế, Đà Nẵng).
+- `setTransform` **ghi đè** transform nền ⇒ các lớp vẽ ra với tỉ lệ 1:1 trong *backing pixels*.
+- Backing lúc đó là `713×1249` (do CSS phóng) ⇒ lớp 400×700 chỉ phủ góc trên-trái ⇒
+  **thuyền Ninh Bình nằm giữa trời, Hà Nội/Huế/Đà Nẵng lệch khung**.
+
+### B. Cách sửa: vẽ vào buffer 400×700 rồi blit MỘT lần
+```
+Game.render():
+  1) this.ctx = this.bctx (canvas đệm 400×700, transform = identity)
+     → _renderScene() vẽ toàn bộ cảnh như cũ (mọi setTransform(1,…) vẫn đúng)
+  2) this.ctx = canvas hiển thị (backing = css × dpr)
+     → drawImage(buffer, 0, 0, canvas.width, canvas.height)
+```
+- Không phải sửa 30 chỗ `setTransform` trong 8.000 dòng vẽ cảnh.
+- Canvas hiển thị vẫn **nét theo DPR** (blit 1:1 từ buffer, không phóng to).
+- Chi phí: 1 lần blit toàn khung (GPU) — audit vẫn 16–27ms/frame.
+
+### C. Kiểm chứng
+- `tools/scenic-probe.html?tier=2`: view `s=0.483, offY=202.9`; thuyền ở **y ≈ 524–593** (đúng mặt sông).
+- Trong game `preview_game.html?score=12` (Ninh Bình): thuyền **nằm trên sông**, HUD "NINH BÌNH".
+- `tools/scenic-probe.html?tier=3` (Hà Nội): Tháp Rùa + cầu Long Biên đúng khung 400×700.
+- `tools/tier-sheet.html`: 9 địa danh vẽ đúng hệ toạ độ.
+- `tools/audit-runtime.html`: 27 render, `errors=0`.
+
+### D. Lưu ý cho người chơi đã cài PWA
+Service Worker cache bản cũ ⇒ cần **tăng version cache** (đã lên `dieu-say-gio-v2`);
+lần mở đầu tiên sau cập nhật cần **hard refresh** (Ctrl/Cmd+Shift+R) một lần.
+
+---
+
+## 35. Tải trước (loading) + giảm lag trên điện thoại
+
+### A. Vì sao cảnh vẫn "bể" sau bản trước
+Bản sửa buffer **bị revert** (working tree quay về HEAD) nên lỗi quay lại:
+các module cảnh gọi `ctx.setTransform(1,0,0,1,0,0)` ghi đè transform DPR → lớp 400×700 chỉ phủ
+góc trên-trái của backing lớn ⇒ thuyền Ninh Bình trên trời, Hà Nội/Huế/Đà Nẵng lệch.
+Đã áp lại **pipeline buffer** và lần này **commit** để không mất nữa.
+
+### B. Lag trên điện thoại — nguyên nhân
+1. **Vẽ cảnh ở độ phân giải backing**: trước đây cảnh 400×700 được vẽ trực tiếp vào canvas
+   backing `css×DPR` (điện thoại 390×844 DPR 3 ⇒ ~1080×2340) ⇒ mỗi frame tô lại 2.5 triệu pixel
+   cho các lớp tranh + gradient + shadow.
+2. **Bake giữa lúc chơi**: `preWarmAll()` chạy rải trong lúc READY, nếu người chơi vào game ngay
+   thì mỗi lần bake (~50–250ms) làm khựng đúng lúc đang bay.
+3. **DPR 3** (một số máy) nhân chi phí lên ~2.25× so với DPR 2 mà mắt gần như không thấy khác.
+
+### C. Đã sửa
+| Việc | Trước | Sau |
+|---|---|---|
+| Vẽ cảnh | ở backing (1080×2340) | vào **buffer 400×700**, blit 1 lần |
+| Bake cảnh | rải trong lúc chơi | **tải trước ở màn hình loading** |
+| DPR | ≤ 3 | **≤ 2** (máy yếu ≤ 1.5) |
+| Blit smoothing | `high` | `low` (rẻ hơn, mắt không phân biệt) |
+| Màn hình chờ | không có | **"ĐANG TẢI…" + thanh tiến độ 1/9…9/9** |
+
+### D. Đo (`tools/audit-runtime.html?dpr=2`)
+- Render 27 khung (9 địa danh × 3 thời tiết), `errors=0`.
+- Trung bình 12–25ms/khung; các tier nặng nhất (Hà Nội/HCM/Miền Tây) trong bản **trước** đạt
+  63–70ms ở DPR 2 (do vẽ ở backing) — sau khi chuyển sang buffer + DPR cap, chi phí vẽ cảnh
+  không còn phụ thuộc kích thước màn hình.
+- Đo trên máy thật vẫn nên bật DevTools Performance; nếu còn giật, bước tiếp theo là bake
+  vignette/glow thành lớp tĩnh (đã liệt kê trong backlog).

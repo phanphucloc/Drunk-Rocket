@@ -25,6 +25,13 @@ export class Game {
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
+    // Vẽ cảnh vào buffer 400x700 rồi blit 1 lần sang canvas hiển thị:
+    // mọi setTransform(1,0,0,1,0,0) trong 8k dòng vẽ cảnh vẫn đúng,
+    // còn canvas hiển thị vẫn nét theo DPR mà không phải vẽ cảnh ở độ phân giải lớn.
+    this.buffer = document.createElement('canvas');
+    this.buffer.width = 400;
+    this.buffer.height = 700;
+    this.bctx = this.buffer.getContext('2d');
 
     this.width = 400;
     this.height = 700;
@@ -213,16 +220,20 @@ export class Game {
 
     // Backing store = KÍCH THƯỚC HIỂN THỊ × DPR (trước đây chỉ 400×DPR nên khi canvas
     // bị phóng to bằng CSS thì toàn bộ hình bị nhoè). Toạ độ logic vẫn 400x700.
-    const dpr = Math.min(3, Math.max(1, window.devicePixelRatio || 1));
+    // Giới hạn DPR: máy yếu (RAM ≤ 4GB hoặc ≤ 4 nhân) dùng 1.5x cho mượt,
+    // còn lại 2x (DPR 3 vẽ backing 3x rất tốn mà mắt gần như không phân biệt).
+    const lowEnd = (navigator.deviceMemory && navigator.deviceMemory <= 4) ||
+                   (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4);
+    this.lowEnd = !!lowEnd;
+    const dprCap = lowEnd ? 1.5 : 2;
+    const dpr = Math.min(dprCap, Math.max(1, window.devicePixelRatio || 1));
     this.dpr = dpr;
     const cssW = Math.max(1, Math.floor(this.width * this.scale));
     const cssH = Math.max(1, Math.floor(this.height * this.scale));
     this.canvas.width = Math.round(cssW * dpr);
     this.canvas.height = Math.round(cssH * dpr);
-    if (this.ctx && this.ctx.setTransform) {
-      // 1 đơn vị logic = cssW/400 px hiển thị = (cssW/400)*dpr px backing
-      this.ctx.setTransform(this.canvas.width / this.width, 0, 0, this.canvas.height / this.height, 0, 0);
-    }
+    // Canvas hiển thị 1:1 với backing; cảnh vẽ vào buffer 400x700 rồi blit.
+    if (this.ctx && this.ctx.setTransform) this.ctx.setTransform(1, 0, 0, 1, 0, 0);
 
     // NHƯNG phải thu khung hiển thị (CSS) theo màn hình — trước đây thiếu bước này
     // nên trên điện thoại hẹp (<400px) canvas tràn ra ngoài, cắt mất 2 bên.
@@ -906,6 +917,24 @@ export class Game {
   }
 
   render() {
+    const out = this.ctx;
+    const outW = out.canvas.width;
+    const outH = out.canvas.height;
+
+    this.ctx = this.bctx;
+    try {
+      this._renderScene();
+    } finally {
+      this.ctx = out;
+    }
+
+    out.setTransform(1, 0, 0, 1, 0, 0);
+    out.imageSmoothingEnabled = true;
+    out.imageSmoothingQuality = 'low';   // blit 1 lần: 'low' rẻ hơn nhiều, mắt không phân biệt
+    out.drawImage(this.buffer, 0, 0, outW, outH);
+  }
+
+  _renderScene() {
     this.ctx.save();
 
     const shake = this.hud.getShakeOffset();

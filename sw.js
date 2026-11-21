@@ -2,7 +2,7 @@
  * Service Worker: chơi offline sau lần tải đầu.
  * Chỉ cache các tài nguyên tĩnh của game (không cache API bảng xếp hạng).
  */
-const CACHE = 'dieu-say-gio-v1';
+const CACHE = 'dieu-say-gio-v2';
 
 const SHELL = [
   './',

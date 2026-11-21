@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>tier-sheet</title>
+  <style>
+    body { margin: 0; background: #0b1512; color: #7fe3c4; font: 10px monospace; }
+    .grid { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; }
+    figure { margin: 0; }
+    figcaption { padding: 2px; }
+    canvas { display: block; border: 1px solid #23423a; }
+  </style>
+</head>
+<body>
+  <div class="grid" id="g"></div>
+  <script type="module">
+    import { ScenicLandmarksManager } from '../src/graphics/scenicLandmarks.js';
+
+    const g = document.getElementById('g');
+    const W = 200, H = 350;
+
+    for (let tier = 1; tier <= 9; tier++) {
+      const fig = document.createElement('figure');
+      const cv = document.createElement('canvas');
+      cv.width = W * 2;
+      cv.height = H * 2;
+      cv.style.width = W + 'px';
+      cv.style.height = H + 'px';
+      const cap = document.createElement('figcaption');
+      cap.textContent = 'TIER ' + tier;
+      fig.appendChild(cv);
+      fig.appendChild(cap);
+      g.appendChild(fig);
+
+      const m = new ScenicLandmarksManager(W, H);
+      m.setTier(tier);
+      m.currentTier = tier;
+      m.prevTier = tier;
+      m.fadeProgress = 1;
+      const ctx = cv.getContext('2d');
+      ctx.setTransform(2, 0, 0, 2, 0, 0);   // mô phỏng DPR 2 như canvas hiển thị
+      m.draw(ctx);
+    }
+    document.title = 'ready';
+  </script>
+</body>
+</html>

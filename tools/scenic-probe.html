@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>scenic-probe</title>
+  <style>body{margin:0;background:#0b1512;color:#0f0;font:11px monospace}pre{white-space:pre-wrap}canvas{display:block}</style>
+</head>
+<body>
+  <pre id="out">running...</pre>
+  <canvas id="c" width="400" height="700"></canvas>
+  <script type="module">
+    import { ScenicLandmarksManager } from '../src/graphics/scenicLandmarks.js';
+
+    const out = document.getElementById('out');
+    const log = (s) => { out.textContent += s + '\n'; };
+
+    const params = new URLSearchParams(location.search);
+    const tier = Number(params.get('tier') || 2);
+
+    const m = new ScenicLandmarksManager(400, 700);
+    m.setTier(tier);
+    m.currentTier = tier;
+    m.fadeProgress = 1;
+
+    const ctx = document.getElementById('c').getContext('2d');
+    m.draw(ctx);
+
+    log(`tier=${tier}  strip=${document.getElementById('c').width}x${document.getElementById('c').height}`);
+    try {
+      const scene = m._getNinhBinhScene();
+      log('nb view: ' + JSON.stringify(scene.view));
+      scene.boats.slice(0, 3).forEach((b, i) => {
+        const sy = b.y * scene.view.s - scene.view.offY * scene.view.s;
+        log(`boat${i}: art(${b.x},${b.y}) -> screen y ≈ ${sy.toFixed(0)}`);
+      });
+    } catch (e) { log('nb scene err: ' + e.message); }
+    log('DONE');
+  </script>
+</body>
+</html>
