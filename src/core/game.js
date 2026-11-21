@@ -25,11 +25,13 @@ export class Game {
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
-    // Canvas nền mờ (cinematic): lấp khoảng trống khi màn hình rộng/cao.
-    this.bgCanvas = document.getElementById('scene-backdrop');
-    this.bgCtx = this.bgCanvas ? this.bgCanvas.getContext('2d') : null;
-    this._bgFrame = 0;
+    // Lớp cảnh riêng: vẽ ở độ phân giải giới hạn rồi blit -> nhẹ cho điện thoại.
+    this.sceneBuffer = document.createElement('canvas');
+    this.sceneBuffer.width = 400;
+    this.sceneBuffer.height = 700;
+    this.sceneCtx = this.sceneBuffer.getContext('2d');
 
+    this._dbg = !!(window.__DR_DEBUG || /[?&]debug=1/.test(location.search));
     this.width = 400;
     this.height = 700;
     this.scale = 1;
@@ -235,15 +237,17 @@ export class Game {
       this.ctx.setTransform(this.baseSX, 0, 0, this.baseSY, 0, 0);
     }
 
-    if (this.bgCanvas) {
-      const bw = Math.max(64, Math.round(cssW / 6));
-      const bh = Math.max(64, Math.round(cssH / 6));
-      if (this.bgCanvas.width !== bw) this.bgCanvas.width = bw;
-      if (this.bgCanvas.height !== bh) this.bgCanvas.height = bh;
+    // Lớp cảnh: tối đa 1.5× kích thước logic (đủ nét cho tranh vẽ, nhẹ hơn nhiều so với 2×)
+    const sceneScale = Math.max(1, Math.min(1.5, this.baseSX));
+    const sw = Math.round(this.width * sceneScale);
+    const shh = Math.round(this.height * sceneScale);
+    if (this.sceneBuffer.width !== sw || this.sceneBuffer.height !== shh) {
+      this.sceneBuffer.width = sw;
+      this.sceneBuffer.height = shh;
     }
 
-    if (window.__DR_DEBUG || /[?&]debug=1/.test(location.search)) console.log('DLG vv=' + (window.visualViewport ? window.visualViewport.width + 'x' + window.visualViewport.height : '-') + ' inner=' + window.innerWidth + 'x' + window.innerHeight + ' css=' + cssW + 'x' + cssH + ' scale=' + sc.toFixed(3) + ' rect=' + Math.round(this.canvas.getBoundingClientRect().width) + 'x' + Math.round(this.canvas.getBoundingClientRect().height));
-    if (this.scenic) this.scenic.resize(this.canvas.width, this.canvas.height);
+    if (this._dbg) console.log('DLG vv=' + (window.visualViewport ? window.visualViewport.width + 'x' + window.visualViewport.height : '-') + ' inner=' + window.innerWidth + 'x' + window.innerHeight + ' css=' + cssW + 'x' + cssH + ' scale=' + sc.toFixed(3) + ' rect=' + Math.round(this.canvas.getBoundingClientRect().width) + 'x' + Math.round(this.canvas.getBoundingClientRect().height));
+    if (this.scenic) this.scenic.resize(this.sceneBuffer.width, this.sceneBuffer.height);
     if (this.weather) this.weather.resize(this.width, this.height);
     if (this.story) this.story.resize(this.width, this.height);
   }
