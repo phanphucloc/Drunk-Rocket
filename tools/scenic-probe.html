@@ -17,13 +17,24 @@
     const params = new URLSearchParams(location.search);
     const tier = Number(params.get('tier') || 2);
 
-    const m = new ScenicLandmarksManager(400, 700);
+    const dpr = Math.max(1, Math.min(3, Number(params.get('dpr') || 1)));
+    // Giống hệt game: scenic quản lý theo PIXEL BACKING
+    const m = new ScenicLandmarksManager(400 * dpr, 700 * dpr);
     m.setTier(tier);
     m.currentTier = tier;
     m.fadeProgress = 1;
 
-    const ctx = document.getElementById('c').getContext('2d');
+    const cv = document.getElementById('c');
+    if (dpr !== 1) {
+      cv.width = 400 * dpr;
+      cv.height = 700 * dpr;
+      cv.style.width = '400px';
+      cv.style.height = '700px';
+    }
+    const ctx = cv.getContext('2d');
+    ctx.setTransform(1, 0, 0, 1, 0, 0);   // game cũng vẽ scenic ở hệ backing
     m.draw(ctx);
+    log('dpr=' + dpr + ' backing=' + cv.width + 'x' + cv.height);
 
     log(`tier=${tier}  strip=${document.getElementById('c').width}x${document.getElementById('c').height}`);
     try {

@@ -41,7 +41,13 @@ window.addEventListener('DOMContentLoaded', () => {
           if (subEl) subEl.textContent = done + '/' + total;
         });
       }
-      if (document.fonts && document.fonts.ready) await document.fonts.ready;
+      if (document.fonts && document.fonts.ready) {
+        // Không chờ font quá lâu: mạng chậm/chặn Google Fonts vẫn phải vào được game
+        await Promise.race([
+          document.fonts.ready,
+          new Promise((r) => setTimeout(r, 1500))
+        ]);
+      }
     } catch (e) { /* lỗi dựng thử không chặn game */ }
     finishLoading();
   })();

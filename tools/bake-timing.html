@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>bake-timing</title>
+  <style>body{margin:0;background:#000;color:#0f0;font:12px monospace}pre{white-space:pre-wrap}</style>
+</head>
+<body>
+  <pre id="out">running...</pre>
+  <script type="module">
+    import { ScenicLandmarksManager } from '../src/graphics/scenicLandmarks.js';
+
+    const out = document.getElementById('out');
+    const log = (s) => { out.textContent += s + '\n'; };
+    const params = new URLSearchParams(location.search);
+    const dpr = Math.max(1, Math.min(2, Number(params.get('dpr') || 2)));
+
+    const m = new ScenicLandmarksManager(400 * dpr, 700 * dpr);
+    const t0 = performance.now();
+    const per = [];
+    await m.bakeAll((done, total, tier) => {
+      per.push(`${tier}:${Math.round(performance.now() - t0)}`);
+    });
+    const total = Math.round(performance.now() - t0);
+    log(`dpr=${dpr}  bakeAll total=${total}ms`);
+    log('cumulative: ' + per.join(' '));
+    log(total < 6000 ? 'BAKE OK' : 'BAKE SLOW');
+    log('DONE');
+  </script>
+</body>
+</html>
