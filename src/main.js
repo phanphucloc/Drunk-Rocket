@@ -33,6 +33,11 @@ window.addEventListener('DOMContentLoaded', () => {
     game.resize();
     game.startAutoFit();
     game.start();
+    // ?auto=1 : tự bắt đầu để kiểm thử tự động
+    if (/[?&]auto=1/.test(location.search)) {
+      setTimeout(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', key: ' ' })), 1200);
+    }
+
   };
 
   (async () => {

@@ -1256,6 +1256,11 @@ export class Game {
 
   loop(timestamp) {
 
+    if (!this.isRunning) return;
+
+    const dt = Math.min((timestamp - this.lastTime) / 1000, 0.1);
+    this.lastTime = timestamp;
+
     // ---- Tự điều chỉnh chất lượng theo FPS thực ----
     if (this.state === 'PLAYING' && !this.paused && dt > 0 && dt < 0.25) {
       this.perfEma = this.perfEma * 0.9 + (dt * 1000) * 0.1;
@@ -1272,10 +1277,6 @@ export class Game {
         }
       }
     }
-    if (!this.isRunning) return;
-
-    const dt = Math.min((timestamp - this.lastTime) / 1000, 0.1);
-    this.lastTime = timestamp;
 
     // Một lỗi bất ngờ trong update/render KHÔNG được phép làm chết vòng lặp
     // (trước đây requestAnimationFrame nằm sau update/render nên chỉ 1 exception

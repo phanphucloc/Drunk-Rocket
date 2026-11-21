@@ -1085,3 +1085,31 @@ Trong `loop()` đo **EMA thời gian khung** (dt thật, nên phản ánh cả l
 - **Không bể cảnh**: scenic vẫn vẽ ở hệ pixel backing, `setTransform` cộng dồn (`_viewT/_resetView`).
 - **Không mờ label**: HUD/entity vẽ ở hệ 400×700 với `backing/400`; chỉ hạ DPR khi máy **không đủ FPS**
   (1.5× vẫn nét; 1.25× chỉ ở máy rất yếu, và tự nâng lại khi rảnh).
+
+---
+
+## 41. Sửa lỗi TREO khi bấm Space vào game
+
+### A. Nguyên nhân
+Khối "tự điều chỉnh chất lượng" được chèn **ngay đầu `loop()`**, nhưng lại dùng biến `dt`
+trong khi `const dt = …` được khai báo **phía dưới**. JavaScript ném
+`ReferenceError: Cannot access 'dt' before initialization` **ở mọi khung hình**, và vì đoạn này nằm
+**ngoài `try/catch`** nên `loop()` chết ngay từ frame đầu ⇒ game đứng hình (nhấn Space chỉ đổi state
+nhưng không có vòng lặp nào vẽ/ cập nhật).
+
+### B. Sửa
+- Chuyển khối tự điều chỉnh xuống **sau** dòng khai báo `dt`.
+- (Đã có sẵn) `try/catch` + `requestAnimationFrame` đặt **cuối** loop để một lỗi bất ngờ không giết vòng lặp.
+
+### C. Kiểm chứng
+`tools/start-probe.html` (giả lập Space):
+```
+PASS vào game bằng Space — state=PLAYING
+PASS vòng lặp vẫn chạy
+PASS không có lỗi vòng lặp
+START OK
+```
+Chạy thật với `?auto=1` (tự bấm Space sau 1.2s): diều bay, HUD cập nhật, console **không** còn lỗi.
+
+### D. Ghi chú
+Thêm cờ `?auto=1` (chỉ để test) và `?debug=1` (in số đo `DLG …`) — không ảnh hưởng người chơi thường.

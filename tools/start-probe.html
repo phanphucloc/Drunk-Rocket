@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>start-probe</title>
+  <style>body{margin:0;background:#000;color:#0f0;font:12px monospace}pre{white-space:pre-wrap}canvas{opacity:.08}</style>
+</head>
+<body>
+  <pre id="out">running...</pre>
+  <canvas id="c" width="400" height="700"></canvas>
+  <script type="module">
+    import { Game } from '../src/core/game.js';
+
+    const out = document.getElementById('out');
+    const lines = [];
+    const log = (s) => { lines.push(s); out.textContent = lines.join('\n'); };
+    const fails = [];
+    const check = (n, c, e = '') => { log((c ? 'PASS ' : 'FAIL ') + n + (e ? ' — ' + e : '')); if (!c) fails.push(n); };
+
+    try {
+      const cv = document.getElementById('c');
+      const g = new Game(cv);
+      g.start();
+      g.state = 'READY';
+
+      let frames = 0;
+      const origRender = g.render.bind(g);
+      g.render = () => { frames++; return origRender(); };
+
+      // giả lập nhấn space
+      window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', key: ' ', bubbles: true }));
+
+      setTimeout(() => {
+        check('vào game bằng Space', g.state === 'PLAYING', 'state=' + g.state);
+        check('vòng lặp vẫn chạy', frames >= 2 && g.totalTime > 0, 'frames=' + frames + ' t=' + g.totalTime.toFixed(2));
+        check('không có lỗi vòng lặp', !g.lastError, g.lastError ? String(g.lastError) : '');
+        log(fails.length ? 'FAILED: ' + fails.join(', ') : 'START OK');
+        log('DONE');
+      }, 900);
+    } catch (e) {
+      log('FATAL: ' + (e && (e.stack || e.message)));
+    }
+  </script>
+</body>
+</html>
