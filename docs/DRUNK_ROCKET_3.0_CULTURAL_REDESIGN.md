@@ -941,3 +941,36 @@ tools/scenic-probe.html?tier=3&dpr=2:  backing 800×1400, Tháp Rùa + cầu Lon
 tools/scenic-probe.html?tier=2&dpr=2:  thuyền đúng mặt sông
 preview_game.html?tier=3:              trong game Hà Nội đúng, HUD nét
 ```
+
+---
+
+## 37. Bố cục chuyên nghiệp cho MỌI tỉ lệ màn hình
+
+### A. Vấn đề
+Game có khung chơi 400×700 (dọc). Khi cửa sổ **rộng hơn** hoặc **thấp hơn** nhiều, khung bị lọt thỏm giữa
+một vùng tối, UI (thanh công cụ, nút hành động) lại bám mép **cửa sổ** nên trông rời rạc.
+
+### B. Giải pháp (3 lớp)
+1. **Nền mờ "cinematic"**: một canvas `#scene-backdrop` phía sau, mỗi 3 frame vẽ lại chính khung game
+   (cover-fit) ở 1/6 độ phân giải + `filter: blur(18px) saturate(1.25) brightness(0.82)`.
+   → vùng trống hai bên trở thành "ánh xạ" của cảnh đang chơi, không còn khoảng đen.
+2. **UI bám mép CANVAS** thay vì mép cửa sổ: `layoutOverlay()` đặt thanh công cụ ngay phải khung
+   (hoặc sát trong mép phải nếu không đủ chỗ), nút "Thách Đố/Lưu điểm" canh giữa theo khung.
+3. **Định cỡ bằng `visualViewport`** (không dùng `100vh`): canvas luôn vừa vùng nhìn thấy,
+   xử lý đúng thanh địa chỉ co giãn trên mobile. Kèm **tự chữa**: mỗi 800ms so lại kích thước,
+   lệch là `resize()` (xoay máy, zoom, thanh địa chỉ…).
+   Bỏ `image-rendering: pixelated` (gây răng cưa khi đổi cỡ) và thêm viền/đổ bóng nhẹ cho khung.
+
+### C. Đo thực tế
+`?debug=1` in ra console:
+```
+DLG vv=744x1049 inner=744x1049 css=599x1049 scale=1.499 rect=599x1049
+```
+→ khung 599×1049 vừa đúng viewport 744×1049 (thừa 2 bên 72px mỗi phía do game dọc).
+
+Ba tỉ lệ đã chụp: **1400×820** (rộng), **760×1200** (cao), **1200×560** (thấp) — xem
+`docs/screenshots/layout-wide.png`, `layout-tall.png`, `layout-short.png`.
+
+### D. Giữ nguyên 2 yêu cầu trước
+- **Không bể cảnh**: scenic vẫn vẽ trong hệ pixel backing + transform cộng dồn (`_viewT`).
+- **Không mờ**: canvas hiển thị = `css × DPR` (DPR ≤ 2, máy yếu ≤ 1.5), vẽ trực tiếp ở độ phân giải đó.
