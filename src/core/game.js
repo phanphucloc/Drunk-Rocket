@@ -25,11 +25,6 @@ export class Game {
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
-    // Lớp cảnh riêng: vẽ ở độ phân giải giới hạn rồi blit -> nhẹ cho điện thoại.
-    this.sceneBuffer = document.createElement('canvas');
-    this.sceneBuffer.width = 400;
-    this.sceneBuffer.height = 700;
-    this.sceneCtx = this.sceneBuffer.getContext('2d');
 
     this._dbg = !!(window.__DR_DEBUG || /[?&]debug=1/.test(location.search));
     this.width = 400;
@@ -223,7 +218,10 @@ export class Game {
     const lowEnd = (navigator.deviceMemory && navigator.deviceMemory <= 4) ||
                    (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4);
     this.lowEnd = !!lowEnd;
-    const dpr = Math.min(lowEnd ? 1.5 : 2, Math.max(1, window.devicePixelRatio || 1));
+    let dpr = Math.min(lowEnd ? 1.5 : 2, Math.max(1, window.devicePixelRatio || 1));
+    // Chặn backing ≤ 2× kích thước logic: màn hình rất to vẫn nhẹ, không vẽ 3-4×
+    const capDpr = (this.width * 2) / Math.max(1, cssW);
+    if (dpr > capDpr) dpr = Math.max(1, capDpr);
     this.dpr = dpr;
 
     this.canvas.style.width = cssW + 'px';
@@ -237,17 +235,9 @@ export class Game {
       this.ctx.setTransform(this.baseSX, 0, 0, this.baseSY, 0, 0);
     }
 
-    // Lớp cảnh: tối đa 1.5× kích thước logic (đủ nét cho tranh vẽ, nhẹ hơn nhiều so với 2×)
-    const sceneScale = Math.max(1, Math.min(1.5, this.baseSX));
-    const sw = Math.round(this.width * sceneScale);
-    const shh = Math.round(this.height * sceneScale);
-    if (this.sceneBuffer.width !== sw || this.sceneBuffer.height !== shh) {
-      this.sceneBuffer.width = sw;
-      this.sceneBuffer.height = shh;
-    }
 
     if (this._dbg) console.log('DLG vv=' + (window.visualViewport ? window.visualViewport.width + 'x' + window.visualViewport.height : '-') + ' inner=' + window.innerWidth + 'x' + window.innerHeight + ' css=' + cssW + 'x' + cssH + ' scale=' + sc.toFixed(3) + ' rect=' + Math.round(this.canvas.getBoundingClientRect().width) + 'x' + Math.round(this.canvas.getBoundingClientRect().height));
-    if (this.scenic) this.scenic.resize(this.sceneBuffer.width, this.sceneBuffer.height);
+    if (this.scenic) this.scenic.resize(this.canvas.width, this.canvas.height);
     if (this.weather) this.weather.resize(this.width, this.height);
     if (this.story) this.story.resize(this.width, this.height);
   }

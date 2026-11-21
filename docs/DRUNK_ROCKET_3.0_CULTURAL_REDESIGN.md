@@ -1007,3 +1007,35 @@ bằng chính khung đang chơi.
 
 ### D. Ảnh
 `docs/screenshots/layout-wide.png`, `layout-tall.png`, `layout-short.png`.
+
+---
+
+## 39. Bỏ nền mờ + tối ưu lại cho mobile (chốt)
+
+### A. Bỏ "cinematic backdrop"
+Theo phản hồi (rối mắt), đã **xoá** `#scene-backdrop` (HTML + CSS + blit mỗi frame).
+Vùng ngoài khung quay lại nền tối giản `#0b1512` — gọn, tập trung vào khung chơi.
+
+### B. Tối ưu cho điện thoại (không đánh đổi 2 yêu cầu cũ)
+| Việc | Trước | Sau |
+|---|---|---|
+| Blit nền mờ mỗi frame | có (tốn 1 lần copy toàn khung) | **bỏ** |
+| Độ phân giải backing | `css × DPR` (có thể tới 4× logic trên tablet) | **≤ 2× logic** (cap tuyệt đối) |
+| Máy yếu | — | **DPR ≤ 1.5** (RAM ≤ 4GB hoặc ≤ 4 nhân) |
+| Vẽ cảnh | trực tiếp ở backing (nét) | giữ nguyên — **một** đường vẽ duy nhất |
+
+### C. Giữ nguyên 2 cam kết
+- **Không bể cảnh**: scenic vẽ ở hệ pixel backing, `setTransform` cộng dồn với nền (`_viewT/_resetView`).
+- **Không mờ label/HUD**: HUD/entity vẽ ở hệ 400×700 với transform nền `backing/400`, rasterize đúng độ phân giải hiển thị.
+
+### D. Đo (`?debug=1`)
+```
+wide  1400×820 → css=468×820   scale=1.171  backing ≤ 936×1640 (cap 2×)
+tall  760×1200 → css=599×1049  scale=1.499
+short 1200×560 → css=320×560   scale=0.800
+```
+Render call (audit): steady **0.4–3 ms**; `errors=0`.
+
+### E. Ghi chú
+Bản "lớp cảnh riêng ≤1.5×" đã thử nhưng gây **seam** ở màn cao (cảnh không phủ hết canvas),
+nên đã bỏ — ưu tiên đúng hiển thị hơn là tiết kiệm vài ms.
