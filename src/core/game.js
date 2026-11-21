@@ -25,6 +25,10 @@ export class Game {
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
+    // Canvas nền mờ (cinematic): lấp khoảng trống khi màn hình rộng/cao.
+    this.bgCanvas = document.getElementById('scene-backdrop');
+    this.bgCtx = this.bgCanvas ? this.bgCanvas.getContext('2d') : null;
+    this._bgFrame = 0;
     // Vẽ cảnh vào buffer 400x700 rồi blit 1 lần sang canvas hiển thị:
     // mọi setTransform(1,0,0,1,0,0) trong 8k dòng vẽ cảnh vẫn đúng,
     // còn canvas hiển thị vẫn nét theo DPR mà không phải vẽ cảnh ở độ phân giải lớn.
@@ -242,6 +246,13 @@ export class Game {
     // nên trên điện thoại hẹp (<400px) canvas tràn ra ngoài, cắt mất 2 bên.
     this.canvas.style.width = cssW + 'px';
     this.canvas.style.height = cssH + 'px';
+
+    if (this.bgCanvas) {
+      const bw = Math.max(64, Math.round(cssW / 6));
+      const bh = Math.max(64, Math.round(cssH / 6));
+      if (this.bgCanvas.width !== bw) this.bgCanvas.width = bw;
+      if (this.bgCanvas.height !== bh) this.bgCanvas.height = bh;
+    }
 
     if (this.scenic) this.scenic.resize(this.canvas.width, this.canvas.height);
     if (this.weather) this.weather.resize(this.width, this.height);
@@ -935,7 +946,22 @@ export class Game {
     out.imageSmoothingEnabled = true;
     out.imageSmoothingQuality = 'low';   // blit 1 lần: 'low' rẻ hơn nhiều, mắt không phân biệt
     out.drawImage(this.buffer, 0, 0, outW, outH);
-  }
+  
+    // ---- Nền mờ phía sau: phủ kín màn hình theo kiểu "cover" ----
+    if (this.bgCtx && this.bgCanvas) {
+      this._bgFrame = (this._bgFrame + 1) % 3;
+      if (this._bgFrame === 0) {
+        const bw = this.bgCanvas.width;
+        const bh = this.bgCanvas.height;
+        const scale = Math.max(bw / this.width, bh / this.height);
+        const dw = this.width * scale;
+        const dh = this.height * scale;
+        const dx = (bw - dw) / 2;
+        const dy = (bh - dh) / 2;
+        this.bgCtx.drawImage(this.canvas, dx, dy, dw, dh);
+      }
+    }
+}
 
   _renderScene() {
     this.ctx.save();

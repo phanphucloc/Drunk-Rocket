@@ -164,6 +164,37 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   initStampBook();
+  // ---- Canh UI theo MÉP CANVAS (không theo mép cửa sổ) ----
+  const layoutOverlay = () => {
+    const cv = document.getElementById('game-canvas');
+    if (!cv) return;
+    const r = cv.getBoundingClientRect();
+    const pad = 10;
+
+    const tb = document.getElementById('top-toolbar');
+    if (tb) {
+      const w = tb.offsetWidth || 130;
+      let left = r.right + pad;
+      if (left + w > window.innerWidth - 4) left = Math.max(4, r.right - w - pad);
+      tb.style.left = Math.round(left) + 'px';
+      tb.style.right = 'auto';
+      tb.style.top = Math.round(Math.max(4, r.top + pad)) + 'px';
+    }
+
+    const actions = document.getElementById('gameover-actions');
+    if (actions) {
+      actions.style.left = Math.round(r.left + r.width / 2) + 'px';
+      actions.style.transform = 'translateX(-50%)';
+      actions.style.bottom = Math.round(Math.max(12, window.innerHeight - r.bottom + 14)) + 'px';
+    }
+  };
+
+  window.addEventListener('resize', () => setTimeout(layoutOverlay, 30));
+  window.addEventListener('orientationchange', () => setTimeout(layoutOverlay, 180));
+  setTimeout(layoutOverlay, 60);
+  setTimeout(layoutOverlay, 400);
+  setInterval(layoutOverlay, 600);
+
   infoPanels.positionChip();
   setTimeout(() => infoPanels.positionChip(), 250);
 
