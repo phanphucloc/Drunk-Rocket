@@ -30,6 +30,8 @@ window.addEventListener('DOMContentLoaded', () => {
       loadingEl.classList.add('is-hidden');
       setTimeout(() => loadingEl.remove(), 420);
     }
+    game.resize();
+    game.startAutoFit();
     game.start();
   };
 

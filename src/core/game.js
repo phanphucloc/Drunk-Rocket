@@ -215,8 +215,13 @@ export class Game {
   }
 
   resize() {
-    const windowWidth = window.innerWidth;
-    const windowHeight = window.innerHeight;
+    // Container đã fixed inset:0 nên số đo của nó CHÍNH LÀ viewport (không phình theo canvas).
+    const host = this.canvas && this.canvas.parentElement;
+    const de = document.documentElement;
+    const windowWidth = Math.max(1,
+      (host && host.clientWidth) || de.clientWidth || window.innerWidth || 1);
+    const windowHeight = Math.max(1,
+      (host && host.clientHeight) || de.clientHeight || window.innerHeight || 1);
 
     const scaleX = windowWidth / this.width;
     const scaleY = windowHeight / this.height;
@@ -257,6 +262,36 @@ export class Game {
     if (this.scenic) this.scenic.resize(this.canvas.width, this.canvas.height);
     if (this.weather) this.weather.resize(this.width, this.height);
     if (this.story) this.story.resize(this.width, this.height);
+  }
+
+  /** Tự canh lại canvas khi khung hiển thị đổi (xoay máy, thanh địa chỉ, zoom...). */
+  startAutoFit() {
+    if (this._autoFit) return;
+    this._autoFit = true;
+    const fit = () => {
+      const host = this.canvas && this.canvas.parentElement;
+      const de = document.documentElement;
+      const w = Math.max(1, (host && host.clientWidth) || de.clientWidth || window.innerWidth || 1);
+      const h = Math.max(1, (host && host.clientHeight) || de.clientHeight || window.innerHeight || 1);
+      const sc = Math.min(w / this.width, h / this.height);
+      const expW = Math.max(1, Math.floor(this.width * sc)) + 'px';
+      const expH = Math.max(1, Math.floor(this.height * sc)) + 'px';
+      // Tự chữa: nếu khung hiện tại lệch với khung đúng thì resize lại
+      if (this.canvas.style.width !== expW || this.canvas.style.height !== expH) {
+        this._lastFitW = w;
+        this._lastFitH = h;
+        this.resize();
+      }
+    };
+    if (typeof ResizeObserver !== 'undefined') {
+      try { this._ro = new ResizeObserver(fit); this._ro.observe(this.canvas.parentElement); } catch (e) {}
+    }
+    window.addEventListener('orientationchange', () => setTimeout(fit, 180));
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', fit);
+    window.addEventListener('resize', fit);
+    setInterval(fit, 800);
+    setTimeout(fit, 60);
+    setTimeout(fit, 400);
   }
 
   start() {
