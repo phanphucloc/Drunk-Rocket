@@ -29,13 +29,6 @@ export class Game {
     this.bgCanvas = document.getElementById('scene-backdrop');
     this.bgCtx = this.bgCanvas ? this.bgCanvas.getContext('2d') : null;
     this._bgFrame = 0;
-    // Vẽ cảnh vào buffer 400x700 rồi blit 1 lần sang canvas hiển thị:
-    // mọi setTransform(1,0,0,1,0,0) trong 8k dòng vẽ cảnh vẫn đúng,
-    // còn canvas hiển thị vẫn nét theo DPR mà không phải vẽ cảnh ở độ phân giải lớn.
-    this.buffer = document.createElement('canvas');
-    this.buffer.width = 400;
-    this.buffer.height = 700;
-    this.bctx = this.buffer.getContext('2d');
 
     this.width = 400;
     this.height = 700;
@@ -249,7 +242,7 @@ export class Game {
       if (this.bgCanvas.height !== bh) this.bgCanvas.height = bh;
     }
 
-    if (window.__DR_DEBUG) console.log('DLG vv=' + (window.visualViewport ? window.visualViewport.width + 'x' + window.visualViewport.height : '-') + ' inner=' + window.innerWidth + 'x' + window.innerHeight + ' css=' + cssW + 'x' + cssH + ' scale=' + sc.toFixed(3) + ' rect=' + Math.round(this.canvas.getBoundingClientRect().width) + 'x' + Math.round(this.canvas.getBoundingClientRect().height));
+    if (window.__DR_DEBUG || /[?&]debug=1/.test(location.search)) console.log('DLG vv=' + (window.visualViewport ? window.visualViewport.width + 'x' + window.visualViewport.height : '-') + ' inner=' + window.innerWidth + 'x' + window.innerHeight + ' css=' + cssW + 'x' + cssH + ' scale=' + sc.toFixed(3) + ' rect=' + Math.round(this.canvas.getBoundingClientRect().width) + 'x' + Math.round(this.canvas.getBoundingClientRect().height));
     if (this.scenic) this.scenic.resize(this.canvas.width, this.canvas.height);
     if (this.weather) this.weather.resize(this.width, this.height);
     if (this.story) this.story.resize(this.width, this.height);
@@ -953,53 +946,25 @@ export class Game {
   }
 
   render() {
-    const out = this.ctx;
-    const outW = out.canvas.width;
-    const outH = out.canvas.height;
-
-    this.ctx = this.bctx;
-    try {
-      this._renderScene();
-    } finally {
-      this.ctx = out;
-    }
-
-    out.setTransform(1, 0, 0, 1, 0, 0);
-    out.imageSmoothingEnabled = true;
-    out.imageSmoothingQuality = 'low';   // blit 1 lần: 'low' rẻ hơn nhiều, mắt không phân biệt
-    out.drawImage(this.buffer, 0, 0, outW, outH);
-  
-    // ---- Nền mờ phía sau: phủ kín màn hình theo kiểu "cover" ----
-    if (this.bgCtx && this.bgCanvas) {
-      this._bgFrame = (this._bgFrame + 1) % 3;
-      if (this._bgFrame === 0) {
-        const bw = this.bgCanvas.width;
-        const bh = this.bgCanvas.height;
-        const scale = Math.max(bw / this.width, bh / this.height);
-        const dw = this.width * scale;
-        const dh = this.height * scale;
-        const dx = (bw - dw) / 2;
-        const dy = (bh - dh) / 2;
-        this.bgCtx.drawImage(this.canvas, dx, dy, dw, dh);
-      }
-    }
-}
-
-  _renderScene() {
     this.ctx.save();
 
+    // Độ rung được gộp thẳng vào transform nền (áp cho cả cảnh lẫn HUD)
     const shake = this.hud.getShakeOffset();
-    this.ctx.translate(shake.x, shake.y);
+    const bx0 = this.baseSX || 1;
+    const by0 = this.baseSY || 1;
+    this.ctx.setTransform(bx0, 0, 0, by0, shake.x * bx0, shake.y * by0);
 
     this.starfield.draw(this.ctx);
     // Scenic vẽ trong hệ PIXEL BACKING (nét tuyệt đối), rồi trả lại hệ 400x700.
     if (this.scenic) {
       const out = this.ctx;
-      out.setTransform(1, 0, 0, 1, 0, 0);
+      const sh = this.hud.getShakeOffset();
+      const bx = this.baseSX || 1;
+      const by = this.baseSY || 1;
+      // Cảnh ở hệ PIXEL BACKING, cùng độ rung với phần còn lại
+      out.setTransform(1, 0, 0, 1, sh.x * bx, sh.y * by);
       this.scenic.draw(out);
-      out.setTransform(this.baseSX || 1, 0, 0, this.baseSY || 1, 0, 0);
-      const sh2 = this.hud.getShakeOffset();
-      out.translate(sh2.x, sh2.y);
+      out.setTransform(bx, 0, 0, by, sh.x * bx, sh.y * by);
     }
     // Thời tiết: lớp màu trời + mây + sao + nắng (nằm trên tranh, dưới nhân vật)
     if (this.weather) this.weather.drawSky(this.ctx);
