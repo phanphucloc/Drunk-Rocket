@@ -211,20 +211,21 @@ export class Game {
     const scaleY = windowHeight / this.height;
     this.scale = Math.min(scaleX, scaleY);
 
-    // Backing store nhân theo DPR để nét trên màn hình retina/mobile.
-    // Hệ toạ độ logic vẫn là 400x700 nhờ scale transform.
+    // Backing store = KÍCH THƯỚC HIỂN THỊ × DPR (trước đây chỉ 400×DPR nên khi canvas
+    // bị phóng to bằng CSS thì toàn bộ hình bị nhoè). Toạ độ logic vẫn 400x700.
     const dpr = Math.min(3, Math.max(1, window.devicePixelRatio || 1));
     this.dpr = dpr;
-    this.canvas.width = Math.round(this.width * dpr);
-    this.canvas.height = Math.round(this.height * dpr);
+    const cssW = Math.max(1, Math.floor(this.width * this.scale));
+    const cssH = Math.max(1, Math.floor(this.height * this.scale));
+    this.canvas.width = Math.round(cssW * dpr);
+    this.canvas.height = Math.round(cssH * dpr);
     if (this.ctx && this.ctx.setTransform) {
-      this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      // 1 đơn vị logic = cssW/400 px hiển thị = (cssW/400)*dpr px backing
+      this.ctx.setTransform(this.canvas.width / this.width, 0, 0, this.canvas.height / this.height, 0, 0);
     }
 
     // NHƯNG phải thu khung hiển thị (CSS) theo màn hình — trước đây thiếu bước này
     // nên trên điện thoại hẹp (<400px) canvas tràn ra ngoài, cắt mất 2 bên.
-    const cssW = Math.max(1, Math.floor(this.width * this.scale));
-    const cssH = Math.max(1, Math.floor(this.height * this.scale));
     this.canvas.style.width = cssW + 'px';
     this.canvas.style.height = cssH + 'px';
 
@@ -467,39 +468,27 @@ export class Game {
     this.smashReturnTimer = 0;
     this.smashChainCount = isChain ? 2 : 1;
     if (isChain) this.nextSmashChain = 0;
-    this.smashLunge = 96;
+    this.smashLunge = 110;
 
-    // CHỈ cột PHÍA TRƯỚC mới là mục tiêu (bug cũ: cột vừa đi qua vẫn bị tính -> nổ sau lưng)
+    // CHỈ cột phía trước mũi diều mới là mục tiêu (chốt theo đối tượng)
     const ahead = this.pillars.pillars
       .filter(p => !p.isDestroyed && p.x > this.rocket.x + this.rocket.radius)
       .sort((a, b) => a.x - b.x);
+    this.smashTargets = ahead.slice(0, this.smashPillarsLeft);
 
-    const targets = ahead.slice(0, this.smashPillarsLeft);
-    this.smashTargets = targets;           // chỉ những cột này mới được húc (không cột nào khác)
-    const afterTarget = ahead[this.smashPillarsLeft] || null;
-
-    // Thời lượng = điểm GIỮA cột vừa phá và cột kế tiếp (đúng yêu cầu "dừng ở giữa 2 cột")
-    const worldSpeed = Math.max(140, (this.pillars.speed || 200) * this.smashSpeedMul);
-    const noseX = this.rocket.x + (this.smashLunge || 96) + this.rocket.radius;
-    const tReach = (px) => Math.max(0.05, (px - noseX) / worldSpeed);
-
-    let duration;
-    if (targets.length === 0) {
-      duration = 0.5;                       // không có cột phía trước: chỉ lướt một nhịp
-    } else {
-      const tLast = tReach(targets[targets.length - 1].x);
-      const tAfter = afterTarget ? tReach(afterTarget.x) : tLast + 0.45;
-      duration = Math.max(0.4, Math.min(1.6, (tLast + tAfter) / 2));
-    }
-
+    // Điều kiện kết thúc KHÔNG dùng quãng đường cứng:
+    // dừng khi diều đã ở GIỮA cột vừa phá và cột kế tiếp (xem update).
+    this.smashBehindRight = this.rocket.x;      // mép phải cột đã phá (cập nhật mỗi frame)
     this.smashTime = 0;
-    this.smashDurationTotal = duration;
-    this.smashTimeout = duration + 0.35;
-    this.smashAlignY = targets[0] ? targets[0].gapY : this.rocket.y;
+    this.smashMaxDuration = 1.6;                // chỉ là chốt an toàn
+    this.smashDurationTotal = this.smashMaxDuration;
+
+    const first = ahead[0] || null;
+    this.smashAlignY = first ? first.gapY : this.rocket.y;
 
     this.audio.playSmash(isChain);
     this.hud.triggerSmashEffects();
-    this.invincibleTimer = Math.max(this.invincibleTimer, duration + 0.2);
+    this.invincibleTimer = Math.max(this.invincibleTimer, 1.2);
   }
 
   /** Kết thúc cú Lộng Gió: hạ tốc, trôi về làn bay, bất tử ngắn + cooldown chống smash liên tiếp. */
@@ -765,7 +754,24 @@ export class Game {
         this._drawSmashLance();
         this.particles.emitSmashFireTrail(this.rocket.x, this.rocket.y, this.rocket.angle || 0);
 
-        if (this.smashTime >= this.smashDurationTotal || this.smashTimeout <= 0) {
+        // ===== KẾT THÚC: dừng ở GIỮA cột vừa phá và cột kế tiếp =====
+        // mép phải cột đã phá: lấy từ chính cột vừa húc (nếu còn trong mảng)
+        const destroyed = (this.smashTargets || []).find(t => t && t.isDestroyed);
+        if (destroyed) this.smashBehindRight = destroyed.x + (destroyed.width || 52);
+
+        // cột còn sống gần nhất phía trước
+        const aheadNow = this.pillars.pillars
+          .filter(p2 => !p2.isDestroyed && p2.x > this.rocket.x + 4)
+          .sort((a, b) => a.x - b.x)[0];
+
+        const behindRight = this.smashBehindRight || this.rocket.x;
+        const aheadLeft = aheadNow ? aheadNow.x : behindRight + 320;
+        const midX = (behindRight + aheadLeft) / 2;
+
+        const clearedAll = this.smashPillarsLeft <= 0;
+        if (clearedAll && this.rocket.x >= midX) {
+          this._endSmash();
+        } else if (this.smashTime >= this.smashMaxDuration) {
           this._endSmash();
         }
       } else {

@@ -788,3 +788,49 @@ PASS SAU SMASH: tự đẩy một nhịp (vy=-350)
 PASS POINTS_PER_CHAPTER=10 · 9→chương 1 · 10→chương 2
 ```
 `tools/audit-runtime.html` → 27 render, `errors=0`.
+
+---
+
+## 33. Quãng lướt Smash theo KHÔNG GIAN + sửa nhoè canvas
+
+### A. Quãng lướt không còn "cứng"
+Trước: `duration` tính từ vị trí cột lúc kích hoạt ⇒ quãng lướt cố định theo thời gian,
+không khớp khi cột đã ở sát hoặc ở rất xa → lúc dừng ngay trong cột, lúc vượt quá xa.
+
+Nay điều kiện kết thúc là **không gian, không phải thời gian**:
+```js
+behindRight = mép phải cột vừa phá (cập nhật mỗi frame)
+aheadLeft   = mép trái cột còn sống gần nhất phía trước
+midX        = (behindRight + aheadLeft) / 2      // chính giữa 2 cột
+kết thúc khi rocket.x >= midX   (hoặc quá 1.6s để chống kẹt)
+```
+- Diều **luôn dừng ở khoảng giữa** cột vừa phá và cột kế ⇒ không bao giờ nằm trong cột nào,
+  nên người chơi tap/nhảy lên ngay sau đó **không đâm vào trụ vừa lướt qua**.
+- Nếu chưa có cột phía trước: dùng `behindRight + 320` làm mốc ⇒ vẫn có một đoạn lướt đã tay.
+- Chain 2 cột: vòng lặp húc đủ 2 cột rồi mới xét `midX` (giữa cột thứ 2 và cột thứ 3) ⇒ liền mạch.
+- Trong lúc lướt diều tự căn khe cổng (`smashAlignY`) nên không đâm trụ.
+
+Đo (`tools/smash-midpoint.html`):
+```
+PASS A: cột trước bị phá · dừng SAU cột vừa phá
+PASS B: cột gần bị phá · cột sau lưng KHÔNG bị phá
+PASS B: dừng ở GIỮA cột vừa phá và cột kế (kiteX=200, giữa 100 và 298)
+PASS C: chain phá 2 cột · +2 điểm · dừng trước cột thứ 3 (kiteX=200 < 320)
+MIDPOINT TEST PASSED
+```
+
+### B. Vì sao chữ/hình trên canvas bị nhoè (còn nút DOM thì nét)
+- Nút "Thách Đố / Lưu điểm / ô địa danh" là **DOM** → trình duyệt vẽ ở độ phân giải màn hình ⇒ nét.
+- Chữ trong popup, con diều, cột, background là **canvas**. Sau khi thêm DPR, backing chỉ là
+  `400×dpr`, trong khi CSS phóng canvas lên `713×1249` (scale 1.78) ⇒ **phóng to 1.78×** ⇒ nhoè toàn bộ.
+- Sửa: backing = **kích thước hiển thị × DPR**, transform = `backing/400`.
+  Đo ở cửa sổ 800×1400: `css=713×1249 → backing=713×1249`, transform 1.783 ⇒ **1:1, không phóng to**.
+  Trên máy DPR 2: backing `1426×2498` ⇒ vẫn 1:1.
+Đo (`tools/sharp-probe.html`):
+```
+PASS backing = css × dpr (713x1249)
+PASS không bị phóng to (backing >= css)
+PASS transform = backing/400 (1.783)
+SHARP TEST PASSED
+```
+`tools/audit-runtime.html` → 27 render, `errors=0`.

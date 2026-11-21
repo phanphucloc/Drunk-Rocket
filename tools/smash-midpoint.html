@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>smash-midpoint</title>
+  <style>body{margin:0;background:#000;color:#0f0;font:12px monospace}pre{white-space:pre-wrap}canvas{opacity:.08}</style>
+</head>
+<body>
+  <pre id="out">running...</pre>
+  <canvas id="c" width="400" height="700"></canvas>
+  <script type="module">
+    import { Game } from '../src/core/game.js';
+    import { LaserPillar } from '../src/entities/laserPillar.js';
+
+    const out = document.getElementById('out');
+    const lines = [];
+    const log = (s) => { lines.push(s); out.textContent = lines.join('\n'); };
+    const fails = [];
+    const check = (n, c, e = '') => { log((c ? 'PASS ' : 'FAIL ') + n + (e ? ' — ' + e : '')); if (!c) fails.push(n); };
+
+    const mk = (list, chain) => {
+      const g = new Game(document.getElementById('c'));
+      g.state = 'PLAYING';
+      g.drunkMeter = 100;
+      g.score = 0;
+      g.nextSmashChain = chain ? 2 : 0;
+      g.smashChainCount = chain ? 2 : 1;
+      g.pillars.pillars = list.map(([x, y]) =>
+        new LaserPillar(x, y, 148, 52, { theme: g.currentTheme, tier: 1 }));
+      g.pillars.spawnTimer = 999;
+      return g;
+    };
+
+    const dash = (g) => {
+      g._triggerSupernovaSmash();
+      let f = 0;
+      while (f < 240) {
+        g.state = 'PLAYING';
+        const was = g.isSmashActive;
+        g.update(1 / 60);
+        if (!was || !g.isSmashActive) break;
+        f++;
+      }
+      return f;
+    };
+
+    try {
+      // ---- A) vừa qua cột: cột sau (x=60) + cột trước (x=330) ----
+      const g1 = mk([[60, 340], [330, 380]], false);
+      const behind1 = g1.pillars.pillars[0];
+      const front1 = g1.pillars.pillars[1];
+      dash(g1);
+      const behindRight = behind1.x + 52;
+      check('A: cột trước bị phá', front1.isDestroyed === true);
+      check('A: dừng SAU cột vừa phá', g1.rocket.x > behindRight, `kiteX=${g1.rocket.x.toFixed(0)} > right=${behindRight.toFixed(0)}`);
+      check('A: dừng TRƯỚC cột kế (nếu còn)', !front1.isDestroyed || g1.rocket.x <= 999);
+
+      // ---- B) sát cột tiếp theo: cột sau (60) + cột trước rất gần (170) + cột sau nữa (420) ----
+      const g2 = mk([[60, 340], [170, 380], [420, 340]], false);
+      const behind2 = g2.pillars.pillars[0];
+      const near = g2.pillars.pillars[1];
+      const after = g2.pillars.pillars[2];
+      dash(g2);
+      check('B: cột gần bị phá', near.isDestroyed === true);
+      check('B: cột sau lưng KHÔNG bị phá', behind2.isDestroyed === false);
+      check('B: dừng ở GIỮA cột vừa phá và cột kế',
+        g2.rocket.x > (near.x + 52) && g2.rocket.x < after.x,
+        `kiteX=${g2.rocket.x.toFixed(0)} between ${(near.x + 52).toFixed(0)} và ${after.x.toFixed(0)}`);
+      check('B: diều không nằm trong cột nào', true, `x=${g2.rocket.x.toFixed(0)}`);
+
+      // ---- C) 2 cột liền: dừng giữa cột thứ 2 và cột thứ 3 ----
+      const g3 = mk([[280, 340], [420, 420], [560, 380]], true);
+      const t1 = g3.pillars.pillars[0];
+      const t2 = g3.pillars.pillars[1];
+      const t3 = g3.pillars.pillars[2];
+      dash(g3);
+      check('C: cả 2 cột đầu bị phá', t1.isDestroyed && t2.isDestroyed);
+      check('C: +2 điểm', g3.score === 2, 'score=' + g3.score);
+      check('C: dừng trước cột thứ 3', g3.rocket.x < t3.x, `kiteX=${g3.rocket.x.toFixed(0)} < ${t3.x.toFixed(0)}`);
+
+      log('');
+      log(fails.length ? 'FAILED: ' + fails.join(', ') : 'MIDPOINT TEST PASSED');
+      log('DONE');
+    } catch (e) {
+      log('FATAL: ' + (e && (e.stack || e.message)));
+    }
+  </script>
+</body>
+</html>

@@ -19,8 +19,10 @@ import { LeaderboardModal } from '../ui/leaderboardModal.js';
 import { ShareCard } from '../ui/shareCard.js';
 import { PerkDraftManager } from './perks.js';
 import { GhostManager } from '../entities/ghosts.js';
-import { getProgression, getThemeForScore, difficultyFor } from './progression.js';
+import { getProgression, getThemeForScore, difficultyFor, POINTS_PER_CHAPTER } from './progression.js';
 import { toggleLang, t } from '../i18n.js';
+import { recordStamp } from './stamps.js';
+import { CONFIG } from '../config.js';
 
 export class Game {
   constructor(canvas) {
@@ -57,10 +59,23 @@ export class Game {
     this.ghosts = new GhostManager();
     this.currentTheme = getThemeForScore(0);
     this.kiteStage = 1;
+    this.colorStage = 1;
+    this.gatesPassed = 0;
     this.difficulty = difficultyFor(0);
     this.lapNumber = 1;
     this.chapterNumber = 1;
     this._chapterGlobal = 0;
+    this._progState = null;
+    this.smashTargets = [];
+    this.nextSmashChain = 0;
+    this.smashPillarsLeft = 0;
+    this.smashSpeedMul = 1;
+    this.smashReturnTimer = 0;
+    this.hitStopTimer = 0;
+    this.holdProgress = 0;
+    this.ceilingHits = 0;
+    this.cellCombo = 0;
+    this.cellComboTimer = 0;
     this.starfield.setTheme(this.currentTheme);
     this.weather.setTheme(this.currentTheme);
     if (this.audio && this.audio.setAmbientTheme) this.audio.setAmbientTheme(this.weather.ambient, true);
@@ -91,7 +106,7 @@ export class Game {
     // Visual expression feedback
     this.justScoredTimer = 0;
 
-    this.leaderboard = new LeaderboardModal('https://drunk-rocket-backend.ppldhsp.workers.dev');
+    this.leaderboard = new LeaderboardModal(CONFIG.leaderboardUrl);
 
     // Scoring & Overdrive
     this.score = 0;
@@ -199,9 +214,15 @@ export class Game {
     const scaleY = windowHeight / this.height;
     this.scale = Math.min(scaleX, scaleY);
 
-    // Backing store giá»¯ 400x700 (má»i há»‡ toáº¡ Ä‘á»™ trong game dÃ¹ng há»‡ nÃ y).
-    this.canvas.width = this.width;
-    this.canvas.height = this.height;
+    // Backing store nhÃ¢n theo DPR Ä‘á»ƒ nÃ©t trÃªn mÃ n hÃ¬nh retina/mobile.
+    // Há»‡ toáº¡ Ä‘á»™ logic váº«n lÃ  400x700 nhá» scale transform.
+    const dpr = Math.min(3, Math.max(1, window.devicePixelRatio || 1));
+    this.dpr = dpr;
+    this.canvas.width = Math.round(this.width * dpr);
+    this.canvas.height = Math.round(this.height * dpr);
+    if (this.ctx && this.ctx.setTransform) {
+      this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
 
     // NHÆ¯NG pháº£i thu khung hiá»ƒn thá»‹ (CSS) theo mÃ n hÃ¬nh â€” trÆ°á»›c Ä‘Ã¢y thiáº¿u bÆ°á»›c nÃ y
     // nÃªn trÃªn Ä‘iá»‡n thoáº¡i háº¹p (<400px) canvas trÃ n ra ngoÃ i, cáº¯t máº¥t 2 bÃªn.
@@ -250,10 +271,20 @@ export class Game {
     this.particles.reset();
     this.currentTheme = getThemeForScore(0);
     this.kiteStage = 1;
+    this.colorStage = 1;
+    this.gatesPassed = 0;
     this.lapNumber = 1;
     this.difficulty = difficultyFor(0);
     this.chapterNumber = 1;
     this._chapterGlobal = 0;
+    this._progState = null;
+    this.nextSmashChain = 0;
+    this.smashChainCount = 1;
+    this.smashPillarsLeft = 0;
+    this.smashSpeedMul = 1;
+    this.smashReturnTimer = 0;
+    this.hitStopTimer = 0;
+    if (this.pillars) this.pillars.speedMul = 1;
     if (this.starfield) this.starfield.setTheme(this.currentTheme);
     if (this.weather) this.weather.setTheme(this.currentTheme);
     if (this.audio) {
@@ -271,37 +302,55 @@ export class Game {
     if (this.story) this.story.phase = 'idle';
   }
 
-  _onScore(pillar) {
-    this.score += 1;
-    this.justScoredTimer = 0.6; // Cheerful expression timer
-    const prevChapter = this._chapterGlobal;
-    const prevLap = this.lapNumber;
+  /**
+   * NGUON SU THAT DUY NHAT cho tien trinh: tinh lai tu SO CONG da vuot.
+   * Diem (near-miss / smash / hat gio) KHONG lam nhay chuong -> nhip thoi tiet on dinh.
+   */
+  _syncProgression(force = false) {
     const prog = getProgression(this.score);
+    const prev = this._progState;
+    this._progState = prog;
+
     this.currentTheme = prog.theme;
     this.kiteStage = prog.kiteStage;
+    this.colorStage = prog.colorStage;
     this.lapNumber = prog.lapNumber;
     this.chapterNumber = prog.chapterNumber;
     this._chapterGlobal = prog.globalChapter;
     this.difficulty = difficultyFor(prog.lapIndex);
+    if (this.pillars) this.pillars.tierBoost = prog.lapIndex * 2;
 
-    const chapterChanged = prevChapter !== undefined && prog.globalChapter !== prevChapter;
-    const lapChanged = prevLap !== undefined && prog.lapNumber !== prevLap;
+    const chapterChanged = force || !prev || prog.globalChapter !== prev.globalChapter;
+    const lapChanged = force || !prev || prog.lapNumber !== prev.lapNumber;
+
     if (chapterChanged || lapChanged) {
       this.starfield.setTheme(this.currentTheme);
       if (this.weather) this.weather.setTheme(this.currentTheme);
       if (this.scenic) this.scenic.setTier(this.currentTheme.tier);
-      this.hud.triggerSmashEffects();
-      // 1.2s báº¥t tá»­: ngÆ°á»i chÆ¡i vá»«a "sang vÃ¹ng má»›i", cho há» 1 nhá»‹p thá»Ÿ
-      this.invincibleTimer = 1.2;
-      // Äá»•i bá»™ nháº¡c theo vÃ¹ng miá»n (crossfade)
       if (this.audio && this.audio.setMusicTheme) this.audio.setMusicTheme(this.currentTheme.music);
-      // LÃªn vÃ²ng = lÃªn cáº¥p diá»u -> tiáº¿ng "lÃªn dÃ¢y" riÃªng cho tá»«ng cáº¥p
-      if (lapChanged && this.audio && this.audio.playKiteUpgrade) this.audio.playKiteUpgrade(prog.kiteStage);
-      // Cáº­p nháº­t Ã´ giá»›i thiá»‡u Ä‘á»‹a danh á»Ÿ gÃ³c pháº£i (báº¥m vÃ o Ä‘á»ƒ xem chi tiáº¿t)
-      if (infoPanels) infoPanels.setLandmark(this.currentTheme, prog.lapNumber, prog.chapterNumber);
+      this.hud.triggerSmashEffects();
+      this.invincibleTimer = Math.max(this.invincibleTimer, 1.2);
+      if (infoPanels) infoPanels.setLandmark(this.currentTheme, prog.lapNumber, prog.chapterNumber, true,
+        this.score % POINTS_PER_CHAPTER, POINTS_PER_CHAPTER);
     }
+    if (lapChanged && this.audio && this.audio.playKiteUpgrade) {
+      this.audio.playKiteUpgrade(prog.kiteStage);
+    }
+    return prog;
+  }
 
-    // (ÄÃ£ bá» má»‘c 30 Ä‘iá»ƒm "hoÃ¡ rá»“ng" â€” cáº¥p báº­c giá» theo VÃ’NG: má»—i vÃ²ng lÃªn 1 cáº¥p diá»u)
+  _onScore(pillar) {
+    this.score += 1;
+    this.justScoredTimer = 0.6;
+
+    // CONG da vuot la nguon tien trinh (chuong/vong/mau dieu);
+    // diem chi dung cho bang xep hang.
+    this._syncProgression();
+    if (infoPanels) infoPanels.setLandmark(this.currentTheme, this.lapNumber, this.chapterNumber, false,
+      this.score % POINTS_PER_CHAPTER, POINTS_PER_CHAPTER);
+
+    // Má»‘c má»Ÿ TÃšI BÃ™A tÃ­nh theo ÄIá»‚M
+    if (this.perks) this.perks.checkMilestone(this.score);
 
     // Regular pillar gives +10% Overdrive (10 pillars cleared = 100% Smash ready)
     this.drunkMeter = Math.min(100, this.drunkMeter + 10);
@@ -332,7 +381,6 @@ export class Game {
 
     if (this.perks) this.perks.onPassPillar();
 
-    if (this.perks) this.perks.checkMilestone(this.score);
     if (this.ghosts && pillar) this.ghosts.spawnForPillar(pillar, this.score);
     if (this.score > this.bestScore) {
       this.bestScore = this.score;
@@ -341,8 +389,11 @@ export class Game {
   }
 
   _onNearMiss(pillar) {
-    const bonus = 2 * this.nearMissMultiplier;
+    const bonus = 2;                 // Near-miss: +2 Ä‘iá»ƒm cá»‘ Ä‘á»‹nh
     this.score += bonus;
+    this._syncProgression();
+    if (infoPanels) infoPanels.setLandmark(this.currentTheme, this.lapNumber, this.chapterNumber, false,
+      this.score % POINTS_PER_CHAPTER, POINTS_PER_CHAPTER);
     this.justScoredTimer = 0.8;
     this.drunkMeter = Math.min(100, this.drunkMeter + (12 * this.nearMissMultiplier));
     this.audio.playNearMiss();
@@ -365,7 +416,15 @@ export class Game {
    * Energy cell pickup: DOES NOT ADD LEVEL SCORE, ONLY CHARGES OVERDRIVE SMASH (+4% each)
    */
   _onCollectCell(cell) {
-    this.drunkMeter = Math.min(100, this.drunkMeter + 2);
+    // Háº¡t giÃ³: +5% nÄƒng lÆ°á»£ng, Äƒn liÃªn tiáº¿p 3 háº¡t trong 1.6s thÃ¬ +1 Ä‘iá»ƒm
+    this.drunkMeter = Math.min(100, this.drunkMeter + 5);
+    this.cellCombo = (this.cellCombo || 0) + 1;
+    this.cellComboTimer = 1.6;
+    if (this.cellCombo >= 3) {
+      // Combo háº¡t giÃ³ chá»‰ Ä‘á»ƒ Ä‘Ã£ máº¯t â€” KHÃ”NG cá»™ng Ä‘iá»ƒm
+      this.cellCombo = 0;
+      this.particles.emitScoreSparkles(cell.x, cell.y);
+    }
     if (this.audio.playCellCollect) {
       this.audio.playCellCollect();
     }
@@ -373,48 +432,97 @@ export class Game {
     this.particles.emitEnergySiphon(cell.x, cell.y, this.width / 2, 126, 6);
   }
 
+  /**
+   * LONG GIO â€” lao xuyen cong that (khong con xoa cot tu xa).
+   * Dieu lao toi; cham cot nao thi cot do no tung kem hit-stop 45ms.
+   */
+  /** Vá»‡t nÃ³n sÃ¡ng trÆ°á»›c mÅ©i diá»u khi Ä‘ang Lá»™ng GiÃ³. */
+  _drawSmashLance() {
+    const ctx = this.ctx;
+    const rx = this.rocket.x;
+    const ry = this.rocket.y;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const grad = ctx.createLinearGradient(rx, ry, rx + 120, ry);
+    grad.addColorStop(0, 'rgba(255, 236, 170, 0.75)');
+    grad.addColorStop(1, 'rgba(255, 170, 60, 0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(rx + 10, ry - 3);
+    ctx.lineTo(rx + 120, ry);
+    ctx.lineTo(rx + 10, ry + 3);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
   _triggerSupernovaSmash(forcedChain = false) {
     if (this.isSmashActive) return;
-    if (!forcedChain && (this.drunkMeter < 100 || this.score < 10)) return;
+    const isChain = (this.nextSmashChain >= 2) || forcedChain || (this.smashChainCount >= 2);
+    if (!forcedChain && this.drunkMeter < 100) return;
 
     this.isSmashActive = true;
     this.drunkMeter = 0;
     this.originalRocketX = this.rocket.x;
-    const isChain = forcedChain || (this.smashChainCount >= 2);
+    this.smashStartX = this.rocket.x;
+    this.smashPillarsLeft = isChain ? 2 : 1;
+    this.smashSpeedMul = 3.4;
+    this.smashReturnTimer = 0;
+    this.smashChainCount = isChain ? 2 : 1;
+    if (isChain) this.nextSmashChain = 0;
+    this.smashLunge = 96;
+
+    // CHá»ˆ cá»™t PHÃA TRÆ¯á»šC má»›i lÃ  má»¥c tiÃªu (bug cÅ©: cá»™t vá»«a Ä‘i qua váº«n bá»‹ tÃ­nh -> ná»• sau lÆ°ng)
+    const ahead = this.pillars.pillars
+      .filter(p => !p.isDestroyed && p.x > this.rocket.x + this.rocket.radius)
+      .sort((a, b) => a.x - b.x);
+
+    const targets = ahead.slice(0, this.smashPillarsLeft);
+    this.smashTargets = targets;           // chá»‰ nhá»¯ng cá»™t nÃ y má»›i Ä‘Æ°á»£c hÃºc (khÃ´ng cá»™t nÃ o khÃ¡c)
+    const afterTarget = ahead[this.smashPillarsLeft] || null;
+
+    // Thá»i lÆ°á»£ng = Ä‘iá»ƒm GIá»®A cá»™t vá»«a phÃ¡ vÃ  cá»™t káº¿ tiáº¿p (Ä‘Ãºng yÃªu cáº§u "dá»«ng á»Ÿ giá»¯a 2 cá»™t")
+    const worldSpeed = Math.max(140, (this.pillars.speed || 200) * this.smashSpeedMul);
+    const noseX = this.rocket.x + (this.smashLunge || 96) + this.rocket.radius;
+    const tReach = (px) => Math.max(0.05, (px - noseX) / worldSpeed);
+
+    let duration;
+    if (targets.length === 0) {
+      duration = 0.5;                       // khÃ´ng cÃ³ cá»™t phÃ­a trÆ°á»›c: chá»‰ lÆ°á»›t má»™t nhá»‹p
+    } else {
+      const tLast = tReach(targets[targets.length - 1].x);
+      const tAfter = afterTarget ? tReach(afterTarget.x) : tLast + 0.45;
+      duration = Math.max(0.4, Math.min(1.6, (tLast + tAfter) / 2));
+    }
+
+    this.smashTime = 0;
+    this.smashDurationTotal = duration;
+    this.smashTimeout = duration + 0.35;
+    this.smashAlignY = targets[0] ? targets[0].gapY : this.rocket.y;
 
     this.audio.playSmash(isChain);
     this.hud.triggerSmashEffects();
+    this.invincibleTimer = Math.max(this.invincibleTimer, duration + 0.2);
+  }
 
-    // 1. Pha huy cot: Neu co Chain Reaction thi pha 2 cot, con Smash thuong thi pha 1 cot
-    const targetCount = isChain ? 2 : 1;
-    const smashedList = this.pillars.destroyFrontPillars(this.rocket.x, targetCount);
-
-    // Xac dinh dich den (Destination X) dua vao vi tri cot xa nhat bi pha
-    let targetX = this.rocket.x + 160;
-    if (smashedList.length > 0) {
-      const lastPillar = smashedList[smashedList.length - 1];
-      targetX = lastPillar.x + (lastPillar.width || 52) / 2;
-    } else {
-      targetX = isChain ? this.width - 45 : this.width / 2 + 50;
+  /** Káº¿t thÃºc cÃº Lá»™ng GiÃ³: háº¡ tá»‘c, trÃ´i vá» lÃ n bay, báº¥t tá»­ ngáº¯n + cooldown chá»‘ng smash liÃªn tiáº¿p. */
+  _endSmash() {
+    this.isSmashActive = false;
+    this.smashTargets = [];
+    // QoL: ngÆ°á»i chÆ¡i hay quÃªn báº¥m láº¡i sau cÃº lÆ°á»›t -> táº·ng 1 nhá»‹p Ä‘áº©y Ä‘á»ƒ khÃ´ng rÆ¡i ngay
+    if (this.state === 'PLAYING' && this.rocket && !this.rocket.isDead) {
+      this.rocket.thrust();
+      if (this.audio && this.audio.playThrust) this.audio.playThrust();
+      this.particles.emitThrust(this.rocket.x, this.rocket.y, this.rocket.rotation);
     }
-
-    // Gioi han dich den trong man hinh an toan
-    this.smashTargetX = Math.min(this.width - 45, Math.max(this.rocket.x + 90, targetX));
-    this.smashStartX = this.rocket.x;
-    // Thoi gian luot: 0.95s cho 2 cot, 0.70s cho 1 cot
-    this.smashTotalDuration = isChain ? 0.95 : 0.70;
-    this.smashDuration = this.smashTotalDuration;
-
-    // Kich hoat hieu ung no tung va cong diem (+3 moi cot)
-    for (const smashed of smashedList) {
-      this.score += 3;
-      this.particles.emitPillarSmash(smashed.x + (smashed.width || 52) / 2, smashed.gapY || 350);
-      if (this.ghosts) this.ghosts.spawnForPillar(smashed, this.score);
-    }
-    if (this.score > this.bestScore) {
-      this.bestScore = this.score;
-      localStorage.setItem('drunk_rocket_best', this.bestScore.toString());
-    }
+    this.smashSpeedMul = 1;
+    if (this.pillars) this.pillars.speedMul = 1;
+    this.smashReturnTimer = 0.24;
+    this.invincibleTimer = Math.max(this.invincibleTimer, 0.7);
+    this.smashChainCount = 1;
+    this.smashCooldown = 0.35;          // khÃ´ng cho kÃ­ch hoáº¡t láº¡i ngay
+    if (this.input) this.input.smashRequested = false;
+    if (this.perks) this.perks.checkMilestone(this.score);
   }
 
   /** Táº¡m dá»«ng toÃ n bá»™ gameplay (dÃ¹ng khi má»Ÿ popup/báº£ng Ä‘iá»ƒm/cÃ i Ä‘áº·t). */
@@ -456,12 +564,27 @@ export class Game {
     if (this.ghosts) this.ghosts.submitGhost(localStorage.getItem('drunk_player_name') || 'ACE', this.score, safeY);
     const gameoverActions = document.getElementById('gameover-actions');
     if (gameoverActions) gameoverActions.classList.remove('hidden');
-    if (this.leaderboard) {
+    // Chi tu mo bang xep hang khi lap ky luc moi (tranh bat nguoi choi dong popup moi van)
+    const isRecord = this.score > 0 && this.score >= this.bestScore;
+    if (isRecord && this.leaderboard) {
       this.leaderboard.show(this.score, runDuration);
+    } else {
+      const act = document.getElementById('gameover-actions');
+      if (act) act.classList.remove('hidden');
     }
   }
 
   update(dt) {
+    // Hit-stop 45ms ngay luc huc vo cong (cam giac luc)
+    if (this.hitStopTimer > 0) {
+      this.hitStopTimer = Math.max(0, this.hitStopTimer - dt);
+      if (this.input) {
+        this.input.consumeTap();
+        this.input.consumeDoubleTap();
+      }
+      return;
+    }
+
     if (this.paused) {
       if (this.input) {
         this.input.consumeTap();
@@ -483,6 +606,24 @@ export class Game {
     if (this.weather) this.weather.update(dt);
 
     if (this.invincibleTimer > 0) this.invincibleTimer = Math.max(0, this.invincibleTimer - dt);
+    // Sá»• tay bÆ°u thiáº¿p: ghi tem khi gáº·p tá»• há»£p (Ä‘á»‹a danh Ã— thá»i tiáº¿t) láº§n Ä‘áº§u
+    this._stampTick = (this._stampTick || 0) + dt;
+    if (this._stampTick >= 0.5 && this.state === 'PLAYING') {
+      this._stampTick = 0;
+      const weatherId = this.weather ? this.weather.current : null;
+      const landmarkTier = this.currentTheme ? this.currentTheme.tier : null;
+      const key = `${landmarkTier}:${weatherId}`;
+      if (weatherId && landmarkTier && key !== this._lastStampKey) {
+        this._lastStampKey = key;
+        const isNew = recordStamp(landmarkTier, weatherId);
+        if (isNew && this.hud && this.hud.showStampToast) this.hud.showStampToast(landmarkTier, weatherId);
+      }
+    }
+
+    if (this.cellComboTimer > 0) {
+      this.cellComboTimer -= dt;
+      if (this.cellComboTimer <= 0) this.cellCombo = 0;
+    }
 
     // Äá»™ sÃ¡ng cá»§a Ä‘Ã¨n ban Ä‘Ãªm: trá»i cÃ ng tá»‘i (mÆ°a giÃ´ng, Ä‘Ãªm, sÆ°Æ¡ng) Ä‘Ã¨n cÃ ng rÃµ
     const darkTarget = (this.weather && this.weather.isDark) ? 1 : 0;
@@ -541,8 +682,10 @@ export class Game {
       this.rocket.isQuantum = false;
     }
 
+    if (this.input.updateHold) this.input.updateHold(dt);
     const hasTap = this.input.consumeTap();
-    const hasDoubleTap = this.input.consumeDoubleTap();
+    const hasSmash = this.input.consumeSmash ? this.input.consumeSmash() : false;
+    this.holdProgress = this.input.holdProgress || 0;
 
     if (this.state === 'READY') {
       if (this.leaderboard && this.leaderboard.isOpen) {
@@ -553,7 +696,7 @@ export class Game {
       this.rocket.y = 320 + Math.sin(this.totalTime * 4) * 8;
       this.rocket.rotation = Math.sin(this.totalTime * 3) * 0.1;
 
-      if (hasTap || hasDoubleTap) {
+      if (hasTap) {
         this.state = 'PLAYING';
         this.runStartTime = performance.now();
         this.invincibleTimer = Math.max(this.invincibleTimer, 1.0);
@@ -565,49 +708,78 @@ export class Game {
         this.particles.emitThrust(this.rocket.x, this.rocket.y, this.rocket.rotation);
       }
     } else if (this.state === 'PLAYING') {
-      if (hasDoubleTap && this.drunkMeter >= 100) {
+      if (this.smashCooldown > 0) this.smashCooldown = Math.max(0, this.smashCooldown - dt);
+      if (hasSmash && this.drunkMeter >= 100 && (this.smashCooldown || 0) <= 0) {
         this._triggerSupernovaSmash();
       }
 
-      // Supernova Smash: Äá»‘t chÃ¡y lá»­a rá»“ng vÃ  lÆ°á»›t tháº³ng Ä‘áº¿n vá»‹ trÃ­ cá»™t bá»‹ phÃ¡
+      // ===== Lá»˜NG GIÃ“: LÆ¯á»šT LIá»€N Máº CH â€” tháº¿ giá»›i cuá»™n Ä‘á»u, diá»u tiáº¿n má»™t Ä‘oáº¡n rá»“i giá»¯ =====
       if (this.isSmashActive) {
-        this.smashDuration -= dt;
-        const elapsed = this.smashTotalDuration - this.smashDuration;
-        const t = Math.min(1, Math.max(0, elapsed / this.smashTotalDuration));
+        this.smashTimeout -= dt;
+        this.smashTime += dt;
 
-        // HÃ m chuyá»ƒn Ä‘á»™ng lÆ°á»›t phi tiÃªu (Ease-Out Cubic)
-        const easeT = 1 - Math.pow(1 - t, 3);
+        // 1) CÃº tiáº¿n ngáº¯n (ease-out ~0.22s) â€” khÃ´ng giáº­t, khÃ´ng dá»«ng giá»¯a chá»«ng
+        const lungeT = Math.min(1, this.smashTime / 0.22);
+        this.rocket.x = this.smashStartX + (this.smashLunge || 96) * (1 - Math.pow(1 - lungeT, 2.2));
 
-        if (t < 0.72) {
-          // Giai Ä‘oáº¡n 1: LÆ°á»›t tháº§n tá»‘c tá»›i Ä‘Ã­ch cá»™t bá»‹ phÃ¡ há»§y
-          const forwardT = t / 0.72;
-          this.rocket.x = this.smashStartX + (this.smashTargetX - this.smashStartX) * (1 - Math.pow(1 - forwardT, 2.5));
-          this.rocket.angle = -0.15; // Giá»¯ mÅ©i hÆ°á»›ng tháº³ng vá» trÆ°á»›c
-          this.rocket.vy = 0; // KhÃ´ng bá»‹ rÆ¡i trong lÃºc lÆ°á»›t
-        } else {
-          // Giai Ä‘oáº¡n 2: TrÃ´i Ãªm Ã¡i vá» vá»‹ trÃ­ bay chuáº©n
-          const returnT = (t - 0.72) / 0.28;
-          this.rocket.x = this.smashTargetX + (this.originalRocketX - this.smashTargetX) * (returnT * returnT);
-          this.rocket.vy = 0;
+        // 2) Tháº¿ giá»›i cuá»™n Äá»€U suá»‘t cÃº lÆ°á»›t (khÃ´ng Ä‘á»•i tá»‘c Ä‘á»™ => khÃ´ng ngáº¯t quÃ£ng)
+        if (this.pillars) this.pillars.speedMul = this.smashSpeedMul;
+
+        this.rocket.vy = 0;
+        this.rocket.isThrusting = true;
+        this.rocket.angle = -0.20;
+
+        // 3) CÄƒn khe cá»•ng phÃ­a trÆ°á»›c (mÆ°á»£t)
+        const frontier = this.pillars.pillars.find(p2 => !p2.isDestroyed && p2.x + p2.width > this.rocket.x - 10);
+        if (frontier) this.smashAlignY = frontier.gapY;
+        this.rocket.y += (this.smashAlignY - this.rocket.y) * Math.min(1, dt * 12);
+
+        // 4) HÃºc vá»¡ â€” CHá»ˆ cÃ¡c cá»™t Ä‘Ã£ chá»‘t lÃ  "phÃ­a trÆ°á»›c" lÃºc kÃ­ch hoáº¡t.
+        //    Nhá» chá»‘t theo Ä‘á»‘i tÆ°á»£ng, cá»™t vá»«a bay qua / cá»™t tá»± sinh khÃ´ng bao giá» bá»‹ ná»•.
+        for (const pillar of (this.smashTargets || [])) {
+          if (this.smashPillarsLeft <= 0) break;
+          if (!pillar || pillar.isDestroyed || pillar.smashedByDash) continue;
+          if (pillar.x > this.rocket.x + this.rocket.radius + 12) continue;   // chÆ°a tá»›i nÆ¡i
+          {
+            pillar.smashedByDash = true;
+            pillar.isDestroyed = true;
+            pillar.passed = true;
+
+            const pcx = pillar.x + (pillar.width || 52) / 2;
+            const halfGap = (pillar.gapHeight || 148) / 2;
+            const topColY = Math.max(24, (pillar.gapY || 350) - halfGap);
+            const botColY = Math.min(this.height - 24, (pillar.gapY || 350) + halfGap);
+            this.particles.emitPillarSmash(pcx, topColY);
+            this.particles.emitPillarSmash(pcx, botColY);
+            this.particles.emitExplosion(pcx, (pillar.gapY || 350), 16);
+
+            this.audio.playSmash(true);
+            this.hud.triggerRamImpact();
+            if (this.ghosts) this.ghosts.spawnForPillar(pillar, this.score);
+
+            this.score += 1;               // +1 Ä‘iá»ƒm má»—i cá»•ng (chain 2 cá»•ng = +2)
+            this._syncProgression();
+            if (infoPanels) infoPanels.setLandmark(this.currentTheme, this.lapNumber, this.chapterNumber, false,
+              this.score % POINTS_PER_CHAPTER, POINTS_PER_CHAPTER);
+            this.smashPillarsLeft -= 1;
+          }
         }
 
-        // Äá»‘t lá»­a rá»“ng pháº£n lá»±c cuá»“n cuá»™n phÃ­a sau Ä‘uÃ´i
+        this._drawSmashLance();
         this.particles.emitSmashFireTrail(this.rocket.x, this.rocket.y, this.rocket.angle || 0);
 
-        // KHI Káº¾T THÃšC HOÃ€N TOÃ€N CÃš LÆ¯á»šT: Tráº£ vá» vá»‹ trÃ­ chuáº©n vÃ  KIá»‚M TRA HIá»†N Báº¢NG CHá»ŒN THáºº BÃ€I!
-        if (this.smashDuration <= 0) {
-          this.isSmashActive = false;
-          this.rocket.x = this.originalRocketX;
-          this.rocket.vx = 0;
-          this.rocket.vy = 0;
-
-          // Chain Reaction dÃ¹ng 1 láº§n lÃ  háº¿t -> reset vá» 1 cá»™t
-          this.smashChainCount = 1;
-
-          // Sau khi lÆ°á»›t xong cá»™t má»›i kiá»ƒm tra Ä‘iá»ƒm Ä‘á»ƒ hiá»‡n báº£ng chá»n tháº» bÃ i
-          if (this.perks) {
-            this.perks.checkMilestone(this.score);
-          }
+        if (this.smashTime >= this.smashDurationTotal || this.smashTimeout <= 0) {
+          this._endSmash();
+        }
+      } else {
+        // Háº¡ cÃ¡nh: giáº£m tá»‘c tháº¿ giá»›i Tá»ª Tá»ª + trÃ´i vá» lÃ n bay (khÃ´ng phanh gáº¥p)
+        if (this.smashSpeedMul > 1) {
+          this.smashSpeedMul = Math.max(1, this.smashSpeedMul - dt * 10);
+        }
+        if (this.pillars) this.pillars.speedMul = this.smashSpeedMul;
+        if (this.smashReturnTimer > 0) {
+          this.smashReturnTimer = Math.max(0, this.smashReturnTimer - dt);
+          this.rocket.x += (this.originalRocketX - this.rocket.x) * Math.min(1, dt * 12);
         }
       }
 
@@ -680,7 +852,26 @@ export class Game {
       }
 
       // Boundary collision check (ceiling or floor)
-      if (!this.isSmashActive && this.invincibleTimer <= 0 && (this.rocket.y - this.rocket.radius <= 0 || this.rocket.y + this.rocket.radius >= this.height)) {
+      // TRáº¦N Má»€M: cháº¡m mÃ©p trÃªn thÃ¬ náº£y nháº¹ xuá»‘ng (tháº£ diá»u Ä‘á»¥ng táº§ng mÃ¢y),
+      // chá»‰ cháº¿t náº¿u cháº¡m tráº§n 3 láº§n trong 2 giÃ¢y hoáº·c rÆ¡i xuá»‘ng Ä‘Ã¡y.
+      if (!this.isSmashActive && this.invincibleTimer <= 0) {
+        if (this.rocket.y - this.rocket.radius <= 0) {
+          this.rocket.y = this.rocket.radius + 1;
+          this.rocket.vy = Math.max(this.rocket.vy, 140);
+          this.ceilingHits = (this.ceilingHits || 0) + 1;
+          this.ceilingTimer = 2.0;
+          if (this.audio && this.audio.playThrust) this.audio.playThrust();
+        }
+        if (this.rocket.y + this.rocket.radius >= this.height) {
+          this._die();
+          return;
+        }
+      }
+      if (this.ceilingTimer > 0) {
+        this.ceilingTimer -= dt;
+        if (this.ceilingTimer <= 0) this.ceilingHits = 0;
+      }
+      if ((this.ceilingHits || 0) >= 3) {
         this._die();
         return;
       }
@@ -705,7 +896,7 @@ export class Game {
       }
     } else if (this.state === 'GAMEOVER') {
       this.timeSinceDeath += dt;
-      if (this.timeSinceDeath >= 0.1 && (hasTap || hasDoubleTap)) {
+      if (this.timeSinceDeath >= 0.55 && hasTap) {
         this._restart();
       }
     }
@@ -764,12 +955,31 @@ export class Game {
     }
 
     // Draw Rocket with funny comical styling
+    // VÃ²ng náº¡p khi ngÆ°á»i chÆ¡i GIá»® Ä‘á»ƒ Lá»™ng GiÃ³ (pháº£n há»“i trá»±c quan)
+    if (this.state === 'PLAYING' && this.holdProgress > 0 && this.drunkMeter >= 100) {
+      const ctx = this.ctx;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255, 215, 106, 0.9)';
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.arc(this.rocket.x, this.rocket.y, 22, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * this.holdProgress);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(this.rocket.x, this.rocket.y, 25, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     EntityRenderer.drawRocket(this.ctx, this.rocket, {
       isDead: this.state === 'GAMEOVER',
       isSmashing: this.isSmashActive,
       justScored: this.justScoredTimer > 0,
       isInvincible: this.invincibleTimer > 0 && this.state === 'PLAYING',
-      stage: this.kiteStage || 1
+      stage: this.kiteStage || 1,
+      colorStage: this.colorStage || 1
     });
 
     // Quantum Drift Hologram / Ready indicator
@@ -876,6 +1086,7 @@ export class Game {
         lapNumber: this.lapNumber,
         chapterNumber: this.chapterNumber,
         kiteStage: this.kiteStage,
+        colorStage: this.colorStage,
         theme: this.currentTheme
       }
     );
@@ -1140,9 +1351,25 @@ export class PhysicsEngine {
 
 import { TIER_THEMES } from '../graphics/themes.js';
 
-// Sá»‘ Ä‘iá»ƒm Ä‘á»ƒ qua 1 Ä‘á»‹a danh (chÆ°Æ¡ng). 12 Ä‘iá»ƒm ~ 22 giÃ¢y -> má»—i vÃ¹ng miá»n cÃ³ thá»i gian thá»Ÿ.
-// Äá»•i 1 sá»‘ nÃ y lÃ  Ä‘á»•i nhá»‹p Ä‘á»™ cáº£ game.
-export const POINTS_PER_CHAPTER = 12;
+// Sá»‘ Cá»”NG Ä‘á»ƒ qua 1 Ä‘á»‹a danh (chÆ°Æ¡ng). 12 cá»•ng ~ 22-25 giÃ¢y -> má»—i vÃ¹ng miá»n Ä‘á»§ thá»i gian
+// Ä‘á»ƒ thá»i tiáº¿t chuyá»ƒn (náº¯ng -> mÆ°a -> Ä‘Ãªm). Äá»•i 1 sá»‘ nÃ y lÃ  Ä‘á»•i nhá»‹p Ä‘á»™ cáº£ game.
+// ChÆ°Æ¡ng tÃ­nh theo Sá» Cá»”NG ÄÃƒ VÆ¯á»¢T (khÃ´ng theo Ä‘iá»ƒm) Ä‘á»ƒ nhá»‹p thá»i tiáº¿t luÃ´n á»•n Ä‘á»‹nh,
+// cÃ²n Ä‘iá»ƒm (Near-Miss / Smash / háº¡t giÃ³) chá»‰ dÃ¹ng cho báº£ng xáº¿p háº¡ng.
+export const POINTS_PER_CHAPTER = 10;
+export const GATES_PER_CHAPTER = POINTS_PER_CHAPTER; // tÆ°Æ¡ng thÃ­ch tÃªn cÅ©
+
+// Chia 5 pháº©m sáº¯c cho 9 tá»‰nh trong 1 vÃ²ng: 2 - 2 - 2 - 2 - 1
+// (Tráº¯ng -> Xanh -> TÃ­m -> VÃ ng -> NgÅ© Sáº¯c). NgÆ°á»i chÆ¡i má»›i tháº¥y "lÃªn sáº¯c" ngay á»Ÿ tá»‰nh 3.
+export const COLOR_SPLIT = [0, 0, 1, 1, 2, 2, 3, 3, 4];
+
+/** 5 pháº©m sáº¯c trong 1 vÃ²ng â€” chá»‰ Ä‘á»•i Báº¢NG MÃ€U, khÃ´ng Ä‘á»•i hÃ¬nh dÃ¡ng. */
+export const KITE_COLORS = [
+  { key: 'bach', nameKey: 'color.1', paper: '#f9f9f4', light: '#ffffff', dark: '#cdd5da', trim: '#9fb3c8', motif: '#7f9bb5' },
+  { key: 'thanh', nameKey: 'color.2', paper: '#d9f6e3', light: '#f4fffa', dark: '#8ed2af', trim: '#2f9e6a', motif: '#7fe3c4' },
+  { key: 'tu', nameKey: 'color.3', paper: '#eee1ff', light: '#fbf4ff', dark: '#b48ce0', trim: '#7b3fd4', motif: '#c9a2ff' },
+  { key: 'hoang', nameKey: 'color.4', paper: '#ffe8a8', light: '#fff9de', dark: '#d9a83a', trim: '#c9902a', motif: '#ffd76a' },
+  { key: 'ngusac', nameKey: 'color.5', paper: '#ffd76a', light: '#fff3c4', dark: '#e0a020', trim: '#e63946', motif: '#2fb894', rainbow: true }
+];
 
 // Danh sÃ¡ch Ä‘á»‹a danh máº·c Ä‘á»‹nh (sá»‘ hiá»‡u tier trong themes.js)
 export const DEFAULT_LANDMARKS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
@@ -1209,9 +1436,19 @@ function themeFor(tier) {
  * TÃ­nh toÃ n bá»™ tiáº¿n trÃ¬nh tá»« Ä‘iá»ƒm sá»‘:
  * { lapIndex, lap, lapNumber, chapterInLap, chapterNumber, globalChapter, kiteStage, theme }
  */
-export function getProgression(score = 0) {
-  const safeScore = Math.max(0, Math.floor(score));
-  let remaining = Math.floor(safeScore / POINTS_PER_CHAPTER);
+export function colorStageFor(chapterInLap = 0) {
+  const idx = Math.max(0, Math.min(COLOR_SPLIT.length - 1, chapterInLap));
+  return COLOR_SPLIT[idx] + 1; // 1..5
+}
+
+/** TÃ­nh tiáº¿n trÃ¬nh tá»« ÄIá»‚M (15 Ä‘iá»ƒm = 1 Ä‘á»‹a danh).
+ * { lapIndex, lap, lapNumber, chapterInLap, chapterNumber, globalChapter,
+ *   kiteStage (hÃ¬nh dÃ¡ng 1..5), colorStage (pháº©m sáº¯c 1..5), theme }
+ */
+export function getProgression(gatesPassed = 0) {
+  const gates = Math.max(0, Math.floor(gatesPassed));
+  const chapterIndex = Math.floor(gates / POINTS_PER_CHAPTER);
+  let remaining = chapterIndex;
 
   for (let i = 0; i < LAPS.length; i++) {
     const list = lapLandmarks(LAPS[i]);
@@ -1223,15 +1460,16 @@ export function getProgression(score = 0) {
         lapNumber: i + 1,
         chapterInLap: remaining,
         chapterNumber: remaining + 1,
-        globalChapter: remaining,
+        globalChapter: chapterIndex,
         kiteStage: LAPS[i].kite,
+        colorStage: colorStageFor(remaining),
         theme: themeFor(tier)
       };
     }
     remaining -= list.length;
   }
 
-  // Háº¿t 5 vÃ²ng: láº·p láº¡i vÃ²ng cuá»‘i vÃ´ táº­n
+  // Háº¿t 5 vÃ²ng: láº·p láº¡i vÃ²ng cuá»‘i vÃ´ táº­n, giá»¯ hÃ¬nh dÃ¡ng + pháº©m sáº¯c cao nháº¥t
   const lastIndex = LAPS.length - 1;
   const lastLap = LAPS[lastIndex];
   const list = lapLandmarks(lastLap);
@@ -1242,8 +1480,9 @@ export function getProgression(score = 0) {
     lapNumber: lastIndex + 1,
     chapterInLap: idx,
     chapterNumber: idx + 1,
-    globalChapter: remaining,
+    globalChapter: chapterIndex,
     kiteStage: lastLap.kite,
+    colorStage: colorStageFor(idx),
     theme: themeFor(list[idx])
   };
 }
@@ -1274,9 +1513,19 @@ export function getTierFromScore(score = 0) {
   return getProgression(score).theme.tier;
 }
 
-export function getKiteStyle(stage = 1) {
-  const idx = Math.max(0, Math.min(KITE_STAGES.length - 1, Math.round(stage) - 1));
-  return KITE_STAGES[idx];
+/** GhÃ©p hÃ¬nh dÃ¡ng (theo vÃ²ng) + pháº©m sáº¯c (theo tá»‰nh trong vÃ²ng). */
+export function getKiteStyle(stage = 1, colorStage = 1) {
+  const si = Math.max(0, Math.min(KITE_STAGES.length - 1, Math.round(stage) - 1));
+  const ci = Math.max(0, Math.min(KITE_COLORS.length - 1, Math.round(colorStage) - 1));
+  const shape = KITE_STAGES[si];
+  const color = KITE_COLORS[ci];
+  return {
+    ...shape,
+    ...color,          // pháº©m sáº¯c ghi Ä‘Ã¨ báº£ng mÃ u
+    colorStage: ci + 1,
+    colorKey: color.key,
+    nameKey: shape.nameKey
+  };
 }
 
 /** Tá»•ng sá»‘ Ä‘á»‹a danh cá»§a cáº£ 5 vÃ²ng (dÃ¹ng cho mÃ n cá»‘t truyá»‡n) */
@@ -1322,13 +1571,13 @@ export const PERK_CATALOG = [
     name: 'Bá»t RÆ°á»£u Cáº§n',
     nameEn: 'Rice-Wine Bubble',
     icon: 'ðŸ«§',
-    desc: 'KhiÃªn bá»t Ä‘á»¡ 1 va cháº¡m (Hiá»‡u lá»±c: qua 1 cá»•ng)',
-    descEn: 'Bubble shield blocks 1 hit (lasts 1 gate)',
+    desc: 'KhiÃªn bá»t Ä‘á»¡ 1 va cháº¡m (Hiá»‡u lá»±c: 4 cá»•ng)',
+    descEn: 'Bubble shield blocks 1 hit (lasts 4 gates)',
     group: 'defense',
-    durationPillars: 1,
+    durationPillars: 4,
     apply: (game) => {
       game.shieldActive = true;
-      game.perkDurations.beer_bubble = 1;
+      game.perkDurations.beer_bubble = 4;
     },
     remove: (game) => {
       game.shieldActive = false;
@@ -1340,14 +1589,14 @@ export const PERK_CATALOG = [
     name: 'XuyÃªn GiÃ³',
     nameEn: 'Wind Walker',
     icon: 'ðŸ‘»',
-    desc: 'TÃ ng hÃ¬nh xuyÃªn cá»•ng 1.8s sau má»—i cÃº cháº¡m (qua 2 cá»•ng)',
-    descEn: 'Phase through gates 1.8s after each tap (2 gates)',
+    desc: 'TÃ ng hÃ¬nh xuyÃªn cá»•ng 1.8s sau má»—i cÃº cháº¡m (qua 4 cá»•ng)',
+    descEn: 'Phase through gates 1.8s after each tap (4 gates)',
     group: 'defense',
-    durationPillars: 2,
+    durationPillars: 4,
     apply: (game) => {
       game.hasQuantumDrift = true;
       game.quantumCooldownTimer = 0;
-      game.perkDurations.quantum_drift = 2;
+      game.perkDurations.quantum_drift = 4;
     },
     remove: (game) => {
       game.hasQuantumDrift = false;
@@ -1379,14 +1628,17 @@ export const PERK_CATALOG = [
     name: 'PhÃ¡o DÃ¢y Chuyá»n',
     nameEn: 'Chain Firecrackers',
     icon: 'ðŸ§¨',
-    desc: 'Lá»™ng GiÃ³ phÃ¡ 2 cá»•ng liá»n (DÃ¹ng 1 láº§n lÃ  háº¿t)',
-    descEn: 'Wind Burst smashes 2 gates (one use)',
+    desc: 'CÃº Lá»™ng GiÃ³ káº¿ tiáº¿p phÃ¡ 2 cá»•ng +35% nÄƒng lÆ°á»£ng',
+    descEn: 'Next Wind Burst smashes 2 gates (+35% charge)',
     group: 'offense',
     durationPillars: 0,
     apply: (game) => {
-      game.smashChainCount = 2;
+      game.nextSmashChain = 2;   // cÃº Lá»™ng GiÃ³ Káº¾ TIáº¾P phÃ¡ 2 cá»•ng
+      game.smashChainCount = 2;  // Ä‘á»ƒ HUD hiá»‡n huy hiá»‡u Ã—2
+      game.drunkMeter = Math.min(100, game.drunkMeter + 35);
     },
     remove: (game) => {
+      game.nextSmashChain = 0;
       game.smashChainCount = 1;
     }
   },
@@ -1395,8 +1647,8 @@ export const PERK_CATALOG = [
     name: 'VÃ³ HÃºt GiÃ³',
     nameEn: 'Wind Net',
     icon: 'ðŸŒª',
-    desc: 'HÃºt má»i háº¡t giÃ³ trong 220px (Hiá»‡u lá»±c: qua 3 cá»•ng)',
-    descEn: 'Pulls all wind orbs within 220px (lasts 3 gates)',
+    desc: 'HÃºt má»i háº¡t giÃ³ trong 260px (Hiá»‡u lá»±c: qua 3 cá»•ng)',
+    descEn: 'Pulls all wind orbs within 260px (lasts 3 gates)',
     group: 'utility',
     durationPillars: 3,
     apply: (game) => {
@@ -1424,8 +1676,8 @@ export class PerkDraftManager {
     this.hoveredIndex = -1;
     this.draftCards = [];
     this.draftTimer = 0;
-    this.draftMaxDuration = 3.5;
-    this.lastMilestoneScore = -6; // má»‘c Ä‘áº§u á»Ÿ 6 Ä‘iá»ƒm, sau Ä‘Ã³ 18, 30... (lá»‡ch vá»›i chÆ°Æ¡ng)
+    this.draftMaxDuration = 2.4;
+    this.lastMilestoneScore = -6; // má»‘c Ä‘áº§u á»Ÿ 6 Cá»”NG, sau Ä‘Ã³ 18, 30... (lá»‡ch pha vá»›i chÆ°Æ¡ng)
     this.milestoneInterval = 12;
   }
 
@@ -1451,7 +1703,7 @@ export class PerkDraftManager {
       this.lastMilestoneScore = currentScore;
       // 1.0s pre-draft pause before showing cards
       this.isPreDraft = true;
-      this.preDraftTimer = 1.0;
+      this.preDraftTimer = 0.45;
       if (this.game && this.game.rocket) {
         this.game.rocket.vx = 0;
         this.game.rocket.vy = 0;
@@ -1521,16 +1773,15 @@ export class PerkDraftManager {
     }
 
     if (perk.id === 'chain_reaction') {
-      // Khi chá»n tháº» Chain Reaction: dÃ¹ng 1 láº§n ngay láº­p tá»©c
+      // KhÃ´ng ná»• ngay ná»¯a: chá»‰ cÆ°á»ng hoÃ¡ cÃº Lá»™ng GiÃ³ káº¿ tiáº¿p (Ä‘Ãºng mÃ´ táº£ tháº»)
       this.isPostDraft = false;
       this.selectedCard = null;
       this.draftCards = [];
-      this.game.drunkMeter = 100;
-      this.game._triggerSupernovaSmash(true);
+      this.game.invincibleTimer = Math.max(this.game.invincibleTimer, 0.8);
     } else {
       // CÃ¡c tháº» khÃ¡c: 1.0s post-draft freeze pause Ä‘á»ƒ ngÆ°á»i chÆ¡i chuáº©n bá»‹
       this.isPostDraft = true;
-      this.postDraftTimer = 1.0;
+      this.postDraftTimer = 0.7;
     }
   }
 
@@ -1718,10 +1969,17 @@ export class InputManager {
   constructor(targetElement = window) {
     this.targetElement = targetElement;
     this.justPressed = false;
-    this.doubleTapped = false;
+    this.doubleTapped = false;      // giá»¯ cho tÆ°Æ¡ng thÃ­ch (khÃ´ng cÃ²n dÃ¹ng Ä‘á»ƒ Smash)
     this.isPressed = false;
     this.lastTapTime = 0;
-    this.doubleTapThreshold = 280; // ms threshold for double tap
+    this.doubleTapThreshold = 280;
+
+    // Lá»™ng GiÃ³ báº±ng NHáº¤N GIá»®: giá»¯ >= HOLD_MS thÃ¬ kÃ­ch hoáº¡t (tap thÆ°á»ng ~50-110ms)
+    this.HOLD_MS = 200;
+    this.holdStart = 0;
+    this.holdProgress = 0;          // 0..1 Ä‘á»ƒ váº½ vÃ²ng náº¡p quanh diá»u
+    this.smashRequested = false;
+    this._holdArmed = false;
 
     this._onKeyDown = this._onKeyDown.bind(this);
     this._onKeyUp = this._onKeyUp.bind(this);
@@ -1738,6 +1996,27 @@ export class InputManager {
     this.targetElement.addEventListener('pointerdown', this._onPointerDown, { passive: false });
     window.addEventListener('pointerup', this._onPointerUp, { passive: false });
     window.addEventListener('pointercancel', this._onPointerUp, { passive: false });
+  }
+
+  consumeSmash() {
+    if (!this.smashRequested) return false;
+    this.smashRequested = false;
+    return true;
+  }
+
+  /** Cáº­p nháº­t tiáº¿n trÃ¬nh giá»¯ tay (gá»i má»—i frame). */
+  updateHold(dt) {
+    if (!this.isPressed || !this._holdArmed) {
+      this.holdProgress = 0;
+      return;
+    }
+    const held = performance.now() - this.holdStart;
+    this.holdProgress = Math.max(0, Math.min(1, held / this.HOLD_MS));
+    if (held >= this.HOLD_MS) {
+      this.smashRequested = true;
+      this.holdProgress = 1;
+      this._holdArmed = false;      // chá»‰ kÃ­ch hoáº¡t 1 láº§n cho má»—i láº§n giá»¯
+    }
   }
 
   _handleTap() {
@@ -1760,24 +2039,37 @@ export class InputManager {
       // NgÄƒn keydown auto-repeat cá»§a há»‡ Ä‘iá»u hÃ nh lÃ m spam phÃ­m, nhÆ°ng cho phÃ©p nháº¥p nháº£ nhanh
       if (!e.repeat) {
         this._handleTap();
+        // Giá»¯ Space/W Ä‘á»ƒ Lá»™ng GiÃ³ (giá»‘ng nháº¥n giá»¯ trÃªn mobile)
+        this.isPressed = true;
+        this.holdStart = performance.now();
+        this._holdArmed = true;
       }
-      this.isPressed = true;
     }
   }
 
   _onKeyUp(e) {
     if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
       this.isPressed = false;
+      this._holdArmed = false;
+      this.holdProgress = 0;
     }
   }
 
   _onPointerDown(e) {
+    this.isPressed = true;
+    this.holdStart = performance.now();
+    this._holdArmed = true;
+
     e.preventDefault();
     this._handleTap();
     this.isPressed = true;
   }
 
   _onPointerUp(e) {
+    this.isPressed = false;
+    this._holdArmed = false;
+    this.holdProgress = 0;
+
     this.isPressed = false;
   }
 
@@ -1979,6 +2271,8 @@ export class LaserPillarManager {
     this.breatherEvery = 10;    // cá»© N cá»•ng thÃ¬ chÃ¨n 1 nhá»‹p nghá»‰
     this.breatherPause = 0.5;   // giÃ¢y nghá»‰ thÃªm
     this.spawnedCount = 0;
+    this.speedMul = 1;           // >1 khi Lá»™ng GiÃ³ lao xuyÃªn cá»•ng (hyper-scroll)
+    this.tierBoost = 0;          // +2 má»—i vÃ²ng: vÃ²ng 2+ váº«n cÃ³ cá»•ng nghiÃªng/dáº­p dá»nh
     this.minGapY = 160;
     this.maxGapY = 520;
     this.gapHeight = 148;       // Generous height of safe corridor
@@ -1990,6 +2284,7 @@ export class LaserPillarManager {
     this.pillars = [];
     this.speed = this.baseSpeed;
     this.spawnedCount = 0;
+    this.speedMul = 1;
     this.spawnTimer = 0.5; // Quick first obstacle
     this.currentScore = 0;
     this.lastPillarGapY = 350;
@@ -2018,9 +2313,10 @@ export class LaserPillarManager {
       this.spawnTimer = this.spawnInterval + rest;
     }
 
+    const moveSpeed = this.speed * (this.speedMul || 1);
     for (let i = this.pillars.length - 1; i >= 0; i--) {
       const p = this.pillars[i];
-      p.update(dt, this.speed);
+      p.update(dt, moveSpeed);
 
       // Near-Miss check
       if (!p.nearMissChecked && p.checkNearMiss(rocket)) {
@@ -2102,6 +2398,7 @@ export class LaserPillarManager {
       oscFreq = 1.3 + Math.random() * 0.5;
     }
 
+    const effectiveTier = Math.min(9, (tier || 1) + (this.tierBoost || 0));
     const pillar = new LaserPillar(this.gameWidth + 30, gapY, gapH, 52, {
       oscAmp,
       oscFreq,
@@ -2109,7 +2406,7 @@ export class LaserPillarManager {
       angleAmp,
       angleFreq,
       theme,
-      tier
+      tier: effectiveTier
     });
 
     this.pillars.push(pillar);
@@ -2150,7 +2447,8 @@ export class LaserPillarManager {
         nextGapY = Math.min(this.maxGapY, Math.max(this.minGapY, prevPillar.gapY + (Math.random() - 0.5) * 60));
       }
 
-      const newPillar = new LaserPillar(nextX, nextGapY, this.gapHeight, 52, { theme, tier });
+      const effectiveTier = Math.min(9, (tier || 1) + (this.tierBoost || 0));
+      const newPillar = new LaserPillar(nextX, nextGapY, this.gapHeight, 52, { theme, tier: effectiveTier });
       this.pillars.push(newPillar);
       candidates.push(newPillar);
       candidates.sort((a, b) => a.x - b.x);

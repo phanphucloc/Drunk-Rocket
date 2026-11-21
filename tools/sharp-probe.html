@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>sharp-probe</title>
+  <style>body{margin:0;background:#000;color:#0f0;font:12px monospace}pre{white-space:pre-wrap}canvas{opacity:.12}</style>
+</head>
+<body>
+  <pre id="out">running...</pre>
+  <canvas id="c" width="400" height="700"></canvas>
+  <script type="module">
+    import { Game } from '../src/core/game.js';
+
+    const out = document.getElementById('out');
+    const log = (s) => { out.textContent += s + '\n'; };
+
+    try {
+      const g = new Game(document.getElementById('c'));
+      const cw = parseFloat(g.canvas.style.width);
+      const ch = parseFloat(g.canvas.style.height);
+      const dpr = window.devicePixelRatio || 1;
+      const t = g.ctx.getTransform();
+
+      log(`viewport=${innerWidth}x${innerHeight}  scale=${g.scale.toFixed(3)}  dpr=${dpr}`);
+      log(`css=${cw}x${ch}  backing=${g.canvas.width}x${g.canvas.height}  transform=${t.a.toFixed(3)}`);
+
+      const expectW = Math.round(cw * dpr);
+      const expectH = Math.round(ch * dpr);
+      const okSize = g.canvas.width === expectW && g.canvas.height === expectH;
+      const okNoUpscale = g.canvas.width >= cw - 1 && g.canvas.height >= ch - 1;
+      const okT = Math.abs(t.a - g.canvas.width / 400) < 0.01;
+
+      log((okSize ? 'PASS ' : 'FAIL ') + `backing = css × dpr (${expectW}x${expectH})`);
+      log((okNoUpscale ? 'PASS ' : 'FAIL ') + 'không bị phóng to (backing >= css)');
+      log((okT ? 'PASS ' : 'FAIL ') + `transform = backing/400 (${(g.canvas.width / 400).toFixed(3)})`);
+      log(okSize && okNoUpscale && okT ? 'SHARP TEST PASSED' : 'SHARP TEST FAILED');
+      log('DONE');
+    } catch (e) {
+      log('FATAL: ' + (e && (e.stack || e.message)));
+    }
+  </script>
+</body>
+</html>
