@@ -249,6 +249,7 @@ export class Game {
       if (this.bgCanvas.height !== bh) this.bgCanvas.height = bh;
     }
 
+    if (window.__DR_DEBUG) console.log('DLG vv=' + (window.visualViewport ? window.visualViewport.width + 'x' + window.visualViewport.height : '-') + ' inner=' + window.innerWidth + 'x' + window.innerHeight + ' css=' + cssW + 'x' + cssH + ' scale=' + sc.toFixed(3) + ' rect=' + Math.round(this.canvas.getBoundingClientRect().width) + 'x' + Math.round(this.canvas.getBoundingClientRect().height));
     if (this.scenic) this.scenic.resize(this.canvas.width, this.canvas.height);
     if (this.weather) this.weather.resize(this.width, this.height);
     if (this.story) this.story.resize(this.width, this.height);

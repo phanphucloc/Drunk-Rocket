@@ -175,12 +175,15 @@ window.addEventListener('DOMContentLoaded', () => {
 
     const tb = document.getElementById('top-toolbar');
     if (tb) {
-      const w = tb.offsetWidth || 130;
-      let left = r.right + pad;
-      if (left + w > window.innerWidth - 4) left = Math.max(4, r.right - w - pad);
+      const w = Math.ceil(tb.getBoundingClientRect().width) || 140;
+      const gap = 12;
+      // Ưu tiên bên phải canvas; nếu không đủ chỗ thì đặt SÁT MÉP PHẢI canvas (chồng nhẹ, vẫn gọn)
+      let left = r.right + gap;
+      if (left + w > window.innerWidth - 6) left = Math.max(6, r.right - w - 6);
       tb.style.left = Math.round(left) + 'px';
       tb.style.right = 'auto';
-      tb.style.top = Math.round(Math.max(4, r.top + pad)) + 'px';
+      tb.style.top = Math.round(Math.max(6, r.top + pad)) + 'px';
+      tb.dataset.side = left < r.right ? 'in' : 'out';
     }
 
     const actions = document.getElementById('gameover-actions');
