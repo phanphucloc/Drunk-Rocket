@@ -332,6 +332,8 @@ export class ParticleSystem {
   }
 
   draw(ctx) {
+    const skip = this.throttle ? 2 : 1;
+    let _pi = 0;
     ctx.save();
 
     // 1. Draw Shockwave Rings
@@ -347,6 +349,7 @@ export class ParticleSystem {
 
     // 2. Draw Particles
     for (const p of this.particles) {
+      if (skip > 1 && (_pi++ % skip) === 1) continue;
       const alpha = Math.max(0, p.life / p.maxLife);
       ctx.globalAlpha = alpha;
       ctx.fillStyle = p.color;

@@ -27,6 +27,10 @@ export class Game {
     this.ctx = canvas.getContext('2d');
 
     this._dbg = !!(window.__DR_DEBUG || /[?&]debug=1/.test(location.search));
+    // Chất lượng tự điều chỉnh: 0 = cao, 1 = vừa, 2 = thấp (máy yếu)
+    this.perfLevel = 0;
+    this.perfEma = 16.7;
+    this.perfFrames = 0;
     this.width = 400;
     this.height = 700;
     this.scale = 1;
@@ -218,7 +222,8 @@ export class Game {
     const lowEnd = (navigator.deviceMemory && navigator.deviceMemory <= 4) ||
                    (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4);
     this.lowEnd = !!lowEnd;
-    let dpr = Math.min(lowEnd ? 1.5 : 2, Math.max(1, window.devicePixelRatio || 1));
+    const levelCap = this.perfLevel >= 2 ? 1.25 : (this.perfLevel >= 1 ? 1.5 : 2);
+    let dpr = Math.min(Math.min(lowEnd ? 1.5 : 2, levelCap), Math.max(1, window.devicePixelRatio || 1));
     // Chặn backing ≤ 2× kích thước logic: màn hình rất to vẫn nhẹ, không vẽ 3-4×
     const capDpr = (this.width * 2) / Math.max(1, cssW);
     if (dpr > capDpr) dpr = Math.max(1, capDpr);
@@ -238,7 +243,13 @@ export class Game {
 
     if (this._dbg) console.log('DLG vv=' + (window.visualViewport ? window.visualViewport.width + 'x' + window.visualViewport.height : '-') + ' inner=' + window.innerWidth + 'x' + window.innerHeight + ' css=' + cssW + 'x' + cssH + ' scale=' + sc.toFixed(3) + ' rect=' + Math.round(this.canvas.getBoundingClientRect().width) + 'x' + Math.round(this.canvas.getBoundingClientRect().height));
     if (this.scenic) this.scenic.resize(this.canvas.width, this.canvas.height);
-    if (this.weather) this.weather.resize(this.width, this.height);
+    if (this.weather) {
+      this.weather.resize(this.width, this.height);
+      this.weather.forceLowEnd = this.perfLevel >= 1;
+    }
+    if (this.hud) this.hud.noShadow = this.perfLevel >= 2;
+    if (this.particles) this.particles.throttle = this.perfLevel >= 2;
+
     if (this.story) this.story.resize(this.width, this.height);
   }
 
@@ -1244,6 +1255,23 @@ export class Game {
   }
 
   loop(timestamp) {
+
+    // ---- Tự điều chỉnh chất lượng theo FPS thực ----
+    if (this.state === 'PLAYING' && !this.paused && dt > 0 && dt < 0.25) {
+      this.perfEma = this.perfEma * 0.9 + (dt * 1000) * 0.1;
+      this.perfFrames++;
+      if (this.perfFrames >= 90) {
+        this.perfFrames = 0;
+        if (this.perfEma > 19 && this.perfLevel < 2) {
+          this.perfLevel++;
+          this.resize();
+        } else if (this.perfEma < 15 && this.perfLevel > 0) {
+          // máy đã đủ nhanh: nâng lại từng bước (tránh nhấp nháy)
+          this.perfLevel--;
+          this.resize();
+        }
+      }
+    }
     if (!this.isRunning) return;
 
     const dt = Math.min((timestamp - this.lastTime) / 1000, 0.1);

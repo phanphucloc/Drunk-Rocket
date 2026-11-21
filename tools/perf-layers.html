@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>perf-layers</title>
+  <style>body{margin:0;background:#000;color:#0f0;font:12px monospace}pre{white-space:pre-wrap}canvas{opacity:.05}</style>
+</head>
+<body>
+  <pre id="out">running...</pre>
+  <canvas id="c" width="400" height="700"></canvas>
+  <script type="module">
+    import { Game } from '../src/core/game.js';
+    import { LaserPillar } from '../src/entities/laserPillar.js';
+
+    const params = new URLSearchParams(location.search);
+    const dpr = Math.max(1, Math.min(3, Number(params.get('dpr') || 2)));
+    Object.defineProperty(window, 'devicePixelRatio', { value: dpr, configurable: true });
+
+    const out = document.getElementById('out');
+    const log = (s) => { out.textContent += s + '\n'; };
+
+    const g = new Game(document.getElementById('c'));
+    const q = Number(params.get('q') || 0);
+    g.perfLevel = q;
+    g.resize();
+    g.state = 'PLAYING';
+    g.pillars.pillars = [
+      new LaserPillar(300, 340, 148, 52, { theme: g.currentTheme, tier: 1 }),
+      new LaserPillar(520, 420, 148, 52, { theme: g.currentTheme, tier: 1 })
+    ];
+
+    // đo từng lớp bằng cách bọc method
+    const acc = {};
+    const wrap = (obj, name, label) => {
+      if (!obj || typeof obj[name] !== 'function') return;
+      const orig = obj[name].bind(obj);
+      obj[name] = (...args) => {
+        const t0 = performance.now();
+        const r = orig(...args);
+        acc[label] = (acc[label] || 0) + (performance.now() - t0);
+        return r;
+      };
+    };
+
+    wrap(g.starfield, 'draw', 'starfield');
+    wrap(g.scenic, 'draw', 'scenic');
+    wrap(g.weather, 'drawSky', 'weather.sky');
+    wrap(g.weather, 'drawForeground', 'weather.fg');
+    wrap(g.particles, 'draw', 'particles');
+    wrap(g.energyCells, 'draw', 'cells');
+    wrap(g.pillars, 'draw', 'pillars?');
+    wrap(g.hud, 'draw', 'hud');
+    wrap(g.ghosts, 'draw', 'ghosts');
+
+    const N = 90;
+    let upd = 0, ren = 0;
+    // làm nóng (bake ảnh, font, JIT)
+    for (let i = 0; i < 10; i++) { g.state = 'PLAYING'; g.update(1 / 60); g.render(); }
+
+    for (let i = 0; i < N; i++) {
+      g.state = 'PLAYING';
+      const t0 = performance.now();
+      g.update(1 / 60);
+      const t1 = performance.now();
+      g.render();
+      const t2 = performance.now();
+      upd += t1 - t0;
+      ren += t2 - t1;
+    }
+
+    log(`dpr=${dpr} css=${g.canvas.style.width}x${g.canvas.style.height} backing=${g.canvas.width}x${g.canvas.height}`);
+    log(`avg frame: update=${(upd / N).toFixed(2)}ms render=${(ren / N).toFixed(2)}ms total=${((upd + ren) / N).toFixed(2)}ms`);
+    Object.keys(acc).sort((a, b) => acc[b] - acc[a]).forEach(k => {
+      const v = acc[k] / N;
+      if (v > 0.05) log(`  ${k.padEnd(12)} ${v.toFixed(2)}ms/frame`);
+    });
+    log('DONE');
+  </script>
+</body>
+</html>

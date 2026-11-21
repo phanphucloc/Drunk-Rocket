@@ -743,8 +743,15 @@ export class WeatherSystem {
     // Chụp khung hình GỐC (trước khi đổi khí hậu). Sau khi làm tối, ta nhân nó với
     // khung đã tối để chỉ giữ lại những điểm vốn đã sáng (đèn, cửa sổ, cầu rồng)
     // → chúng phát sáng trở lại, còn bầu trời ban ngày bị tối thì không bị bạc màu.
+    if (this.forceLowEnd !== undefined) this._lowEnd = this.forceLowEnd;
     let hasGlow = false;
-    if (bloom > 0.02 && ctx.canvas) {
+    this._bloomTick = ((this._bloomTick || 0) + 1) % 2;
+    const lowEnd = this._lowEnd !== undefined ? this._lowEnd :
+      ((navigator.deviceMemory && navigator.deviceMemory <= 4) ||
+       (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4));
+    this._lowEnd = lowEnd;
+
+    if (bloom > 0.02 && ctx.canvas && !lowEnd && this._bloomTick === 0) {
       this._ensureScratch();
       this._scratchCtx.setTransform(1, 0, 0, 1, 0, 0);
       this._scratchCtx.globalCompositeOperation = 'source-over';
@@ -776,7 +783,7 @@ export class WeatherSystem {
       // bloom càng mạnh, cảnh ban ngày thì giảm để không bị bạc màu.
       this._lumaTimer = (this._lumaTimer || 0) - 1;
       if (this._lumaTimer <= 0) {
-        this._lumaTimer = 12;
+        this._lumaTimer = 24;
         try {
           const data = g.getImageData(0, 0, sw, sh).data;
           let sum = 0;
@@ -807,8 +814,12 @@ export class WeatherSystem {
 
   // Hai canvas nhỏ 1/4: một bản thu nhỏ khung hình, một bản "ngưỡng sáng" (bình phương)
   _ensureScratch() {
-    const sw = Math.max(1, Math.round(this.width / 4));
-    const sh = Math.max(1, Math.round(this.height / 4));
+    const lowEnd = (navigator.deviceMemory && navigator.deviceMemory <= 4) ||
+                   (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4);
+    this._lowEnd = !!lowEnd;
+    const div = lowEnd ? 8 : 6;
+    const sw = Math.max(1, Math.round(this.width / div));
+    const sh = Math.max(1, Math.round(this.height / div));
     if (this._scratch && this._scratch.width === sw && this._scratch.height === sh &&
       this._glow && this._glow.width === sw && this._glow.height === sh) return;
 
@@ -819,9 +830,10 @@ export class WeatherSystem {
       return cv;
     };
     this._scratch = make();
-    this._scratchCtx = this._scratch.getContext('2d');
+    // willReadFrequently: bắt buộc cho canvas bị getImageData (nếu không sẽ rất chậm)
+    this._scratchCtx = this._scratch.getContext('2d', { willReadFrequently: true });
     this._glow = make();
-    this._glowCtx = this._glow.getContext('2d');
+    this._glowCtx = this._glow.getContext('2d', { willReadFrequently: true });
   }
 
   drawForeground(ctx) {

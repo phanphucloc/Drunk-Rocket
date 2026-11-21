@@ -236,7 +236,7 @@ export class HUD {
         }
         ctx.fillStyle = currentTheme.laserColor || '#e8b84b';
         ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
-        ctx.shadowBlur = 4;
+        if (!this.noShadow) ctx.shadowBlur = 4;
         ctx.fillText(badge, cx, 72);
         ctx.shadowBlur = 0;
       }
@@ -276,7 +276,7 @@ export class HUD {
       } else {
         ctx.save();
         ctx.shadowColor = '#41d9b0';
-        ctx.shadowBlur = 8;
+        if (!this.noShadow) ctx.shadowBlur = 8;
         ctx.strokeStyle = 'rgba(65, 217, 176, 0.35)';
         ctx.lineWidth = 1;
         ctx.beginPath();
