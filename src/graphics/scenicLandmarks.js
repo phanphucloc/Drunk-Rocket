@@ -134,7 +134,7 @@ export class ScenicLandmarksManager {
         }
         const tier = tiers[i++];
         try {
-          sctx.setTransform(1, 0, 0, 1, 0, 0);
+          sthis._resetView(ctx);
           sctx.clearRect(0, 0, this.width, this.height);
           this._drawLandmarkByTier(sctx, tier);
         } catch (e) { /* bỏ qua lỗi dựng thử */ }
@@ -143,6 +143,34 @@ export class ScenicLandmarksManager {
       };
       step();
     });
+  }
+
+  /**
+   * Transform nền của từng canvas (do Game.resize đặt: scale = backing/400).
+   * Các hàm vẽ cảnh dùng transform TUYỆT ĐỐI; helper dưới đây nhân với nền
+   * để không ghi đè transform DPR -> vừa đúng vị trí, vừa nét.
+   */
+  _ctxBase(ctx) {
+    this._ctxBaseMap = this._ctxBaseMap || new WeakMap();
+    return this._ctxBaseMap.get(ctx) || { a: 1, d: 1 };
+  }
+
+  _setCtxBase(ctx) {
+    this._ctxBaseMap = this._ctxBaseMap || new WeakMap();
+    const m = (ctx.getTransform && ctx.getTransform()) || { a: 1, d: 1 };
+    this._ctxBaseMap.set(ctx, { a: m.a || 1, d: m.d || 1 });
+  }
+
+  /** Thay cho ctx.setTransform(1,0,0,1,0,0) */
+  _resetView(ctx) {
+    const b = this._ctxBase(ctx);
+    ctx.setTransform(b.a, 0, 0, b.d, 0, 0);
+  }
+
+  /** Thay cho ctx.setTransform(sx,0,0,sy,tx,ty) */
+  _viewT(ctx, sx, sy, tx, ty) {
+    const b = this._ctxBase(ctx);
+    ctx.setTransform(b.a * sx, 0, 0, b.d * sy, b.a * tx, b.d * ty);
   }
 
   setTier(tier) {
@@ -241,6 +269,7 @@ export class ScenicLandmarksManager {
   }
 
   _drawLandmarkByTier(ctx, tier) {
+    this._setCtxBase(ctx);
     switch (tier) {
       case 1: this._drawSapa(ctx); break;
       case 2: this._drawNinhBinh(ctx); break;
@@ -275,7 +304,7 @@ export class ScenicLandmarksManager {
 
     // 2. Các chi tiết động vẽ trong hệ toạ độ tranh gốc
     ctx.save();
-    ctx.setTransform(view.sx, 0, 0, view.sy, -view.offX * view.sx, -view.offY * view.sy);
+    this._viewT(ctx, view.sx, view.sy, -view.offX * view.sx, -view.offY * view.sy);
 
     this._saDrawFlag(ctx, t, view.kx);
     this._saDrawClouds(ctx, t, scene);
@@ -289,7 +318,7 @@ export class ScenicLandmarksManager {
 
     // 4. Nắng lướt trên ruộng và hạt sáng lơ lửng
     ctx.save();
-    ctx.setTransform(view.sx, 0, 0, view.sy, -view.offX * view.sx, -view.offY * view.sy);
+    this._viewT(ctx, view.sx, view.sy, -view.offX * view.sx, -view.offY * view.sy);
     this._saDrawSunSweep(ctx, t);
     this._saDrawMotes(ctx, t, scene);
     ctx.restore();
@@ -880,7 +909,7 @@ export class ScenicLandmarksManager {
 
     // 4. Các chi tiết động vẽ trong hệ toạ độ tranh gốc
     ctx.save();
-    ctx.setTransform(view.s, 0, 0, view.s, -view.offX * view.s, -view.offY * view.s);
+    this._viewT(ctx, view.s, view.s, -view.offX * view.s, -view.offY * view.s);
 
     this._nbDrawWater(ctx, t);
     for (const boat of scene.boats) this._nbBoat(ctx, boat, t);
@@ -1592,7 +1621,7 @@ export class ScenicLandmarksManager {
 
     ctx.save();
     // 1. Vẽ nền tĩnh (Bầu trời hoàng hôn, Trăng, Mây, Đồi xa, Mặt nước, Bờ cây & Cầu Long Biên)
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    this._resetView(ctx);
     ctx.drawImage(scene.bg, 0, 0);
 
     // 2. Đàn chim chiều chao lượn trên bầu trời
@@ -1676,7 +1705,7 @@ export class ScenicLandmarksManager {
     ctx.restore();
 
     // 7. Vẽ Đảo Ngọc & Tháp Rùa
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    this._resetView(ctx);
     ctx.drawImage(scene.isl, 0, 0);
 
     // 8. Hiệu ứng ánh sáng tỏa ra từ các cửa vòm Tháp Rùa & Đom đóm bay lượn
@@ -1712,14 +1741,14 @@ export class ScenicLandmarksManager {
     ctx.restore();
 
     // 9. Tầng tiền cảnh
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    this._resetView(ctx);
     ctx.drawImage(scene.fg, 0, 0);
 
     // 10. Hàng liễu rủ đung đưa trong gió thu Hà Nội
     this._hanoiWillow(ctx, t, scene);
 
     // 11. Vignette
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    this._resetView(ctx);
     const v = ctx.createRadialGradient(scene.W / 2, scene.H * 0.55, scene.H * 0.35, scene.W / 2, scene.H * 0.55, scene.H * 0.95);
     v.addColorStop(0, 'rgba(14,8,34,0)');
     v.addColorStop(1, 'rgba(14,8,34,.4)');
@@ -1764,7 +1793,7 @@ export class ScenicLandmarksManager {
   }
 
   _hanoiMk(W,H,K,offsetX,offsetY) { const c=document.createElement('canvas'); c.width=W; c.height=H; const x=c.getContext('2d'); x.setTransform(K,0,0,K,offsetX,offsetY); return[c,x]; }
-  _hanoiT(c,scene) { c.setTransform(scene.K,0,0,scene.K,scene.offsetX,scene.offsetY); }
+  _hanoiT(c, scene) { this._viewT(c, scene.K, scene.K, scene.offsetX, scene.offsetY); }
   _hanoiRnd(n) { const s=Math.sin(n*127.1+311.7)*43758.5453; return s-Math.floor(s); }
   _hanoiLg(c,x0,y0,x1,y1,st) { const g=c.createLinearGradient(x0,y0,x1,y1); st.forEach(s=>g.addColorStop(s[0],s[1])); return g; }
   _hanoiRg(c,x,y,r0,r1,st) { const g=c.createRadialGradient(x,y,r0,x,y,r1); st.forEach(s=>g.addColorStop(s[0],s[1])); return g; }
@@ -1876,7 +1905,7 @@ export class ScenicLandmarksManager {
 
     ctx.save();
     // 1. Vẽ nền tĩnh đã cache (Trời, Mây, Núi, Hoàng Thành, Kỳ Đài, Ngọ Môn)
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    this._resetView(ctx);
     ctx.clearRect(0, 0, scene.W, scene.H);
     ctx.drawImage(scene.bg, 0, 0);
 
@@ -1941,7 +1970,7 @@ export class ScenicLandmarksManager {
     this._hueWater(ctx, t, scene);
 
     // 6. Vẽ Cầu Tràng Tiền lên màn hình chính
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    this._resetView(ctx);
     ctx.drawImage(scene.brCanvas, 0, 0);
 
     // 7. Đom đóm đêm lập lòe bờ sông
@@ -1961,14 +1990,14 @@ export class ScenicLandmarksManager {
     ctx.restore();
 
     // 8. Tầng tiền cảnh (Lan can đá, khóm cây ven sông)
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    this._resetView(ctx);
     ctx.drawImage(scene.fg, 0, 0);
 
     // 9. Cành liễu rủ đung đưa trong gió
     this._hueWillow(ctx, t, scene);
 
     // 10. Lớp Vignette viền màn hình tạo chiều sâu điện ảnh
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    this._resetView(ctx);
     const v = ctx.createRadialGradient(
       scene.W / 2, scene.H * 0.55, scene.H * 0.35,
       scene.W / 2, scene.H * 0.55, scene.H * 0.95
@@ -2065,9 +2094,7 @@ export class ScenicLandmarksManager {
     return [c, x];
   }
 
-  _hueT(c, scene) {
-    c.setTransform(scene.K, 0, 0, scene.K, scene.offsetX, scene.offsetY);
-  }
+  _hueT(c, scene) { this._viewT(c, scene.K, scene.K, scene.offsetX, scene.offsetY); }
 
   _hueRnd(n) {
     const s = Math.sin(n * 127.1 + 311.7) * 43758.5453;
@@ -2835,7 +2862,7 @@ export class ScenicLandmarksManager {
 
     ctx.save();
     // 1. Vẽ nền tĩnh (trời, sao, mây, núi Sơn Trà, Phật Bà, skyline Mỹ Khê)
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    this._resetView(ctx);
     ctx.drawImage(scene.bg, 0, 0);
 
     // 2. Sao lấp lánh & Vòng quay Sun Wheel rực rỡ
@@ -2852,7 +2879,7 @@ export class ScenicLandmarksManager {
     this._danangFerris(ctx, 2050, 628, 140, t);
 
     // 3. Tòa nhà thấp trước vòng quay & đèn chớp đỏ trên đỉnh cao ốc
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    this._resetView(ctx);
     ctx.drawImage(scene.fr, 0, 0);
     this._danangT(ctx, scene);
     [[1500, 600], [1700, 495]].forEach((b, i) => {
@@ -2866,7 +2893,7 @@ export class ScenicLandmarksManager {
     this._danangWater(ctx, t, scene);
 
     // 5. Cầu quay Sông Hàn & Cầu Rồng tráng lệ
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    this._resetView(ctx);
     ctx.drawImage(scene.sw, 0, 0);
     ctx.drawImage(scene.brg, 0, 0);
 
@@ -2887,7 +2914,7 @@ export class ScenicLandmarksManager {
     this._danangFx(ctx, t, scene);
 
     // 8. Tiền cảnh: quảng trường lan can đá & rặng dừa nhiệt đới
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    this._resetView(ctx);
     if (scene.portrait) {
       // Khung dọc: rặng dừa tiền cảnh vẽ riêng ở hai góc dưới để không che đầu rồng
       this._danangFrame(ctx, scene.W, scene.H);
@@ -3029,9 +3056,7 @@ export class ScenicLandmarksManager {
     return [c, x];
   }
 
-  _danangT(c, scene) {
-    c.setTransform(scene.K, 0, 0, scene.K, scene.offsetX, scene.offsetY);
-  }
+  _danangT(c, scene) { this._viewT(c, scene.K, scene.K, scene.offsetX, scene.offsetY); }
 
   _danangRnd(n) {
     const s = Math.sin(n * 127.1 + 311.7) * 43758.5453;

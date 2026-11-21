@@ -232,15 +232,18 @@ export class Game {
     const cssH = Math.max(1, Math.floor(this.height * this.scale));
     this.canvas.width = Math.round(cssW * dpr);
     this.canvas.height = Math.round(cssH * dpr);
-    // Canvas hiển thị 1:1 với backing; cảnh vẽ vào buffer 400x700 rồi blit.
-    if (this.ctx && this.ctx.setTransform) this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+    this.baseSX = this.canvas.width / this.width;
+    this.baseSY = this.canvas.height / this.height;
+    if (this.ctx && this.ctx.setTransform) {
+      this.ctx.setTransform(this.baseSX, 0, 0, this.baseSY, 0, 0);
+    }
 
     // NHƯNG phải thu khung hiển thị (CSS) theo màn hình — trước đây thiếu bước này
     // nên trên điện thoại hẹp (<400px) canvas tràn ra ngoài, cắt mất 2 bên.
     this.canvas.style.width = cssW + 'px';
     this.canvas.style.height = cssH + 'px';
 
-    if (this.scenic) this.scenic.resize(this.width, this.height);
+    if (this.scenic) this.scenic.resize(this.canvas.width, this.canvas.height);
     if (this.weather) this.weather.resize(this.width, this.height);
     if (this.story) this.story.resize(this.width, this.height);
   }
@@ -941,7 +944,15 @@ export class Game {
     this.ctx.translate(shake.x, shake.y);
 
     this.starfield.draw(this.ctx);
-    if (this.scenic) this.scenic.draw(this.ctx);
+    // Scenic vẽ trong hệ PIXEL BACKING (nét tuyệt đối), rồi trả lại hệ 400x700.
+    if (this.scenic) {
+      const out = this.ctx;
+      out.setTransform(1, 0, 0, 1, 0, 0);
+      this.scenic.draw(out);
+      out.setTransform(this.baseSX || 1, 0, 0, this.baseSY || 1, 0, 0);
+      const sh2 = this.hud.getShakeOffset();
+      out.translate(sh2.x, sh2.y);
+    }
     // Thời tiết: lớp màu trời + mây + sao + nắng (nằm trên tranh, dưới nhân vật)
     if (this.weather) this.weather.drawSky(this.ctx);
 
