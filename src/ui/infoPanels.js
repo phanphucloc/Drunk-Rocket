@@ -5,6 +5,7 @@
 import { TIER_THEMES } from '../graphics/themes.js';
 import { PERK_CATALOG } from '../core/perks.js';
 import { LAPS } from '../core/progression.js';
+import { POINTS_PER_CHAPTER } from '../core/progression.js';
 import { t, getLang, onLangChange } from '../i18n.js';
 
 const CHAPTER_KEY = 'dieu_say_gio_chapter';
@@ -113,9 +114,9 @@ export class InfoPanels {
   }
 
   /** Cập nhật ô giới thiệu địa danh ở góc phải (luôn hiện). */
-  setLandmark(theme, lap = 1, chapter = 1, animate = true) {
+  setLandmark(theme, lap = 1, chapter = 1, animate = true, gatesInChapter = 0, gatesPerChapter = POINTS_PER_CHAPTER) {
     if (!theme) return;
-    this.current = { theme, lap, chapter };
+    this.current = { theme, lap, chapter, gatesInChapter, gatesPerChapter };
     const lang = getLang();
     const chapEl = document.getElementById('chip-chapter');
     const nameEl = document.getElementById('chip-name');
@@ -123,7 +124,12 @@ export class InfoPanels {
     const chip = document.getElementById('landmark-chip');
     if (!chip) return;
 
-    if (chapEl) chapEl.textContent = `${t('hud.lap')} ${lap} · ${t('hud.chapter')} ${String(chapter).padStart(2, '0')}`;
+    const gIn = Math.max(0, Math.min(gatesPerChapter, Math.floor(gatesInChapter)));
+    if (chapEl) {
+      chapEl.textContent = `${t('hud.lap')} ${lap} · ${t('hud.chapter')} ${String(chapter).padStart(2, '0')} · ${gIn}/${gatesPerChapter}`;
+    }
+    const bar = document.getElementById('chip-progress-fill');
+    if (bar) bar.style.width = Math.round((gIn / gatesPerChapter) * 100) + '%';
     if (nameEl) nameEl.textContent = theme.name;
     if (windEl) {
       const wind = lang === 'en' ? (theme.windEn || '') : (theme.editorialIssue || '');

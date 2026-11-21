@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>score-probe</title>
+  <style>body{margin:0;background:#000;color:#0f0;font:12px monospace}pre{white-space:pre-wrap}canvas{opacity:.08}</style>
+</head>
+<body>
+  <pre id="out">running...</pre>
+  <canvas id="c" width="400" height="700"></canvas>
+  <script type="module">
+    import { Game } from '../src/core/game.js';
+    import { LaserPillar } from '../src/entities/laserPillar.js';
+
+    const out = document.getElementById('out');
+    const lines = [];
+    const log = (s) => { lines.push(s); out.textContent = lines.join('\n'); };
+    const fails = [];
+    const check = (n, c, e = '') => { log((c ? 'PASS ' : 'FAIL ') + n + (e ? ' — ' + e : '')); if (!c) fails.push(n); };
+
+    const makeGame = () => {
+      const g = new Game(document.getElementById('c'));
+      g.state = 'PLAYING';
+      g.drunkMeter = 0;
+      g.score = 0;
+      g._syncProgression(true);
+      return g;
+    };
+
+    try {
+      // A) 15 điểm = 1 địa danh
+      const g = makeGame();
+      for (let i = 0; i < 14; i++) g._onScore(null);
+      check('14 điểm -> vẫn chương 1', g.chapterNumber === 1, 'ch=' + g.chapterNumber);
+      g._onScore(null);
+      check('15 điểm -> chương 2', g.chapterNumber === 2, 'ch=' + g.chapterNumber);
+      check('15 điểm -> vẫn sắc 1 (tỉnh 2)', g.colorStage === 1, 'sắc=' + g.colorStage);
+
+      // B) near-miss = +2 điểm
+      const g2 = makeGame();
+      g2.score = 100;
+      const before = g2.score;
+      g2._onNearMiss(null);
+      check('near-miss +2 điểm', g2.score - before === 2, 'delta=' + (g2.score - before));
+
+      // C) smash = +1 điểm (chain +2)
+      const g3 = makeGame();
+      g3.score = 200;
+      g3.gatesPassed = 0;
+      g3.pillars.pillars = [new LaserPillar(300, 350, 148, 52, { theme: g3.currentTheme, tier: 1 })];
+      g3.drunkMeter = 100;
+      const s3 = g3.score;
+      g3._triggerSupernovaSmash();
+      let f = 0;
+      while (g3.isSmashActive && f < 120) { g3.update(1 / 60); f++; }
+      check('smash 1 cổng +1 điểm', g3.score - s3 === 1, 'delta=' + (g3.score - s3));
+
+      // D) combo hạt gió không cộng điểm
+      const g4 = makeGame();
+      g4.score = 50;
+      const s4 = g4.score;
+      g4.cellCombo = 0;
+      g4._onCollectCell({ x: 200, y: 300 });
+      g4._onCollectCell({ x: 200, y: 300 });
+      g4._onCollectCell({ x: 200, y: 300 });
+      check('3 hạt gió: KHÔNG cộng điểm', g4.score === s4, 'score=' + g4.score);
+      check('3 hạt gió: vẫn +5%/hạt', g4.drunkMeter === 15, 'meter=' + g4.drunkMeter);
+
+      log('');
+      log(fails.length ? 'FAILED: ' + fails.join(', ') : 'SCORE MODEL PASSED');
+      log('DONE');
+    } catch (e) {
+      log('FATAL: ' + (e && (e.stack || e.message)));
+    }
+  </script>
+</body>
+</html>

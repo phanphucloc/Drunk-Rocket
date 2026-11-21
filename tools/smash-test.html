@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>smash-test</title>
+  <style>body{margin:0;background:#000;color:#0f0;font:12px monospace}pre{white-space:pre-wrap}canvas{opacity:.08}</style>
+</head>
+<body>
+  <pre id="out">running...</pre>
+  <canvas id="c" width="400" height="700"></canvas>
+  <script type="module">
+    import { Game } from '../src/core/game.js';
+    import { LaserPillar } from '../src/entities/laserPillar.js';
+    import { POINTS_PER_CHAPTER, getProgression } from '../src/core/progression.js';
+    import { PERK_CATALOG } from '../src/core/perks.js';
+
+    const out = document.getElementById('out');
+    const lines = [];
+    const log = (s) => { lines.push(s); out.textContent = lines.join('\n'); };
+    const fails = [];
+    const check = (n, c, e = '') => { log((c ? 'PASS ' : 'FAIL ') + n + (e ? ' — ' + e : '')); if (!c) fails.push(n); };
+
+    const mk = (list, chain) => {
+      const g = new Game(document.getElementById('c'));
+      g.state = 'PLAYING';
+      g.drunkMeter = 100;
+      g.score = 0;
+      g.nextSmashChain = chain ? 2 : 0;
+      g.smashChainCount = chain ? 2 : 1;
+      g.pillars.pillars = list.map(([x, y]) =>
+        new LaserPillar(x, y, 148, 52, { theme: g.currentTheme, tier: 1 }));
+      g.pillars.spawnTimer = 999;
+      return g;
+    };
+
+    const dash = (g) => {
+      g._triggerSupernovaSmash();
+      const startX = g.rocket.x;
+      const xs = [startX];
+      const speedMuls = [];
+      let hitstops = 0;
+      let frames = 0;
+      while (frames < 220) {
+        g.state = 'PLAYING';
+        const wasActive = g.isSmashActive;
+        g.update(1 / 60);
+        if (!wasActive || !g.isSmashActive) break;
+        speedMuls.push(g.pillars.speedMul);
+        if (g.hitStopTimer > 0) hitstops++;
+        xs.push(g.rocket.x);
+        frames++;
+      }
+      const forward = xs.slice(1).map((x, i) => x - xs[i]);
+      return {
+        g, frames, xs, speedMuls, hitstops,
+        maxX: Math.max(...xs),
+        backSteps: forward.filter(d => d < -0.01).length
+      };
+    };
+
+    try {
+      // ================= BUG 1: quét nhiều vị trí "vừa qua cột" =================
+      const phases = [40, 60, 80, 95, 100, 104, 110];
+      let behindHits = 0;
+      let frontMiss = 0;
+      const details = [];
+      for (const bx of phases) {
+        const g = mk([[bx, 340], [330, 380]], false);
+        const behind = g.pillars.pillars[0];
+        const front = g.pillars.pillars[1];
+        behind.passed = bx < g.rocket.x;
+        dash(g);
+        if (behind.isDestroyed) behindHits++;
+        if (!front.isDestroyed) frontMiss++;
+        details.push(`${bx}:${behind.isDestroyed ? 'X' : 'o'}${front.isDestroyed ? 'X' : 'o'}`);
+      }
+      check('BUG1: KHÔNG cột sau lưng nào bị húc (7 vị trí)', behindHits === 0, 'hits=' + behindHits + ' [' + details.join(' ') + ']');
+      check('BUG1: cột phía trước luôn bị húc', frontMiss === 0, 'miss=' + frontMiss);
+
+      // ca đặc biệt: cột đang CHỨA diều (x = rocket.x)
+      const gs = mk([[100, 340], [330, 380]], false);
+      const inside = gs.pillars.pillars[0];
+      const aheadP = gs.pillars.pillars[1];
+      dash(gs);
+      check('BUG1: cột ĐANG CHỨA diều không bị húc', inside.isDestroyed === false,
+        'insideDestroyed=' + inside.isDestroyed);
+      check('BUG1: cột kế tiếp vẫn bị húc', aheadP.isDestroyed === true);
+
+      // ================= Bug cũ: cột vừa qua (đã biến mất) + không còn cột nào =================
+      const g2 = mk([], false);
+      g2.pillars.pillars = [];
+      const b = dash(g2);
+      check('KHÔNG có cột phía trước: vẫn lướt (không crash)', b.frames > 10, 'frames=' + b.frames);
+      check('KHÔNG có cột: không cộng điểm', g2.score === 0, 'score=' + g2.score);
+
+      // ================= Chain: 2 cột phía trước =================
+      const g3 = mk([[280, 340], [420, 420]], true);
+      const c1 = g3.pillars.pillars[0];
+      const c2 = g3.pillars.pillars[1];
+      const c = dash(g3);
+      check('chain: cả 2 cột phía trước bị phá', c1.isDestroyed && c2.isDestroyed,
+        `c1=${c1.isDestroyed} c2=${c2.isDestroyed}`);
+      check('chain: +2 điểm', g3.score === 2, 'score=' + g3.score);
+      check('chain: cuộn đều 3.4x', Math.min(...c.speedMuls) === 3.4 && Math.max(...c.speedMuls) === 3.4);
+
+      // ================= BUG 2: chọn Pháo Dây Chuyền không làm tụt thanh gió =================
+      const g4 = mk([], false);
+      g4.drunkMeter = 100;
+      const chainPerk = PERK_CATALOG.find(p => p.id === 'chain_reaction');
+      chainPerk.apply(g4);
+      check('BUG2: chọn Pháo Dây Chuyền KHÔNG tụt thanh gió', g4.drunkMeter === 100, 'meter=' + g4.drunkMeter);
+      check('BUG2: có cường hoá 2 cổng', g4.nextSmashChain === 2, 'next=' + g4.nextSmashChain);
+
+      // ================= Cải thiện: sau smash tự đẩy 1 nhịp =================
+      const g5 = mk([[300, 350]], false);
+      g5._triggerSupernovaSmash();
+      let f5 = 0;
+      while (g5.isSmashActive && f5 < 200) { g5.state = 'PLAYING'; g5.update(1 / 60); f5++; }
+      check('SAU SMASH: có nhịp đẩy tự động (vy âm / thrust)', g5.rocket.vy < 0 || g5.rocket.isThrusting || g5.rocket.thrustPending,
+        `vy=${g5.rocket.vy.toFixed(0)} thrusting=${g5.rocket.isThrusting}`);
+
+      // ================= 10 điểm / chương =================
+      check('POINTS_PER_CHAPTER = 10', POINTS_PER_CHAPTER === 10, 'n=' + POINTS_PER_CHAPTER);
+      check('9 điểm -> chương 1', getProgression(9).chapterNumber === 1);
+      check('10 điểm -> chương 2', getProgression(10).chapterNumber === 2);
+
+      log('');
+      log(fails.length ? 'FAILED: ' + fails.join(', ') : 'ALL BUG FIXES PASSED');
+      log('DONE');
+    } catch (e) {
+      log('FATAL: ' + (e && (e.stack || e.message)));
+    }
+  </script>
+</body>
+</html>

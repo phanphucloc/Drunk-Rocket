@@ -164,6 +164,8 @@ export class LaserPillarManager {
     this.breatherEvery = 10;    // cứ N cổng thì chèn 1 nhịp nghỉ
     this.breatherPause = 0.5;   // giây nghỉ thêm
     this.spawnedCount = 0;
+    this.speedMul = 1;           // >1 khi Lộng Gió lao xuyên cổng (hyper-scroll)
+    this.tierBoost = 0;          // +2 mỗi vòng: vòng 2+ vẫn có cổng nghiêng/dập dềnh
     this.minGapY = 160;
     this.maxGapY = 520;
     this.gapHeight = 148;       // Generous height of safe corridor
@@ -175,6 +177,7 @@ export class LaserPillarManager {
     this.pillars = [];
     this.speed = this.baseSpeed;
     this.spawnedCount = 0;
+    this.speedMul = 1;
     this.spawnTimer = 0.5; // Quick first obstacle
     this.currentScore = 0;
     this.lastPillarGapY = 350;
@@ -203,9 +206,10 @@ export class LaserPillarManager {
       this.spawnTimer = this.spawnInterval + rest;
     }
 
+    const moveSpeed = this.speed * (this.speedMul || 1);
     for (let i = this.pillars.length - 1; i >= 0; i--) {
       const p = this.pillars[i];
-      p.update(dt, this.speed);
+      p.update(dt, moveSpeed);
 
       // Near-Miss check
       if (!p.nearMissChecked && p.checkNearMiss(rocket)) {
@@ -287,6 +291,7 @@ export class LaserPillarManager {
       oscFreq = 1.3 + Math.random() * 0.5;
     }
 
+    const effectiveTier = Math.min(9, (tier || 1) + (this.tierBoost || 0));
     const pillar = new LaserPillar(this.gameWidth + 30, gapY, gapH, 52, {
       oscAmp,
       oscFreq,
@@ -294,7 +299,7 @@ export class LaserPillarManager {
       angleAmp,
       angleFreq,
       theme,
-      tier
+      tier: effectiveTier
     });
 
     this.pillars.push(pillar);
@@ -335,7 +340,8 @@ export class LaserPillarManager {
         nextGapY = Math.min(this.maxGapY, Math.max(this.minGapY, prevPillar.gapY + (Math.random() - 0.5) * 60));
       }
 
-      const newPillar = new LaserPillar(nextX, nextGapY, this.gapHeight, 52, { theme, tier });
+      const effectiveTier = Math.min(9, (tier || 1) + (this.tierBoost || 0));
+      const newPillar = new LaserPillar(nextX, nextGapY, this.gapHeight, 52, { theme, tier: effectiveTier });
       this.pillars.push(newPillar);
       candidates.push(newPillar);
       candidates.sort((a, b) => a.x - b.x);

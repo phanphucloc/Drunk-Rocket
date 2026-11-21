@@ -30,13 +30,13 @@ export const PERK_CATALOG = [
     name: 'Bọt Rượu Cần',
     nameEn: 'Rice-Wine Bubble',
     icon: '🫧',
-    desc: 'Khiên bọt đỡ 1 va chạm (Hiệu lực: qua 1 cổng)',
-    descEn: 'Bubble shield blocks 1 hit (lasts 1 gate)',
+    desc: 'Khiên bọt đỡ 1 va chạm (Hiệu lực: 4 cổng)',
+    descEn: 'Bubble shield blocks 1 hit (lasts 4 gates)',
     group: 'defense',
-    durationPillars: 1,
+    durationPillars: 4,
     apply: (game) => {
       game.shieldActive = true;
-      game.perkDurations.beer_bubble = 1;
+      game.perkDurations.beer_bubble = 4;
     },
     remove: (game) => {
       game.shieldActive = false;
@@ -48,14 +48,14 @@ export const PERK_CATALOG = [
     name: 'Xuyên Gió',
     nameEn: 'Wind Walker',
     icon: '👻',
-    desc: 'Tàng hình xuyên cổng 1.8s sau mỗi cú chạm (qua 2 cổng)',
-    descEn: 'Phase through gates 1.8s after each tap (2 gates)',
+    desc: 'Tàng hình xuyên cổng 1.8s sau mỗi cú chạm (qua 4 cổng)',
+    descEn: 'Phase through gates 1.8s after each tap (4 gates)',
     group: 'defense',
-    durationPillars: 2,
+    durationPillars: 4,
     apply: (game) => {
       game.hasQuantumDrift = true;
       game.quantumCooldownTimer = 0;
-      game.perkDurations.quantum_drift = 2;
+      game.perkDurations.quantum_drift = 4;
     },
     remove: (game) => {
       game.hasQuantumDrift = false;
@@ -87,14 +87,17 @@ export const PERK_CATALOG = [
     name: 'Pháo Dây Chuyền',
     nameEn: 'Chain Firecrackers',
     icon: '🧨',
-    desc: 'Lộng Gió phá 2 cổng liền (Dùng 1 lần là hết)',
-    descEn: 'Wind Burst smashes 2 gates (one use)',
+    desc: 'Cú Lộng Gió kế tiếp phá 2 cổng +35% năng lượng',
+    descEn: 'Next Wind Burst smashes 2 gates (+35% charge)',
     group: 'offense',
     durationPillars: 0,
     apply: (game) => {
-      game.smashChainCount = 2;
+      game.nextSmashChain = 2;   // cú Lộng Gió KẾ TIẾP phá 2 cổng
+      game.smashChainCount = 2;  // để HUD hiện huy hiệu ×2
+      game.drunkMeter = Math.min(100, game.drunkMeter + 35);
     },
     remove: (game) => {
+      game.nextSmashChain = 0;
       game.smashChainCount = 1;
     }
   },
@@ -103,8 +106,8 @@ export const PERK_CATALOG = [
     name: 'Vó Hút Gió',
     nameEn: 'Wind Net',
     icon: '🌪',
-    desc: 'Hút mọi hạt gió trong 220px (Hiệu lực: qua 3 cổng)',
-    descEn: 'Pulls all wind orbs within 220px (lasts 3 gates)',
+    desc: 'Hút mọi hạt gió trong 260px (Hiệu lực: qua 3 cổng)',
+    descEn: 'Pulls all wind orbs within 260px (lasts 3 gates)',
     group: 'utility',
     durationPillars: 3,
     apply: (game) => {
@@ -132,8 +135,8 @@ export class PerkDraftManager {
     this.hoveredIndex = -1;
     this.draftCards = [];
     this.draftTimer = 0;
-    this.draftMaxDuration = 3.5;
-    this.lastMilestoneScore = -6; // mốc đầu ở 6 điểm, sau đó 18, 30... (lệch với chương)
+    this.draftMaxDuration = 2.4;
+    this.lastMilestoneScore = -6; // mốc đầu ở 6 CỔNG, sau đó 18, 30... (lệch pha với chương)
     this.milestoneInterval = 12;
   }
 
@@ -159,7 +162,7 @@ export class PerkDraftManager {
       this.lastMilestoneScore = currentScore;
       // 1.0s pre-draft pause before showing cards
       this.isPreDraft = true;
-      this.preDraftTimer = 1.0;
+      this.preDraftTimer = 0.45;
       if (this.game && this.game.rocket) {
         this.game.rocket.vx = 0;
         this.game.rocket.vy = 0;
@@ -229,16 +232,15 @@ export class PerkDraftManager {
     }
 
     if (perk.id === 'chain_reaction') {
-      // Khi chọn thẻ Chain Reaction: dùng 1 lần ngay lập tức
+      // Không nổ ngay nữa: chỉ cường hoá cú Lộng Gió kế tiếp (đúng mô tả thẻ)
       this.isPostDraft = false;
       this.selectedCard = null;
       this.draftCards = [];
-      this.game.drunkMeter = 100;
-      this.game._triggerSupernovaSmash(true);
+      this.game.invincibleTimer = Math.max(this.game.invincibleTimer, 0.8);
     } else {
       // Các thẻ khác: 1.0s post-draft freeze pause để người chơi chuẩn bị
       this.isPostDraft = true;
-      this.postDraftTimer = 1.0;
+      this.postDraftTimer = 0.7;
     }
   }
 

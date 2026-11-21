@@ -16,8 +16,10 @@ import { LeaderboardModal } from '../ui/leaderboardModal.js';
 import { ShareCard } from '../ui/shareCard.js';
 import { PerkDraftManager } from './perks.js';
 import { GhostManager } from '../entities/ghosts.js';
-import { getProgression, getThemeForScore, difficultyFor } from './progression.js';
+import { getProgression, getThemeForScore, difficultyFor, POINTS_PER_CHAPTER } from './progression.js';
 import { toggleLang, t } from '../i18n.js';
+import { recordStamp } from './stamps.js';
+import { CONFIG } from '../config.js';
 
 export class Game {
   constructor(canvas) {
@@ -54,10 +56,23 @@ export class Game {
     this.ghosts = new GhostManager();
     this.currentTheme = getThemeForScore(0);
     this.kiteStage = 1;
+    this.colorStage = 1;
+    this.gatesPassed = 0;
     this.difficulty = difficultyFor(0);
     this.lapNumber = 1;
     this.chapterNumber = 1;
     this._chapterGlobal = 0;
+    this._progState = null;
+    this.smashTargets = [];
+    this.nextSmashChain = 0;
+    this.smashPillarsLeft = 0;
+    this.smashSpeedMul = 1;
+    this.smashReturnTimer = 0;
+    this.hitStopTimer = 0;
+    this.holdProgress = 0;
+    this.ceilingHits = 0;
+    this.cellCombo = 0;
+    this.cellComboTimer = 0;
     this.starfield.setTheme(this.currentTheme);
     this.weather.setTheme(this.currentTheme);
     if (this.audio && this.audio.setAmbientTheme) this.audio.setAmbientTheme(this.weather.ambient, true);
@@ -88,7 +103,7 @@ export class Game {
     // Visual expression feedback
     this.justScoredTimer = 0;
 
-    this.leaderboard = new LeaderboardModal('https://drunk-rocket-backend.ppldhsp.workers.dev');
+    this.leaderboard = new LeaderboardModal(CONFIG.leaderboardUrl);
 
     // Scoring & Overdrive
     this.score = 0;
@@ -196,9 +211,15 @@ export class Game {
     const scaleY = windowHeight / this.height;
     this.scale = Math.min(scaleX, scaleY);
 
-    // Backing store giữ 400x700 (mọi hệ toạ độ trong game dùng hệ này).
-    this.canvas.width = this.width;
-    this.canvas.height = this.height;
+    // Backing store nhân theo DPR để nét trên màn hình retina/mobile.
+    // Hệ toạ độ logic vẫn là 400x700 nhờ scale transform.
+    const dpr = Math.min(3, Math.max(1, window.devicePixelRatio || 1));
+    this.dpr = dpr;
+    this.canvas.width = Math.round(this.width * dpr);
+    this.canvas.height = Math.round(this.height * dpr);
+    if (this.ctx && this.ctx.setTransform) {
+      this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
 
     // NHƯNG phải thu khung hiển thị (CSS) theo màn hình — trước đây thiếu bước này
     // nên trên điện thoại hẹp (<400px) canvas tràn ra ngoài, cắt mất 2 bên.
@@ -247,10 +268,20 @@ export class Game {
     this.particles.reset();
     this.currentTheme = getThemeForScore(0);
     this.kiteStage = 1;
+    this.colorStage = 1;
+    this.gatesPassed = 0;
     this.lapNumber = 1;
     this.difficulty = difficultyFor(0);
     this.chapterNumber = 1;
     this._chapterGlobal = 0;
+    this._progState = null;
+    this.nextSmashChain = 0;
+    this.smashChainCount = 1;
+    this.smashPillarsLeft = 0;
+    this.smashSpeedMul = 1;
+    this.smashReturnTimer = 0;
+    this.hitStopTimer = 0;
+    if (this.pillars) this.pillars.speedMul = 1;
     if (this.starfield) this.starfield.setTheme(this.currentTheme);
     if (this.weather) this.weather.setTheme(this.currentTheme);
     if (this.audio) {
@@ -268,37 +299,55 @@ export class Game {
     if (this.story) this.story.phase = 'idle';
   }
 
-  _onScore(pillar) {
-    this.score += 1;
-    this.justScoredTimer = 0.6; // Cheerful expression timer
-    const prevChapter = this._chapterGlobal;
-    const prevLap = this.lapNumber;
+  /**
+   * NGUON SU THAT DUY NHAT cho tien trinh: tinh lai tu SO CONG da vuot.
+   * Diem (near-miss / smash / hat gio) KHONG lam nhay chuong -> nhip thoi tiet on dinh.
+   */
+  _syncProgression(force = false) {
     const prog = getProgression(this.score);
+    const prev = this._progState;
+    this._progState = prog;
+
     this.currentTheme = prog.theme;
     this.kiteStage = prog.kiteStage;
+    this.colorStage = prog.colorStage;
     this.lapNumber = prog.lapNumber;
     this.chapterNumber = prog.chapterNumber;
     this._chapterGlobal = prog.globalChapter;
     this.difficulty = difficultyFor(prog.lapIndex);
+    if (this.pillars) this.pillars.tierBoost = prog.lapIndex * 2;
 
-    const chapterChanged = prevChapter !== undefined && prog.globalChapter !== prevChapter;
-    const lapChanged = prevLap !== undefined && prog.lapNumber !== prevLap;
+    const chapterChanged = force || !prev || prog.globalChapter !== prev.globalChapter;
+    const lapChanged = force || !prev || prog.lapNumber !== prev.lapNumber;
+
     if (chapterChanged || lapChanged) {
       this.starfield.setTheme(this.currentTheme);
       if (this.weather) this.weather.setTheme(this.currentTheme);
       if (this.scenic) this.scenic.setTier(this.currentTheme.tier);
-      this.hud.triggerSmashEffects();
-      // 1.2s bất tử: người chơi vừa "sang vùng mới", cho họ 1 nhịp thở
-      this.invincibleTimer = 1.2;
-      // Đổi bộ nhạc theo vùng miền (crossfade)
       if (this.audio && this.audio.setMusicTheme) this.audio.setMusicTheme(this.currentTheme.music);
-      // Lên vòng = lên cấp diều -> tiếng "lên dây" riêng cho từng cấp
-      if (lapChanged && this.audio && this.audio.playKiteUpgrade) this.audio.playKiteUpgrade(prog.kiteStage);
-      // Cập nhật ô giới thiệu địa danh ở góc phải (bấm vào để xem chi tiết)
-      if (infoPanels) infoPanels.setLandmark(this.currentTheme, prog.lapNumber, prog.chapterNumber);
+      this.hud.triggerSmashEffects();
+      this.invincibleTimer = Math.max(this.invincibleTimer, 1.2);
+      if (infoPanels) infoPanels.setLandmark(this.currentTheme, prog.lapNumber, prog.chapterNumber, true,
+        this.score % POINTS_PER_CHAPTER, POINTS_PER_CHAPTER);
     }
+    if (lapChanged && this.audio && this.audio.playKiteUpgrade) {
+      this.audio.playKiteUpgrade(prog.kiteStage);
+    }
+    return prog;
+  }
 
-    // (Đã bỏ mốc 30 điểm "hoá rồng" — cấp bậc giờ theo VÒNG: mỗi vòng lên 1 cấp diều)
+  _onScore(pillar) {
+    this.score += 1;
+    this.justScoredTimer = 0.6;
+
+    // CONG da vuot la nguon tien trinh (chuong/vong/mau dieu);
+    // diem chi dung cho bang xep hang.
+    this._syncProgression();
+    if (infoPanels) infoPanels.setLandmark(this.currentTheme, this.lapNumber, this.chapterNumber, false,
+      this.score % POINTS_PER_CHAPTER, POINTS_PER_CHAPTER);
+
+    // Mốc mở TÚI BÙA tính theo ĐIỂM
+    if (this.perks) this.perks.checkMilestone(this.score);
 
     // Regular pillar gives +10% Overdrive (10 pillars cleared = 100% Smash ready)
     this.drunkMeter = Math.min(100, this.drunkMeter + 10);
@@ -329,7 +378,6 @@ export class Game {
 
     if (this.perks) this.perks.onPassPillar();
 
-    if (this.perks) this.perks.checkMilestone(this.score);
     if (this.ghosts && pillar) this.ghosts.spawnForPillar(pillar, this.score);
     if (this.score > this.bestScore) {
       this.bestScore = this.score;
@@ -338,8 +386,11 @@ export class Game {
   }
 
   _onNearMiss(pillar) {
-    const bonus = 2 * this.nearMissMultiplier;
+    const bonus = 2;                 // Near-miss: +2 điểm cố định
     this.score += bonus;
+    this._syncProgression();
+    if (infoPanels) infoPanels.setLandmark(this.currentTheme, this.lapNumber, this.chapterNumber, false,
+      this.score % POINTS_PER_CHAPTER, POINTS_PER_CHAPTER);
     this.justScoredTimer = 0.8;
     this.drunkMeter = Math.min(100, this.drunkMeter + (12 * this.nearMissMultiplier));
     this.audio.playNearMiss();
@@ -362,7 +413,15 @@ export class Game {
    * Energy cell pickup: DOES NOT ADD LEVEL SCORE, ONLY CHARGES OVERDRIVE SMASH (+4% each)
    */
   _onCollectCell(cell) {
-    this.drunkMeter = Math.min(100, this.drunkMeter + 2);
+    // Hạt gió: +5% năng lượng, ăn liên tiếp 3 hạt trong 1.6s thì +1 điểm
+    this.drunkMeter = Math.min(100, this.drunkMeter + 5);
+    this.cellCombo = (this.cellCombo || 0) + 1;
+    this.cellComboTimer = 1.6;
+    if (this.cellCombo >= 3) {
+      // Combo hạt gió chỉ để đã mắt — KHÔNG cộng điểm
+      this.cellCombo = 0;
+      this.particles.emitScoreSparkles(cell.x, cell.y);
+    }
     if (this.audio.playCellCollect) {
       this.audio.playCellCollect();
     }
@@ -370,48 +429,97 @@ export class Game {
     this.particles.emitEnergySiphon(cell.x, cell.y, this.width / 2, 126, 6);
   }
 
+  /**
+   * LONG GIO — lao xuyen cong that (khong con xoa cot tu xa).
+   * Dieu lao toi; cham cot nao thi cot do no tung kem hit-stop 45ms.
+   */
+  /** Vệt nón sáng trước mũi diều khi đang Lộng Gió. */
+  _drawSmashLance() {
+    const ctx = this.ctx;
+    const rx = this.rocket.x;
+    const ry = this.rocket.y;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const grad = ctx.createLinearGradient(rx, ry, rx + 120, ry);
+    grad.addColorStop(0, 'rgba(255, 236, 170, 0.75)');
+    grad.addColorStop(1, 'rgba(255, 170, 60, 0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(rx + 10, ry - 3);
+    ctx.lineTo(rx + 120, ry);
+    ctx.lineTo(rx + 10, ry + 3);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
   _triggerSupernovaSmash(forcedChain = false) {
     if (this.isSmashActive) return;
-    if (!forcedChain && (this.drunkMeter < 100 || this.score < 10)) return;
+    const isChain = (this.nextSmashChain >= 2) || forcedChain || (this.smashChainCount >= 2);
+    if (!forcedChain && this.drunkMeter < 100) return;
 
     this.isSmashActive = true;
     this.drunkMeter = 0;
     this.originalRocketX = this.rocket.x;
-    const isChain = forcedChain || (this.smashChainCount >= 2);
+    this.smashStartX = this.rocket.x;
+    this.smashPillarsLeft = isChain ? 2 : 1;
+    this.smashSpeedMul = 3.4;
+    this.smashReturnTimer = 0;
+    this.smashChainCount = isChain ? 2 : 1;
+    if (isChain) this.nextSmashChain = 0;
+    this.smashLunge = 96;
+
+    // CHỈ cột PHÍA TRƯỚC mới là mục tiêu (bug cũ: cột vừa đi qua vẫn bị tính -> nổ sau lưng)
+    const ahead = this.pillars.pillars
+      .filter(p => !p.isDestroyed && p.x > this.rocket.x + this.rocket.radius)
+      .sort((a, b) => a.x - b.x);
+
+    const targets = ahead.slice(0, this.smashPillarsLeft);
+    this.smashTargets = targets;           // chỉ những cột này mới được húc (không cột nào khác)
+    const afterTarget = ahead[this.smashPillarsLeft] || null;
+
+    // Thời lượng = điểm GIỮA cột vừa phá và cột kế tiếp (đúng yêu cầu "dừng ở giữa 2 cột")
+    const worldSpeed = Math.max(140, (this.pillars.speed || 200) * this.smashSpeedMul);
+    const noseX = this.rocket.x + (this.smashLunge || 96) + this.rocket.radius;
+    const tReach = (px) => Math.max(0.05, (px - noseX) / worldSpeed);
+
+    let duration;
+    if (targets.length === 0) {
+      duration = 0.5;                       // không có cột phía trước: chỉ lướt một nhịp
+    } else {
+      const tLast = tReach(targets[targets.length - 1].x);
+      const tAfter = afterTarget ? tReach(afterTarget.x) : tLast + 0.45;
+      duration = Math.max(0.4, Math.min(1.6, (tLast + tAfter) / 2));
+    }
+
+    this.smashTime = 0;
+    this.smashDurationTotal = duration;
+    this.smashTimeout = duration + 0.35;
+    this.smashAlignY = targets[0] ? targets[0].gapY : this.rocket.y;
 
     this.audio.playSmash(isChain);
     this.hud.triggerSmashEffects();
+    this.invincibleTimer = Math.max(this.invincibleTimer, duration + 0.2);
+  }
 
-    // 1. Pha huy cot: Neu co Chain Reaction thi pha 2 cot, con Smash thuong thi pha 1 cot
-    const targetCount = isChain ? 2 : 1;
-    const smashedList = this.pillars.destroyFrontPillars(this.rocket.x, targetCount);
-
-    // Xac dinh dich den (Destination X) dua vao vi tri cot xa nhat bi pha
-    let targetX = this.rocket.x + 160;
-    if (smashedList.length > 0) {
-      const lastPillar = smashedList[smashedList.length - 1];
-      targetX = lastPillar.x + (lastPillar.width || 52) / 2;
-    } else {
-      targetX = isChain ? this.width - 45 : this.width / 2 + 50;
+  /** Kết thúc cú Lộng Gió: hạ tốc, trôi về làn bay, bất tử ngắn + cooldown chống smash liên tiếp. */
+  _endSmash() {
+    this.isSmashActive = false;
+    this.smashTargets = [];
+    // QoL: người chơi hay quên bấm lại sau cú lướt -> tặng 1 nhịp đẩy để không rơi ngay
+    if (this.state === 'PLAYING' && this.rocket && !this.rocket.isDead) {
+      this.rocket.thrust();
+      if (this.audio && this.audio.playThrust) this.audio.playThrust();
+      this.particles.emitThrust(this.rocket.x, this.rocket.y, this.rocket.rotation);
     }
-
-    // Gioi han dich den trong man hinh an toan
-    this.smashTargetX = Math.min(this.width - 45, Math.max(this.rocket.x + 90, targetX));
-    this.smashStartX = this.rocket.x;
-    // Thoi gian luot: 0.95s cho 2 cot, 0.70s cho 1 cot
-    this.smashTotalDuration = isChain ? 0.95 : 0.70;
-    this.smashDuration = this.smashTotalDuration;
-
-    // Kich hoat hieu ung no tung va cong diem (+3 moi cot)
-    for (const smashed of smashedList) {
-      this.score += 3;
-      this.particles.emitPillarSmash(smashed.x + (smashed.width || 52) / 2, smashed.gapY || 350);
-      if (this.ghosts) this.ghosts.spawnForPillar(smashed, this.score);
-    }
-    if (this.score > this.bestScore) {
-      this.bestScore = this.score;
-      localStorage.setItem('drunk_rocket_best', this.bestScore.toString());
-    }
+    this.smashSpeedMul = 1;
+    if (this.pillars) this.pillars.speedMul = 1;
+    this.smashReturnTimer = 0.24;
+    this.invincibleTimer = Math.max(this.invincibleTimer, 0.7);
+    this.smashChainCount = 1;
+    this.smashCooldown = 0.35;          // không cho kích hoạt lại ngay
+    if (this.input) this.input.smashRequested = false;
+    if (this.perks) this.perks.checkMilestone(this.score);
   }
 
   /** Tạm dừng toàn bộ gameplay (dùng khi mở popup/bảng điểm/cài đặt). */
@@ -453,12 +561,27 @@ export class Game {
     if (this.ghosts) this.ghosts.submitGhost(localStorage.getItem('drunk_player_name') || 'ACE', this.score, safeY);
     const gameoverActions = document.getElementById('gameover-actions');
     if (gameoverActions) gameoverActions.classList.remove('hidden');
-    if (this.leaderboard) {
+    // Chi tu mo bang xep hang khi lap ky luc moi (tranh bat nguoi choi dong popup moi van)
+    const isRecord = this.score > 0 && this.score >= this.bestScore;
+    if (isRecord && this.leaderboard) {
       this.leaderboard.show(this.score, runDuration);
+    } else {
+      const act = document.getElementById('gameover-actions');
+      if (act) act.classList.remove('hidden');
     }
   }
 
   update(dt) {
+    // Hit-stop 45ms ngay luc huc vo cong (cam giac luc)
+    if (this.hitStopTimer > 0) {
+      this.hitStopTimer = Math.max(0, this.hitStopTimer - dt);
+      if (this.input) {
+        this.input.consumeTap();
+        this.input.consumeDoubleTap();
+      }
+      return;
+    }
+
     if (this.paused) {
       if (this.input) {
         this.input.consumeTap();
@@ -480,6 +603,24 @@ export class Game {
     if (this.weather) this.weather.update(dt);
 
     if (this.invincibleTimer > 0) this.invincibleTimer = Math.max(0, this.invincibleTimer - dt);
+    // Sổ tay bưu thiếp: ghi tem khi gặp tổ hợp (địa danh × thời tiết) lần đầu
+    this._stampTick = (this._stampTick || 0) + dt;
+    if (this._stampTick >= 0.5 && this.state === 'PLAYING') {
+      this._stampTick = 0;
+      const weatherId = this.weather ? this.weather.current : null;
+      const landmarkTier = this.currentTheme ? this.currentTheme.tier : null;
+      const key = `${landmarkTier}:${weatherId}`;
+      if (weatherId && landmarkTier && key !== this._lastStampKey) {
+        this._lastStampKey = key;
+        const isNew = recordStamp(landmarkTier, weatherId);
+        if (isNew && this.hud && this.hud.showStampToast) this.hud.showStampToast(landmarkTier, weatherId);
+      }
+    }
+
+    if (this.cellComboTimer > 0) {
+      this.cellComboTimer -= dt;
+      if (this.cellComboTimer <= 0) this.cellCombo = 0;
+    }
 
     // Độ sáng của đèn ban đêm: trời càng tối (mưa giông, đêm, sương) đèn càng rõ
     const darkTarget = (this.weather && this.weather.isDark) ? 1 : 0;
@@ -538,8 +679,10 @@ export class Game {
       this.rocket.isQuantum = false;
     }
 
+    if (this.input.updateHold) this.input.updateHold(dt);
     const hasTap = this.input.consumeTap();
-    const hasDoubleTap = this.input.consumeDoubleTap();
+    const hasSmash = this.input.consumeSmash ? this.input.consumeSmash() : false;
+    this.holdProgress = this.input.holdProgress || 0;
 
     if (this.state === 'READY') {
       if (this.leaderboard && this.leaderboard.isOpen) {
@@ -550,7 +693,7 @@ export class Game {
       this.rocket.y = 320 + Math.sin(this.totalTime * 4) * 8;
       this.rocket.rotation = Math.sin(this.totalTime * 3) * 0.1;
 
-      if (hasTap || hasDoubleTap) {
+      if (hasTap) {
         this.state = 'PLAYING';
         this.runStartTime = performance.now();
         this.invincibleTimer = Math.max(this.invincibleTimer, 1.0);
@@ -562,49 +705,78 @@ export class Game {
         this.particles.emitThrust(this.rocket.x, this.rocket.y, this.rocket.rotation);
       }
     } else if (this.state === 'PLAYING') {
-      if (hasDoubleTap && this.drunkMeter >= 100) {
+      if (this.smashCooldown > 0) this.smashCooldown = Math.max(0, this.smashCooldown - dt);
+      if (hasSmash && this.drunkMeter >= 100 && (this.smashCooldown || 0) <= 0) {
         this._triggerSupernovaSmash();
       }
 
-      // Supernova Smash: Đốt cháy lửa rồng và lướt thẳng đến vị trí cột bị phá
+      // ===== LỘNG GIÓ: LƯỚT LIỀN MẠCH — thế giới cuộn đều, diều tiến một đoạn rồi giữ =====
       if (this.isSmashActive) {
-        this.smashDuration -= dt;
-        const elapsed = this.smashTotalDuration - this.smashDuration;
-        const t = Math.min(1, Math.max(0, elapsed / this.smashTotalDuration));
+        this.smashTimeout -= dt;
+        this.smashTime += dt;
 
-        // Hàm chuyển động lướt phi tiêu (Ease-Out Cubic)
-        const easeT = 1 - Math.pow(1 - t, 3);
+        // 1) Cú tiến ngắn (ease-out ~0.22s) — không giật, không dừng giữa chừng
+        const lungeT = Math.min(1, this.smashTime / 0.22);
+        this.rocket.x = this.smashStartX + (this.smashLunge || 96) * (1 - Math.pow(1 - lungeT, 2.2));
 
-        if (t < 0.72) {
-          // Giai đoạn 1: Lướt thần tốc tới đích cột bị phá hủy
-          const forwardT = t / 0.72;
-          this.rocket.x = this.smashStartX + (this.smashTargetX - this.smashStartX) * (1 - Math.pow(1 - forwardT, 2.5));
-          this.rocket.angle = -0.15; // Giữ mũi hướng thẳng về trước
-          this.rocket.vy = 0; // Không bị rơi trong lúc lướt
-        } else {
-          // Giai đoạn 2: Trôi êm ái về vị trí bay chuẩn
-          const returnT = (t - 0.72) / 0.28;
-          this.rocket.x = this.smashTargetX + (this.originalRocketX - this.smashTargetX) * (returnT * returnT);
-          this.rocket.vy = 0;
+        // 2) Thế giới cuộn ĐỀU suốt cú lướt (không đổi tốc độ => không ngắt quãng)
+        if (this.pillars) this.pillars.speedMul = this.smashSpeedMul;
+
+        this.rocket.vy = 0;
+        this.rocket.isThrusting = true;
+        this.rocket.angle = -0.20;
+
+        // 3) Căn khe cổng phía trước (mượt)
+        const frontier = this.pillars.pillars.find(p2 => !p2.isDestroyed && p2.x + p2.width > this.rocket.x - 10);
+        if (frontier) this.smashAlignY = frontier.gapY;
+        this.rocket.y += (this.smashAlignY - this.rocket.y) * Math.min(1, dt * 12);
+
+        // 4) Húc vỡ — CHỈ các cột đã chốt là "phía trước" lúc kích hoạt.
+        //    Nhờ chốt theo đối tượng, cột vừa bay qua / cột tự sinh không bao giờ bị nổ.
+        for (const pillar of (this.smashTargets || [])) {
+          if (this.smashPillarsLeft <= 0) break;
+          if (!pillar || pillar.isDestroyed || pillar.smashedByDash) continue;
+          if (pillar.x > this.rocket.x + this.rocket.radius + 12) continue;   // chưa tới nơi
+          {
+            pillar.smashedByDash = true;
+            pillar.isDestroyed = true;
+            pillar.passed = true;
+
+            const pcx = pillar.x + (pillar.width || 52) / 2;
+            const halfGap = (pillar.gapHeight || 148) / 2;
+            const topColY = Math.max(24, (pillar.gapY || 350) - halfGap);
+            const botColY = Math.min(this.height - 24, (pillar.gapY || 350) + halfGap);
+            this.particles.emitPillarSmash(pcx, topColY);
+            this.particles.emitPillarSmash(pcx, botColY);
+            this.particles.emitExplosion(pcx, (pillar.gapY || 350), 16);
+
+            this.audio.playSmash(true);
+            this.hud.triggerRamImpact();
+            if (this.ghosts) this.ghosts.spawnForPillar(pillar, this.score);
+
+            this.score += 1;               // +1 điểm mỗi cổng (chain 2 cổng = +2)
+            this._syncProgression();
+            if (infoPanels) infoPanels.setLandmark(this.currentTheme, this.lapNumber, this.chapterNumber, false,
+              this.score % POINTS_PER_CHAPTER, POINTS_PER_CHAPTER);
+            this.smashPillarsLeft -= 1;
+          }
         }
 
-        // Đốt lửa rồng phản lực cuồn cuộn phía sau đuôi
+        this._drawSmashLance();
         this.particles.emitSmashFireTrail(this.rocket.x, this.rocket.y, this.rocket.angle || 0);
 
-        // KHI KẾT THÚC HOÀN TOÀN CÚ LƯỚT: Trả về vị trí chuẩn và KIỂM TRA HIỆN BẢNG CHỌN THẺ BÀI!
-        if (this.smashDuration <= 0) {
-          this.isSmashActive = false;
-          this.rocket.x = this.originalRocketX;
-          this.rocket.vx = 0;
-          this.rocket.vy = 0;
-
-          // Chain Reaction dùng 1 lần là hết -> reset về 1 cột
-          this.smashChainCount = 1;
-
-          // Sau khi lướt xong cột mới kiểm tra điểm để hiện bảng chọn thẻ bài
-          if (this.perks) {
-            this.perks.checkMilestone(this.score);
-          }
+        if (this.smashTime >= this.smashDurationTotal || this.smashTimeout <= 0) {
+          this._endSmash();
+        }
+      } else {
+        // Hạ cánh: giảm tốc thế giới TỪ TỪ + trôi về làn bay (không phanh gấp)
+        if (this.smashSpeedMul > 1) {
+          this.smashSpeedMul = Math.max(1, this.smashSpeedMul - dt * 10);
+        }
+        if (this.pillars) this.pillars.speedMul = this.smashSpeedMul;
+        if (this.smashReturnTimer > 0) {
+          this.smashReturnTimer = Math.max(0, this.smashReturnTimer - dt);
+          this.rocket.x += (this.originalRocketX - this.rocket.x) * Math.min(1, dt * 12);
         }
       }
 
@@ -677,7 +849,26 @@ export class Game {
       }
 
       // Boundary collision check (ceiling or floor)
-      if (!this.isSmashActive && this.invincibleTimer <= 0 && (this.rocket.y - this.rocket.radius <= 0 || this.rocket.y + this.rocket.radius >= this.height)) {
+      // TRẦN MỀM: chạm mép trên thì nảy nhẹ xuống (thả diều đụng tầng mây),
+      // chỉ chết nếu chạm trần 3 lần trong 2 giây hoặc rơi xuống đáy.
+      if (!this.isSmashActive && this.invincibleTimer <= 0) {
+        if (this.rocket.y - this.rocket.radius <= 0) {
+          this.rocket.y = this.rocket.radius + 1;
+          this.rocket.vy = Math.max(this.rocket.vy, 140);
+          this.ceilingHits = (this.ceilingHits || 0) + 1;
+          this.ceilingTimer = 2.0;
+          if (this.audio && this.audio.playThrust) this.audio.playThrust();
+        }
+        if (this.rocket.y + this.rocket.radius >= this.height) {
+          this._die();
+          return;
+        }
+      }
+      if (this.ceilingTimer > 0) {
+        this.ceilingTimer -= dt;
+        if (this.ceilingTimer <= 0) this.ceilingHits = 0;
+      }
+      if ((this.ceilingHits || 0) >= 3) {
         this._die();
         return;
       }
@@ -702,7 +893,7 @@ export class Game {
       }
     } else if (this.state === 'GAMEOVER') {
       this.timeSinceDeath += dt;
-      if (this.timeSinceDeath >= 0.1 && (hasTap || hasDoubleTap)) {
+      if (this.timeSinceDeath >= 0.55 && hasTap) {
         this._restart();
       }
     }
@@ -761,12 +952,31 @@ export class Game {
     }
 
     // Draw Rocket with funny comical styling
+    // Vòng nạp khi người chơi GIỮ để Lộng Gió (phản hồi trực quan)
+    if (this.state === 'PLAYING' && this.holdProgress > 0 && this.drunkMeter >= 100) {
+      const ctx = this.ctx;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255, 215, 106, 0.9)';
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.arc(this.rocket.x, this.rocket.y, 22, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * this.holdProgress);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(this.rocket.x, this.rocket.y, 25, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     EntityRenderer.drawRocket(this.ctx, this.rocket, {
       isDead: this.state === 'GAMEOVER',
       isSmashing: this.isSmashActive,
       justScored: this.justScoredTimer > 0,
       isInvincible: this.invincibleTimer > 0 && this.state === 'PLAYING',
-      stage: this.kiteStage || 1
+      stage: this.kiteStage || 1,
+      colorStage: this.colorStage || 1
     });
 
     // Quantum Drift Hologram / Ready indicator
@@ -873,6 +1083,7 @@ export class Game {
         lapNumber: this.lapNumber,
         chapterNumber: this.chapterNumber,
         kiteStage: this.kiteStage,
+        colorStage: this.colorStage,
         theme: this.currentTheme
       }
     );

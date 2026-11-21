@@ -405,11 +405,386 @@ SFX         : peak=0.6405
 ```
 ⇒ Nhạc và hiệu ứng giờ **cùng tầm** (0.54–0.64), trước đây nhạc chỉ ~0.06.
 
+---
 
+## 24. Game Feel Pass 1 + hệ "5 Hình × 5 Sắc"
 
+### A. Tiến trình tách khỏi điểm số (nhịp thời tiết luôn ổn định)
+- **Chương tính theo SỐ CỔNG ĐÃ VƯỢT**: `GATES_PER_CHAPTER = 12` (~22–25 giây/tỉnh).
+- Điểm (Near-Miss +2/+4, Smash +3, hạt gió) **chỉ dùng cho bảng xếp hạng** → người chơi giỏi không còn "nhảy tỉnh" sau 8 giây.
+- `_syncProgression()` là **nguồn sự thật duy nhất** (cảnh / thời tiết / nhạc / chip / cấp diều), gọi ở mọi lần tăng cổng.
 
+### B. Diều = Hình dáng (theo VÒNG) × Phẩm sắc (theo TỈNH)
+| Phẩm sắc | Tỉnh trong vòng | Mốc cổng |
+|---|---|---|
+| 1. Bạch Nguyệt | 1–2 | 0 |
+| 2. Thanh Ngọc | 3–4 | 24 |
+| 3. Tử Vân | 5–6 | 48 |
+| 4. Hoàng Kim | 7–8 | 72 |
+| 5. Ngũ Sắc (cầu vồng) | 9 | 96 |
 
+- Hình dáng đổi theo vòng: Giấy → Sáo → Lụa → Ngọc → Rồng (**mốc 108 / 216 / 324 / 432 cổng** — giữ nguyên độ danh giá).
+- Nguyên tắc: **phẩm sắc chỉ đổi bảng màu**; **cấp vòng đổi khung xương** (cánh, sáo, hào quang, đầu rồng) ⇒ "Trắng của cấp mới" luôn đẹp hơn "Ngũ Sắc của cấp cũ".
+- Ngũ Sắc: viền + hoạ tiết chuyển màu theo thời gian (hsl quay).
 
+### C. Lộng Gió = lao xuyên cổng thật
+- Không xoá cột từ xa nữa: diều lao tới với **world speed ×3.4**, tự căn theo khe cổng.
+- Chạm cột nào → cột đó **nổ tung**, **hit-stop 45ms**, rung màn hình, +3 điểm, `smashPillarsLeft--`.
+- Pháo Dây Chuyền: `nextSmashChain = 2` + 35% năng lượng → cú kế tiếp xuyên **2 cổng**; quả cầu hiện **huy hiệu ×2**.
+- Kết thúc: giảm tốc về 1.0, diều trôi về làn bay, **bất tử 0.7s**.
 
+### D. Kích hoạt 1 ngón: NHẤN GIỮ 240ms
+- Bỏ double-tap và bấm-quả-cầu (2 đường cướp quyền điều khiển).
+- Vật lý: mỗi tap cho `THRUST_VY = -350`, trọng lực `1050` → đỉnh sau **333ms**; giữ 240ms vẫn đang bay lên ⇒ không tụt độ cao.
+- `input.holdProgress` (0..1) sẵn sàng cho vòng nạp quanh diều.
 
+### E. Cân bằng & UX kèm theo
+| Mục | Trước | Sau |
+|---|---|---|
+| Bọt Rượu Cần | 1 cổng | **4 cổng / 1 hit** |
+| Xuyên Gió | 2 cổng | **4 cổng** |
+| Vó Hút Gió | 220px | **260px** |
+| Pháo Dây Chuyền | +100% + nổ ngay | **cú sau phá 2 cổng + 35%** |
+| Nhịp bốc bùa | 1.0 + 3.5 + 1.0s | **0.45 + 2.4 + 0.7s** (mỗi 12 cổng, lệch pha) |
+| Khoá restart | 0.1s | **0.55s** |
+| Bảng xếp hạng | tự mở mỗi lần chết | **chỉ khi lập kỷ lục** |
+| Âm thanh | không giới hạn | **DynamicsCompressor (limiter) ở đầu ra** |
 
+### F. Kiểm chứng
+`tools/gameplay-probe.html` → **ALL GAMEPLAY CHECKS PASSED**:
+- 12 cổng → chương 2 · 24 → sắc 2 · 60 → sắc 3 · 108 → vòng 2 / hình 2 / sắc 1
+- Lộng Gió: cột **không** bị xoá lúc kích hoạt → bị húc vỡ khi va chạm (+3), speedMul về 1, bất tử sau khi hạ cánh
+- Pháo Dây Chuyền: phá **2 cổng thật** rồi reset
+- Nhấn 300ms → kích hoạt; tap 80ms → **không** kích hoạt
+
+`tools/audit-runtime.html` → 9 địa danh × 3 thời tiết, `errors=0`.
+`tools/kite-colors.html` → bảng 5×5 để duyệt thẩm mỹ.
+
+### G. Còn lại (chưa làm trong pass này)
+- Trần mềm (nảy 3 lần/2s) — chưa làm.
+- Hạt gió +5% + combo — vẫn +2%.
+- `effectiveTier = min(9, tier + lap*2)` để vòng 2 không bị "đứng yên" lại.
+- Meta-progression (Sổ tay bưu thiếp / Hũ gió / mở khoá bùa) — mới ở mức đề xuất.
+
+---
+
+## 25. Bản vá 27/11: Diều Sáo, Smash, âm thanh đêm + phần còn lại
+
+### A. Diều Sáo (cấp 2) — giờ là một bước nâng cấp rõ ràng
+Trước đây cấp 2 chỉ là "cấp 1 + ống sáo" nên khi nhìn **Diều Sáo Trắng** cạnh **Diều Giấy Ngũ Sắc** thì thấy như bị xuống cấp.
+
+Đã thiết kế lại **chỉ riêng cấp 2** (vẫn phải dưới cấp 3):
+| Thêm cho cấp 2 | Cấp 1 | Cấp 3 (vẫn cao hơn) |
+|---|---|---|
+| Thân **rộng hơn**, mép sau lượn (dáng cánh cung) | thoi nhỏ | thân 2 tầng + **cánh lụa lớn** |
+| **2 vây nhỏ** trên/dưới | không | cánh lụa chiếm 2/3 thân |
+| **Viền vàng kép** bên trong | 1 viền đỏ | viền đỏ + hoạ tiết hoa văn lụa |
+| **Núm tua** vàng ở đuôi + sáo tre | không sáo | sáo + tua lụa dài uốn sóng |
+| 3 đuôi nheo | 2 đuôi | 3 đuôi dài hơn |
+
+⇒ "Trắng của cấp 2" đã chi tiết hơn "Ngũ Sắc của cấp 1", nhưng vẫn thua cấp 3 về khung xương.
+
+### B. Sửa lỗi KHÔNG THỂ SMASH (3 nguyên nhân)
+1. **Hướng dẫn vẫn ghi "chạm đúp"** dù đã đổi sang nhấn-giữ ⇒ người chơi làm sai thao tác.
+   → Sửa copy: `Chạm: bay | GIỮ 0.2s: Lộng gió`, băng-rôn `🌪 GIỮ TAY 0.2s: LỘNG GIÓ!`.
+2. **Bàn phím không kích hoạt được**: `_onKeyDown` chỉ set `isPressed` mà không set `holdStart/_holdArmed`.
+   → Đã thêm; giữ `Space/W/↑` 0.2s là Lộng Gió, nhả ra thì huỷ.
+3. **Không có phản hồi trực quan khi giữ** ⇒ người chơi không biết đã đúng.
+   → Thêm **vòng nạp vàng** quanh diều khi giữ (0 → 100%).
+4. Giảm ngưỡng giữ **240ms → 200ms**; thêm **timeout 1.1s** cho cú lao (tránh kẹt khi phía trước không có cổng).
+
+### C. Âm thanh ban đêm
+- Ambient `night` trước đây chỉ có 1 tiếng drone 80Hz → nay thêm:
+  - **Dế kêu** (`playCricketChirp`): 2–4 xung sine 3.9–4.8kHz, mỗi 1.1–2.7s.
+  - **Ếch ộp** (`playFrogCroak`): sawtooth 145–210Hz qua bandpass + LFO rung, mỗi 4–8.5s.
+- Đo bằng render offline: **dế peak 0.055 · ếch peak 0.077** (đúng tầm nền, không lấn nhạc).
+
+### D. Ba việc còn lại đã xong
+| Việc | Kết quả |
+|---|---|
+| **Trần mềm** | Chạm mép trên: nảy xuống (`vy = +140`), **3 lần trong 2s** mới chết; rơi đáy vẫn chết |
+| **Hạt gió** | **+5%** (trước +2%), ăn **3 hạt liên tiếp trong 1.6s → +1 điểm** |
+| **effectiveTier** | Vòng 2+ cộng `lapIndex × 2` vào tier cổng (min 9) ⇒ cổng vẫn nghiêng/dập dềnh, không "đứng yên" lại |
+
+### E. Kiểm chứng
+`tools/gameplay-probe.html` → **ALL GAMEPLAY CHECKS PASSED** (12/24/60/108 cổng, Lộng Gió húc vỡ cổng thật, chain 2 cổng, nhấn giữ).
+`tools/gameplay-probe2.html` → **ALL CHECKS PASSED**:
+- `keydown Space → armed` · `giữ 260ms → smashRequested` · `keyup → nhả`
+- `chạm trần lần 1: KHÔNG chết` · `bị đẩy xuống (vy=140)` · `3 lần → chết`
+- `hạt gió +5%` · `3 hạt → +1 điểm`
+- `vòng 2: pillar tier = 3`
+`tools/night-audio-test.html` → **NIGHT AUDIO OK**.
+`tools/audit-runtime.html` → 27 render, `errors=0`.
+
+---
+
+## 26. Bản vá Smash (điểm số, cảm giác, túi bùa)
+
+### A. Điểm số Smash: đúng 1 điểm / 1 cổng
+- Trước: mỗi cổng bị húc cho **+3 điểm**, cộng thêm điểm "qua cổng" nếu cột kịp tính ⇒ cảm giác "được điểm rất nhiều".
+- Sau: **+1 điểm mỗi cổng** (Pháo Dây Chuyền 2 cổng = +2), và cổng bị húc **cũng tính là đã qua cổng** (`gatesPassed += 1` + `_syncProgression()`), nên chương/vòng/túi bùa vẫn chạy đúng nhịp.
+
+### B. Cảm giác "lao xuyên và húc vỡ" (nguyên nhân cũ)
+Trước đây cột bị **xoá từ xa** nên diều chỉ lướt qua khoảng trống. Bản này:
+1. Không xoá trước — cột vẫn trôi tới, diều lao tới, **va chạm thật** mới vỡ.
+2. Nổ ở **đúng hai trụ** (trên + dưới) thay vì giữa khe, kèm **một vụ nổ trung tâm**.
+3. **Hit-stop 55ms** + **chớp trắng ấm** + **rung 0.16s** (`hud.triggerRamImpact()`) ngay lúc vỡ.
+4. **Mũi lao sáng** (nón gradient) phía trước diều trong suốt cú lướt.
+5. Tốc độ thế giới **×2.6** (trước ×3.4) + diều tiến 160px/s ⇒ cú lướt kéo dài ~0.3s, đủ để *thấy* mình xuyên qua cổng.
+6. Hạ cánh: giảm tốc, trôi về làn bay, **bất tử 0.7s**; có **timeout 1.1s** nếu phía trước không có cổng.
+
+### C. Túi bùa không xuất hiện (nguyên nhân thật)
+`perks.checkMilestone()` bị đặt **trong `_onNearMiss()`** thay vì `_onScore()` ⇒ chỉ khi lướt sát cột mới kiểm tra mốc; người chơi qua cổng bình thường (hoặc smash) **không bao giờ mở túi**.
+Đã chuyển sang `_onScore()` với **số cổng** (`gatesPassed`), giữ nguyên logic lệch pha: mốc **6, 18, 30, 42…** cổng.
+
+### D. Kiểm chứng (`tools/smash-test.html`, môi trường sạch, mỗi ca một Game mới)
+```
+PASS 1 cổng: bị húc vỡ
+PASS 1 cổng: +1 điểm            (score = 1)
+PASS 1 cổng: gates +1           (gates = 1)
+PASS 1 cổng: kết thúc dash      (19 frame ≈ 0.32s)
+PASS chain: cả 2 bị phá
+PASS chain: +2 điểm
+SMASH TEST PASSED
+```
+`tools/gameplay-probe2.html` → `PASS smash 1 cổng -> +1 điểm`, `PASS cổng 6 -> mở túi bùa`.
+
+---
+
+## 27. Smash "lao tới", tiến độ chương, Sổ tay bưu thiếp
+
+### A. Smash giờ là một cú LAO có quỹ đạo
+Trước: diều gần như đứng yên, thế giới lao nhanh ×2.6 ⇒ cảm giác "cột tự bay tới".
+Nay:
+- `smashStartX → smashTargetX` với **ease-out** trong **0.34–0.62s**, quãng lao thực đo **~156px**.
+- Thế giới **chậm lại 0.55×** trong lúc lao ⇒ mắt thấy rõ *diều tiến về phía trước*.
+- Mũi diều chạm mép trụ (+8px) mới vỡ: nổ **hai trụ + tâm**, hit-stop 55ms, chớp trắng, rung.
+- **Pháo Dây Chuyền**: hết quỹ đạo mà còn cổng thì **nối dài cú lao** sang cổng kế (không hạ cánh non).
+- Kết thúc: trôi về làn bay (0.24s), bất tử 0.7s, **cooldown 0.35s** chống smash liên tiếp.
+
+### B. Một địa danh = 12 CỔNG (giờ hiển thị rõ)
+Người chơi thấy lúc 18 điểm, lúc vài cột vì **điểm** (near-miss +2/+4, smash +1, combo hạt gió) khác **cổng**.
+Nay ô địa danh ghi thẳng: `VÒNG 1 · CHƯƠNG 01 · 7/12` + **thanh tiến độ** vàng→ngọc, cập nhật từng cổng.
+⇒ Muốn hoàn thành 1 địa danh: **12 cổng** (near-miss/smash vẫn cộng điểm nhưng không rút ngắn chương).
+
+### C. Sổ tay bưu thiếp (meta-progression lưu vĩnh viễn)
+- Nút **📮** trên thanh công cụ (trước ⚙) → modal **9 địa danh × 6 kiểu thời tiết = 54 tem**.
+- Ghi tem tự động mỗi 0.5s khi đang chơi: gặp tổ hợp (địa danh × thời tiết) lần đầu → toast `📮 TEM BƯU THIẾP MỚI!`.
+- Lưu `localStorage['dieu_stamps_v1']`, **không** ảnh hưởng điểm/sức mạnh ⇒ không phá bảng xếp hạng.
+- VI/EN đầy đủ; modal tự pause game (đã thêm `stamps-modal` vào danh sách pause).
+
+### D. Hâm nóng cảnh (hết khựng khi vào vùng mới)
+`scenic.preWarmAll()` vẽ thử lần lượt 9 địa danh vào canvas tạm trong lúc ở màn READY (cách nhau 24ms),
+nên lần đầu vào Đà Lạt/… không còn frame dựng hình ~220ms.
+
+### E. Kiểm chứng
+```
+SMASH TEST PASSED
+  lao tới 156px · cổng vỡ · +1 điểm · gates +1 · về làn bay x=97
+  chain: 2 cổng vỡ · +2 điểm
+AUDIT 9 địa danh × 3 thời tiết: errors=0
+```
+
+---
+
+## 28. Mô hình điểm thống nhất (thay mục 24.A và 27.B)
+
+### A. Nguồn điểm
+| Hành động | Điểm |
+|---|---|
+| Vượt 1 cổng | **+1** |
+| Near-miss (lướt sát cột) | **+2** (cố định, không nhân hệ số) |
+| Lộng Gió húc vỡ 1 cổng | **+1** (Pháo Dây Chuyền 2 cổng = **+2**) |
+| Combo 3 hạt gió | **+0 điểm** (chỉ +5% năng lượng/hạt và hiệu ứng) |
+
+### B. Chương tính theo ĐIỂM
+- `POINTS_PER_CHAPTER = 15` — **15 điểm = xong 1 địa danh**.
+- 1 vòng = 9 địa danh × 15 = **135 điểm**; Diều Rồng (vòng 5) ở mốc **540 điểm**.
+- Ô địa danh hiển thị `VÒNG n · CHƯƠNG xx · 7/15` + thanh tiến độ, cập nhật sau **mọi** thay đổi điểm
+  (cổng, near-miss, smash) ⇒ không còn cảm giác "lúc 18 điểm, lúc vài cột".
+- `_syncProgression()` đọc thẳng `this.score` (bỏ `gatesPassed` khỏi đường tiến trình).
+
+### C. Hệ quả cân bằng (ghi nhận có chủ đích)
+- Người chơi giỏi (near-miss nhiều) **qua địa danh nhanh hơn** ⇒ thấy nhiều thời tiết/địa danh hơn — đúng ý "chương dựa vào điểm".
+- Đổi lại nhịp thời tiết không còn cố định 22–25s/tỉnh; mỗi tỉnh ngắn nhất ~15 cổng khi chơi sạch.
+
+### D. Kiểm chứng (`tools/score-probe.html`)
+```
+PASS 14 điểm -> vẫn chương 1 (ch=1)
+PASS 15 điểm -> chương 2 (ch=2)
+PASS 15 điểm -> vẫn sắc 1 (tỉnh 2)
+PASS near-miss +2 điểm (delta=2)
+PASS smash 1 cổng +1 điểm (delta=1)
+PASS 3 hạt gió: KHÔNG cộng điểm (score=50)
+PASS 3 hạt gió: vẫn +5%/hạt (meter=15)
+SCORE MODEL PASSED
+```
+`tools/smash-test.html` → **SMASH TEST PASSED** (lao 156px, +1 điểm/cổng, chain +2).
+`tools/audit-runtime.html` → 27 render, `errors=0`.
+
+---
+
+## 29. Độ nét DPR, PWA offline, danh hiệu, cấu hình
+
+### A. Render theo DPR (nét trên mobile/retina)
+- `resize()` nhân backing store theo `devicePixelRatio` (giới hạn ≤3) và đặt `ctx.setTransform(dpr,0,0,dpr,0,0)`.
+- Hệ toạ độ logic **vẫn 400×700** nên mọi code vẽ không phải sửa.
+- Đo: DPR 1 → backing 400×700, scale 1; DPR 2 → backing **800×1400**, scale 2, toạ độ logic giữ nguyên.
+
+### B. PWA — chơi offline
+- `sw.js`: cache-first cho shell game (HTML/CSS/JS/asset), **không** cache API bảng xếp hạng.
+- Đăng ký trong `main.js`, chỉ khi `http/https`.
+- Khi sửa code: tăng `CACHE` version trong `sw.js` để người chơi nhận bản mới.
+
+### C. Tạm dừng khi ẩn tab
+- `visibilitychange` → `game.setPaused(true)` khi ẩn; hiện lại thì đồng bộ theo modal.
+- Tránh chết oan khi chuyển app và tiết kiệm pin.
+
+### D. Cấu hình 1 chỗ
+- `src/config.js`: `leaderboardUrl`, `leaderboardEnabled`, `leaderboardMinScore`.
+- `game.js` và `ghosts.js` đọc từ đây (hết hard-code URL ở 2 nơi).
+
+### E. Danh hiệu sưu tầm (từ Sổ tay bưu thiếp)
+| Số tem | Danh hiệu |
+|---|---|
+| 0–4 | Tập Bay |
+| 5–11 | Bạn Của Gió |
+| 12–23 | Lãng Khách Gió |
+| 24–41 | Thợ Săn Bưu Thiếp |
+| 42–53 | Người Giữ Ký Ức Việt Nam |
+| 54 | Đại Sứ Bốn Mùa |
+
+Hiện ở màn kết thúc: `DANH HIỆU: …` (VI/EN).
+
+### F. Kiểm chứng
+```
+DPR TEST PASSED
+  DPR 1: backing 400x700, scale 1
+  DPR 2: backing 800x1400, scale 2, toạ độ logic 400x700
+SCORE MODEL PASSED
+AUDIT 9 địa danh × 3 thời tiết: errors=0
+```
+
+### G. Chưa làm (ghi lại có chủ đích)
+- **Bundle/minify**: kiến trúc là "no build step" (ES module thuần, chạy trực tiếp).
+  575KB chưa nén ≈ 60–90KB sau gzip (server bật gzip/brotli là đủ cho canvas game).
+  Nếu cần bundle thật thì thêm `tools/build.mjs` dùng esbuild và sinh `dist/` riêng, giữ `src/` cho dev.
+- **Bảng xếp hạng thật**: vẫn là worker demo; đổi URL trong `src/config.js` là xong.
+
+---
+
+## 30. Smash liền mạch (thay cách làm ở mục 27.A)
+
+### A. Vì sao trước đây "giật rồi đứng im" / "bị ngắt quãng"
+1. Cú lướt dùng **ease-out tới một điểm đích** ⇒ diều tăng tốc rồi **phanh dần và dừng** ngay sau cột.
+2. Chỉ **diều** di chuyển, thế giới lại chạy chậm 0.55× ⇒ không có cảm giác "màn hình chạy theo".
+3. Mỗi lần húc vỡ lại set **hit-stop 55ms** ⇒ cú lướt bị cắt thành từng khúc.
+4. Bản nâng cấp "nối dài" đặt lại `smashTime` ⇒ ease-out thứ hai ⇒ khựng giữa 2 cột.
+
+### B. Cách làm mới
+| Thành phần | Cách làm |
+|---|---|
+| Chuyển động | **Tuyến tính/không đổi tốc độ**: diều tiến **96px** trong 0.22s (ease-out nhẹ) rồi **giữ**, phần "lướt" do thế giới cuộn |
+| Thế giới | `speedMul = 3.4` **không đổi suốt cú lướt** ⇒ màn hình trôi đều, không giật |
+| Thời lượng | **cố định**: 0.62s (1 cột) / 0.85s (2 cột) ⇒ đủ húc cột + vượt đoạn sang cột kế |
+| Hit-stop | **Bỏ hoàn toàn** khi húc (chỉ còn chớp sáng + rung 0.16s, không dừng thời gian) |
+| Nối cột (chain) | Không reset thời gian; chỉ đếm `smashPillarsLeft` ⇒ 2 cột trong **một** cú lướt |
+| Hạ cánh | `speedMul` giảm **từ từ** 3.4 → 1 trong ~0.24s + trôi về làn bay |
+| Giới hạn | Không húc quá `smashPillarsLeft` cột ⇒ không cộng điểm thừa |
+
+### C. Đo độ mượt (`tools/smash-test.html`)
+| Chỉ số | Smash thường | Smash nâng cấp |
+|---|---|---|
+| Cột bị phá | 1 | 2 |
+| Điểm | +1 | +2 |
+| Diều tiến | 96px | 96px |
+| Frame lùi | **0** | **0** |
+| Hit-stop | **0 frame** | **0 frame** |
+| `speedMul` | **3.4 hằng số** | **3.4 hằng số** |
+| Biến thiên tốc độ cuộn (CV) | **0.000** | **0.000** |
+| Thời lượng | 37 frame (~0.62s) | 50 frame (~0.83s) |
+
+⇒ Không còn frame đứng yên, không đổi tốc độ đột ngột, chain dài hơn nhưng vẫn liền một mạch.
+
+### D. Kiểm chứng khác
+`tools/audit-runtime.html` → 27 render, `errors=0`.
+Ảnh khung giữa cú lướt: `docs/screenshots/smash-visual.png` (cổng vỡ ở hai trụ, diều đang xuyên qua).
+
+---
+
+## 31. Sửa 2 bug Smash + 2 cải thiện (thay mục 28.B về số điểm/chương)
+
+### A. BUG 1 — vừa qua cột rồi Smash thì nổ cột phía sau, diều không lướt
+Nguyên nhân: bộ lọc mục tiêu là `p.x + p.width > rocket.x` ⇒ **cột vừa đi qua vẫn lọt vào danh sách**,
+nên cột sau lưng bị húc và cú lướt "dừng" ngay.
+Đã sửa:
+- Chỉ lấy cột **phía trước**: `p.x > rocket.x + 6` (cả khi chọn mục tiêu và khi húc).
+- Trong vòng lặp húc: `if (pillar.x < rocket.x - 8) continue` ⇒ không bao giờ nổ cột sau lưng.
+- **Thời lượng = điểm giữa** cột vừa phá và cột kế:
+  `tReach(px) = (px - noseX) / (pillarSpeed × 3.4)`, `duration = (t_last + t_next) / 2`
+  ⇒ diều kết thúc cú lướt đúng **khoảng giữa 2 cột** (không cột nào phía trước: lướt 0.5s).
+- Chain: lấy 2 cột phía trước, cùng một cú lướt, không reset thời gian.
+
+### B. BUG 2 — chọn Pháo Dây Chuyền làm tụt thanh gió
+Sót dòng `drunkMeter -= 35` trong `perks.selectCard()` (di sản của cơ chế "tặng 35% rồi trừ lại").
+Đã xoá ⇒ nhận thẻ **không mất năng lượng**, vẫn được `+35%` và cú Lộng Gió kế tiếp phá 2 cổng.
+
+### C. Cải thiện 1 — quên bấm lại sau khi lướt
+`_endSmash()` tự tặng **một nhịp đẩy** (`thrust()`, vy = −350, có âm thanh + hạt) ⇒ diều không rơi ngay
+khi người chơi chưa kịp tap.
+
+### D. Cải thiện 2 — 10 điểm / chương
+`POINTS_PER_CHAPTER = 10` (trước 15): 1 vòng = 9 × 10 = **90 điểm**, Diều Rồng = **360 điểm**.
+Ô địa danh tự hiển thị `x/10`.
+
+### E. Kiểm chứng (`tools/smash-test.html`, mỗi ca một Game mới)
+```
+PASS BUG1: cột PHÍA SAU không bị húc        (behindDestroyed=false)
+PASS BUG1: cột PHÍA TRƯỚC bị húc            (frontDestroyed=true)
+PASS BUG1: +1 điểm (không nổ cột sau)        (score=1)
+PASS BUG1: diều tiến tới                     (dx=96)
+PASS BUG1: không lùi / không hit-stop        (back=0, frames=0)
+PASS KHÔNG có cột phía trước: vẫn lướt       (frames=30, score=0)
+PASS chain: cả 2 cột phía trước bị phá       (c1=true c2=true, +2 điểm)
+PASS chain: cuộn đều 3.4x
+PASS BUG2: chọn Pháo Dây Chuyền KHÔNG tụt thanh gió (meter=100)
+PASS BUG2: có cường hoá 2 cổng               (next=2)
+PASS SAU SMASH: có nhịp đẩy tự động          (vy=-350, thrusting=true)
+PASS POINTS_PER_CHAPTER = 10 · 9 điểm -> chương 1 · 10 điểm -> chương 2
+ALL BUG FIXES PASSED
+```
+`tools/audit-runtime.html` → 27 render, `errors=0`.
+
+---
+
+## 32. Sửa triệt để "nổ cột phía sau" (thay cách sửa ở mục 31.A)
+
+### A. Vì sao lần sửa trước chưa dứt
+Lần trước chỉ so `pillar.x < rocket.x - 8`. Nhưng khi người chơi **vừa bay qua cổng**, cột đó vẫn
+đang *chứa* diều: `x_cột ≈ 95`, `x_diều ≈ 100` ⇒ điều kiện `95 < 92` **sai** ⇒ cột vẫn bị húc.
+Ngoài ra vòng lặp duyệt *mọi* cột trong mảng nên cột tự sinh / cột đang đi qua đều có thể lọt.
+
+### B. Cách sửa đúng: chốt mục tiêu theo ĐỐI TƯỢNG ngay lúc kích hoạt
+```js
+const ahead = pillars.filter(p => !p.isDestroyed && p.x > rocket.x + rocket.radius)  // chỉ phía trước mũi
+                     .sort((a, b) => a.x - b.x);
+this.smashTargets = ahead.slice(0, this.smashPillarsLeft);   // chốt 1 hoặc 2 cột
+```
+- Trong suốt cú lướt chỉ duyệt `smashTargets` ⇒ **không một cột nào khác có thể bị nổ**, kể cả cột
+  vừa bay qua, cột tự sinh, hay cột đang chứa diều.
+- Mỗi mục tiêu chỉ vỡ khi tới mũi diều (`x_cột <= x_diều + radius + 12`), nên vụ nổ luôn ở **phía trước**.
+- `smashTargets` được dọn ở `_endSmash()` và `_restart()`.
+
+### C. Kiểm chứng quét 7 vị trí (`tools/smash-test.html`)
+Với cột sau lưng đặt ở x = **40, 60, 80, 95, 100, 104, 110** (diều ở x ≈ 100) và cột phía trước ở x = 330:
+```
+PASS BUG1: KHÔNG cột sau lưng nào bị húc (7 vị trí) — hits=0 [40:o 60:o 80:o 95:o 100:o 104:o 110:o]
+PASS BUG1: cột phía trước luôn bị húc            — miss=0
+PASS BUG1: cột ĐANG CHỨA diều không bị húc       — insideDestroyed=false
+PASS BUG1: cột kế tiếp vẫn bị húc
+PASS chain: cả 2 cột phía trước bị phá · +2 điểm · cuộn đều 3.4x
+PASS BUG2: chọn Pháo Dây Chuyền KHÔNG tụt thanh gió (meter=100)
+PASS SAU SMASH: tự đẩy một nhịp (vy=-350)
+PASS POINTS_PER_CHAPTER=10 · 9→chương 1 · 10→chương 2
+```
+`tools/audit-runtime.html` → 27 render, `errors=0`.

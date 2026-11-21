@@ -3,6 +3,7 @@
  * Palette: mực (ink) · giấy dó (paper) · vàng thếp (gold) · ngọc bích (jade) · đỏ son (red)
  */
 import { t, getLang } from '../i18n.js';
+import { getTitleKey } from '../core/stamps.js';
 
 export class HUD {
   constructor(gameWidth = 400, gameHeight = 700) {
@@ -27,11 +28,24 @@ export class HUD {
     this.flashColor = 'rgba(255, 59, 92, 0.4)';
   }
 
+  /** Húc vỡ cổng: rung mạnh + chớp trắng ấm (tạo cảm giác lực va chạm). */
+  triggerRamImpact() {
+    this.shakeDuration = 0.16;
+    this.shakeIntensity = 7;
+    this.flashDuration = 0.07;
+    this.flashColor = 'rgba(255, 244, 214, 0.42)';
+  }
+
   triggerSmashEffects() {
     this.shakeDuration = 0.25;
     this.shakeIntensity = 12;
     this.flashDuration = 0.12;
     this.flashColor = 'rgba(0, 240, 255, 0.35)';
+  }
+
+  /** Toast nhỏ khi nhận tem bưu thiếp mới. */
+  showStampToast(landmarkTier, weatherId) {
+    this.stampToast = { t: 2.4, landmarkTier, weatherId };
   }
 
   showNearMiss(pointsBonus = 2) {
@@ -159,7 +173,8 @@ export class HUD {
       if (options && options.kiteStage) {
         ctx.fillStyle = 'rgba(127, 227, 196, 0.95)';
         ctx.font = '700 11px "Be Vietnam Pro", ui-monospace, monospace';
-        ctx.fillText(`${t('ready.kite')}: ${t('kite.' + Math.min(5, options.kiteStage))}`, cx, 266);
+        const colorKey = 'color.' + Math.min(5, Math.max(1, (options && options.colorStage) || 1));
+        ctx.fillText(`${t('ready.kite')}: ${t('kite.' + Math.min(5, options.kiteStage))} · ${t(colorKey)}`, cx, 266);
       }
 
       // Câu chuyện của địa danh hiện tại (đọc lúc rảnh, không che lúc bay)
@@ -417,19 +432,52 @@ export class HUD {
       ctx.font = '800 13px "Be Vietnam Pro", ui-monospace, monospace';
       ctx.fillText(`${t('gameover.rank')}: ${t('kite.' + stageNo)} · ${t('hud.lap')} ${lapNo}`, cx, cardY + 138);
 
+      // Danh hiệu sưu tầm (Sổ tay bưu thiếp)
+      ctx.fillStyle = '#7a5a18';
+      ctx.font = '700 11px "Be Vietnam Pro", ui-monospace, monospace';
+      ctx.fillText(`${t('title.label')}: ${t(getTitleKey())}`, cx, cardY + 156);
+
       if (timeSinceDeath > 0.4) {
         if (Math.sin(time * 8) > -0.2) {
           ctx.fillStyle = '#b3172a';
           ctx.font = '800 13px "Be Vietnam Pro", ui-monospace, monospace';
-          ctx.fillText(t('gameover.tap'), cx, cardY + 164);
+          ctx.fillText(t('gameover.tap'), cx, cardY + 184);
         }
       }
 
       ctx.fillStyle = 'rgba(60, 78, 70, 0.85)';
       ctx.font = '11px "Be Vietnam Pro", ui-monospace, monospace';
-      ctx.fillText(t('gameover.hint'), cx, cardY + 210);
+      ctx.fillText(t('gameover.hint'), cx, cardY + 214);
     }
 
     ctx.restore();
+
+    // Toast: nhận tem bưu thiếp mới
+    if (this.stampToast && this.stampToast.t > 0) {
+      const alpha = Math.min(1, this.stampToast.t / 0.4);
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.font = '700 11px "Be Vietnam Pro", sans-serif';
+      const txt = t('stamp.new');
+      const w = ctx.measureText(txt).width + 26;
+      const x = (this.width - w) / 2;
+      const y = 108;
+      ctx.fillStyle = 'rgba(11, 21, 18, 0.86)';
+      if (typeof ctx.roundRect === 'function') {
+        ctx.beginPath();
+        ctx.roundRect(x, y, w, 24, 12);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(232, 184, 75, 0.75)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      } else {
+        ctx.fillRect(x, y, w, 24);
+      }
+      ctx.fillStyle = '#ffd76a';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(txt, this.width / 2, y + 12);
+      ctx.restore();
+    }
   }
 }

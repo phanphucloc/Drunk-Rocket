@@ -75,6 +75,40 @@ export class ScenicLandmarksManager {
     this._mienTayScene = null;
   }
 
+  /**
+   * Vẽ thử từng địa danh một lần vào canvas tạm để "hâm" cache.
+   * Nhờ vậy lần đầu vào Đà Lạt/… không còn frame dựng hình ~200ms.
+   * Chạy rải bằng setTimeout để không chặn màn READY.
+   */
+  preWarmAll(tiers = [1, 2, 3, 4, 5, 6, 7, 8, 9], done) {
+    if (this._preWarming) return;
+    this._preWarming = true;
+    const scratch = document.createElement('canvas');
+    scratch.width = this.width;
+    scratch.height = this.height;
+    const sctx = scratch.getContext('2d');
+    const savedTier = this.currentTier;
+    const savedPrev = this.prevTier;
+    let i = 0;
+
+    const step = () => {
+      if (i >= tiers.length) {
+        this.currentTier = savedTier;
+        this.prevTier = savedPrev;
+        this._preWarming = false;
+        if (done) done();
+        return;
+      }
+      const tier = tiers[i++];
+      try {
+        sctx.clearRect(0, 0, this.width, this.height);
+        this._drawLandmarkByTier(sctx, tier);
+      } catch (e) { /* bỏ qua lỗi vẽ thử */ }
+      setTimeout(step, 24);
+    };
+    setTimeout(step, 120);
+  }
+
   setTier(tier) {
     if (tier !== this.currentTier) {
       this.prevTier = this.currentTier;

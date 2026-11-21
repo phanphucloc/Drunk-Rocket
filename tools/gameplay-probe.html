@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>gameplay-probe</title>
+  <style>body{margin:0;background:#000;color:#0f0;font:12px monospace}pre{white-space:pre-wrap}canvas{opacity:.1}</style>
+</head>
+<body>
+  <pre id="out">running...</pre>
+  <canvas id="c" width="400" height="700"></canvas>
+  <script type="module">
+    import { Game } from '../src/core/game.js';
+    import { LaserPillar } from '../src/entities/laserPillar.js';
+    import { getProgression } from '../src/core/progression.js';
+
+    const out = document.getElementById('out');
+    const lines = [];
+    const log = (s) => { lines.push(s); out.textContent = lines.join('\n'); };
+    const fails = [];
+    const check = (name, cond, extra = '') => {
+      log((cond ? 'PASS ' : 'FAIL ') + name + (extra ? ' — ' + extra : ''));
+      if (!cond) fails.push(name);
+    };
+
+    try {
+      const game = new Game(document.getElementById('c'));
+      game.state = 'PLAYING';
+
+      const keepAlive = () => {
+        if (game.leaderboard && game.leaderboard.isOpen) game.leaderboard.hide();
+        game.state = 'PLAYING';
+        game.paused = false;
+        game.timeSinceDeath = 0;
+        game.rocket.y = 350;
+        game.rocket.vy = 0;
+        game.rocket.vx = 0;
+        game.hitStopTimer = 0;
+        // dọn trạng thái bốc bùa để update không bị chặn
+        if (game.perks) {
+          game.perks.isPreDraft = false;
+          game.perks.isDrafting = false;
+          game.perks.isPostDraft = false;
+          game.perks.draftCards = [];
+        }
+      };
+
+      const step = (frames) => {
+        for (let i = 0; i < frames; i++) {
+          if (game.state === 'GAMEOVER') { game.state = 'PLAYING'; game.rocket.y = 350; game.rocket.vy = 0; }
+          game.update(1 / 60);
+        }
+      };
+
+      const addPillar = (x, gapY = 350) => {
+        const p = new LaserPillar(x, gapY, 148, 52, { theme: game.currentTheme, tier: 1 });
+        game.pillars.pillars.push(p);
+        return p;
+      };
+
+      // ---------- A) TIẾN TRÌNH THEO CỔNG ----------
+      for (let i = 0; i < 12; i++) game._onScore(addPillar(600));
+      check('12 cổng -> chương 2', game.chapterNumber === 2, 'ch=' + game.chapterNumber);
+      check('12 cổng -> vẫn sắc 1', game.colorStage === 1, 'sắc=' + game.colorStage);
+
+      for (let i = 0; i < 12; i++) game._onScore(addPillar(600));
+      check('24 cổng -> sắc 2 (Thanh Ngọc)', game.colorStage === 2, 'sắc=' + game.colorStage + ' ch=' + game.chapterNumber);
+
+      for (let i = 0; i < 36; i++) game._onScore(addPillar(600));
+      check('60 cổng -> sắc 3', game.colorStage === 3, 'sắc=' + game.colorStage);
+
+      while (game.gatesPassed < 108) game._onScore(addPillar(600));
+      check('108 cổng -> vòng 2, hình 2, sắc 1',
+        game.lapNumber === 2 && game.kiteStage === 2 && game.colorStage === 1,
+        `vòng=${game.lapNumber} hình=${game.kiteStage} sắc=${game.colorStage}`);
+
+      // ---------- B) LỘNG GIÓ LAO XUYÊN CỔNG THẬT ----------
+      game.pillars.pillars = [];
+      const target = addPillar(300, 350);   // cổng thật phía trước
+      game.drunkMeter = 100;
+      game.nextSmashChain = 0;
+      game.smashChainCount = 1;
+      const scoreBefore = game.score;
+      game._triggerSupernovaSmash();
+      check('kích hoạt: đang lướt', game.isSmashActive === true);
+      check('cổng CHƯA bị xoá ngay (lao tới mới nổ)', target.isDestroyed !== true);
+
+      // chạy 60 frame (~1s) cho diều lao tới cổng
+      step(60);
+      check('cổng bị húc vỡ', target.isDestroyed === true);
+      check('+3 điểm khi húc vỡ', game.score >= scoreBefore + 3, `score ${scoreBefore} -> ${game.score}`);
+      check('hạ cánh: tắt smash', game.isSmashActive === false);
+      check('hạ cánh: speedMul về 1', (game.pillars.speedMul || 1) === 1, 'mul=' + game.pillars.speedMul);
+      check('hạ cánh: có bất tử ngắn', game.invincibleTimer > 0, 'inv=' + game.invincibleTimer.toFixed(2));
+      check('toạ độ diều hợp lệ', Number.isFinite(game.rocket.x) && Number.isFinite(game.rocket.y));
+
+      // ---------- C) PHÁO DÂY CHUYỀN: 2 cổng ----------
+      game.pillars.pillars = [];
+      const t1 = addPillar(260, 340);
+      const t2 = addPillar(420, 400);
+      game.drunkMeter = 100;
+      game.nextSmashChain = 2;   // bùa Pháo Dây Chuyền
+      game.smashChainCount = 2;
+      game._triggerSupernovaSmash();
+      check('chain: cần 2 cổng', game.smashPillarsLeft === 2);
+      keepAlive();
+      for (let f = 0; f < 14; f++) {
+        game.update(1 / 60);
+        if (f % 3 === 0) log(`  [state] paused=${game.paused} hitstop=${game.hitStopTimer.toFixed(3)} state=${game.state} lbOpen=${game.leaderboard && game.leaderboard.isOpen}`);
+        if (f % 3 === 0) log(`  [chain f${f}] rocket.x=${game.rocket.x.toFixed(0)} t1.x=${t1.x.toFixed(0)} t2.x=${t2.x.toFixed(0)} smash=${game.isSmashActive} left=${game.smashPillarsLeft} t1dest=${t1.isDestroyed}`);
+      }
+      step(120);
+      check('chain: cả 2 cổng bị phá', t1.isDestroyed && t2.isDestroyed,
+        `t1=${t1.isDestroyed} t2=${t2.isDestroyed}`);
+      check('chain: đã reset về 1 sau khi dùng', game.smashChainCount === 1);
+
+      // ---------- D) NHẤN GIỮ 240ms ----------
+      game.pillars.pillars = [];
+      game.drunkMeter = 100;
+      game.isSmashActive = false;
+      game.input.isPressed = true;
+      game.input.holdStart = performance.now() - 300;  // giả lập đã giữ 300ms
+      game.input._holdArmed = true;
+      game.input.updateHold(1 / 60);
+      check('giữ 300ms -> có yêu cầu Lộng Gió', game.input.consumeSmash() === true);
+
+      game.input.holdStart = performance.now() - 80;   // tap thường 80ms
+      game.input.isPressed = true;
+      game.input._holdArmed = true;
+      game.input.updateHold(1 / 60);
+      check('tap 80ms -> KHÔNG kích hoạt', game.input.consumeSmash() === false);
+
+      log('');
+      log(fails.length ? 'FAILED: ' + fails.join(', ') : 'ALL GAMEPLAY CHECKS PASSED');
+      log('DONE');
+    } catch (e) {
+      log('FATAL: ' + (e && (e.stack || e.message)));
+    }
+  </script>
+</body>
+</html>

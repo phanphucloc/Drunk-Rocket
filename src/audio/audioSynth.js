@@ -29,6 +29,9 @@ export class AudioSynthesizer {
     this.sfxVolume = 1.0;
     this.sfxGainNode = null;
     this.musicDuck = 1;
+    // Âm thanh đêm: dế kêu + ếch ộp
+    this.cricketTimer = 0;
+    this.frogTimer = 0;
     this.MUSIC_BUS_GAIN = 0.7;   // độ to tổng của nhạc nền (0..1)
     try {
       const mv = parseFloat(localStorage.getItem('dieu_music_vol'));
@@ -60,9 +63,13 @@ export class AudioSynthesizer {
   }
 
   /** Bus chung cho hiệu ứng + môi trường (nhạc nền đi đường riêng). */
+  _out() {
+    return this.master || this.ctx.destination;
+  }
+
   _dest() {
     if (this.ctx && !this.sfxGainNode) this._ensureSfxBus();
-    return this.sfxGainNode || this.ctx.destination;
+    return this.sfxGainNode || this._out();
   }
 
   _ensureSfxBus() {
@@ -71,7 +78,7 @@ export class AudioSynthesizer {
       const bus = this.ctx.createGain();
       bus.gain.value = this.isMuted ? 0 : this.sfxVolume;
       // Nối THẲNG ra loa — không dùng _dest() ở đây kẻo nối vào chính nó.
-      bus.connect(this.ctx.destination);
+      bus.connect(this._out());
       this.sfxGainNode = bus;
     } catch (e) { this.sfxGainNode = null; }
   }
@@ -81,6 +88,16 @@ export class AudioSynthesizer {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (AudioCtx) {
         this.ctx = new AudioCtx();
+        // Limiter đầu ra: nhiều hiệu ứng cùng lúc (smash + near-miss + nhạc) không bị vỡ tiếng
+        try {
+          this.master = this.ctx.createDynamicsCompressor();
+          this.master.threshold.value = -10;
+          this.master.knee.value = 8;
+          this.master.ratio.value = 12;
+          this.master.attack.value = 0.003;
+          this.master.release.value = 0.22;
+          this.master.connect(this.ctx.destination);
+        } catch (e) { this.master = null; }
         this._ensureSfxBus();
       }
     }
@@ -766,6 +783,9 @@ export class AudioSynthesizer {
         this.playBirdChirp();
         this.birdTimer = 2.0;
       } else if (ambientType === 'night') {
+        // Vào đêm: dế + ếch lên tiếng ngay
+        this.cricketTimer = 0.6;
+        this.frogTimer = 1.8;
         const drone = this.ctx.createOscillator();
         const dGain = this.ctx.createGain();
         drone.type = 'sine';
@@ -778,11 +798,96 @@ export class AudioSynthesizer {
     } catch (e) {}
   }
 
+  /** Dế kêu: chuỗi xung cao tần ngắn (2–4 nhịp). */
+  playCricketChirp() {
+    if (this.isMuted) return;
+    this._ensureContext();
+    if (!this.ctx) return;
+    try {
+      const now = this.ctx.currentTime;
+      const base = 3900 + Math.random() * 900;
+      const pulses = 2 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < pulses; i++) {
+        const t0 = now + i * 0.055;
+        const osc = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(base, t0);
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.linearRampToValueAtTime(0.055, t0 + 0.005);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.032);
+        osc.connect(g);
+        g.connect(this._dest());
+        osc.start(t0);
+        osc.stop(t0 + 0.05);
+      }
+    } catch (e) {}
+  }
+
+  /** Ếch ộp: 1–2 tiếng trầm, lọc bandpass, pitch trượt xuống. */
+  playFrogCroak() {
+    if (this.isMuted) return;
+    this._ensureContext();
+    if (!this.ctx) return;
+    try {
+      const now = this.ctx.currentTime;
+      const croaks = 1 + Math.floor(Math.random() * 2);
+      for (let i = 0; i < croaks; i++) {
+        const t0 = now + i * 0.24;
+        const f0 = 145 + Math.random() * 65;
+        const osc = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        const bp = this.ctx.createBiquadFilter();
+        bp.type = 'bandpass';
+        bp.frequency.setValueAtTime(380 + Math.random() * 160, t0);
+        bp.Q.setValueAtTime(2.4, t0);
+
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(f0, t0);
+        osc.frequency.exponentialRampToValueAtTime(f0 * 0.62, t0 + 0.16);
+
+        // rung "ộp ộp"
+        const lfo = this.ctx.createOscillator();
+        const lfoGain = this.ctx.createGain();
+        lfo.frequency.setValueAtTime(26, t0);
+        lfoGain.gain.setValueAtTime(16, t0);
+        lfo.connect(lfoGain);
+        lfoGain.connect(osc.frequency);
+
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.linearRampToValueAtTime(0.16, t0 + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.22);
+
+        osc.connect(bp);
+        bp.connect(g);
+        g.connect(this._dest());
+        osc.start(t0);
+        osc.stop(t0 + 0.26);
+        lfo.start(t0);
+        lfo.stop(t0 + 0.26);
+      }
+    } catch (e) {}
+  }
+
   /**
    * Periodic procedural triggers for chirping birds & rumbling thunder
    */
   updateAmbientTick(dt) {
     if (this.isMuted || !this.ctx) return;
+
+    if (this.currentAmbient === 'night') {
+      this.cricketTimer -= dt;
+      if (this.cricketTimer <= 0) {
+        this.playCricketChirp();
+        this.cricketTimer = 1.1 + Math.random() * 1.6;
+      }
+      this.frogTimer -= dt;
+      if (this.frogTimer <= 0) {
+        this.playFrogCroak();
+        this.frogTimer = 4.0 + Math.random() * 4.5;
+      }
+      return;
+    }
 
     if (this.currentAmbient === 'birds') {
       this.birdTimer -= dt;
@@ -986,7 +1091,7 @@ export class AudioSynthesizer {
       const target = this._musicTargetGainFor(cfg);
       g.gain.setValueAtTime(force ? target : 0.0001, now);
       if (!force) g.gain.setTargetAtTime(target, now, 0.35);
-      g.connect(this.ctx.destination);
+      g.connect(this._out());
       this.musicGainNode = g;
       this.musicStepTimer = 0.05;
       this.musicDegree = Math.floor((cfg.scale || []).length / 2);

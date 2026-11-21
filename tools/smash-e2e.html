@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>smash-e2e</title>
+  <style>body{margin:0;background:#000;color:#0f0;font:12px monospace}pre{white-space:pre-wrap}canvas{opacity:.12}</style>
+</head>
+<body>
+  <pre id="out">running...</pre>
+  <canvas id="c" width="400" height="700"></canvas>
+  <script type="module">
+    import { Game } from '../src/core/game.js';
+    import { LaserPillar } from '../src/entities/laserPillar.js';
+
+    const out = document.getElementById('out');
+    const lines = [];
+    const log = (s) => { lines.push(s); out.textContent = lines.join('\n'); };
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+
+    try {
+      const canvas = document.getElementById('c');
+      const game = new Game(canvas);
+      game.start();                       // chạy loop thật
+      const origUpdate = game.update.bind(game);
+      game.update = (dt) => { window.__frames = (window.__frames || 0) + 1; return origUpdate(dt); };
+      await wait(120);
+
+      game.state = 'PLAYING';
+      game.drunkMeter = 100;
+      game.pillars.pillars = [];
+      game.pillars.pillars.push(new LaserPillar(320, 350, 148, 52, { theme: game.currentTheme, tier: 1 }));
+      game.rocket.y = 350;
+      const beforeScore = game.score;
+
+      // mô phỏng NHẤN GIỮ 300ms bằng pointer thật
+      // đếm số lần updateHold được gọi + theo dõi cờ
+      const origHold = game.input.updateHold.bind(game.input);
+      game.input.updateHold = (dt) => {
+        window.__holdCalls = (window.__holdCalls || 0) + 1;
+        return origHold(dt);
+      };
+
+      const down = new PointerEvent('pointerdown', { clientX: 200, clientY: 350, bubbles: true, pointerId: 1, isPrimary: true });
+      canvas.dispatchEvent(down);
+      log('after pointerdown: isPressed=' + game.input.isPressed + ' armed=' + game.input._holdArmed + ' meter=' + game.drunkMeter);
+      await wait(300);
+      log('after 300ms hold: calls=' + (window.__holdCalls || 0) + ' isPressed=' + game.input.isPressed + ' armed=' + game.input._holdArmed +
+          ' progress=' + (game.input.holdProgress || 0).toFixed(2) + ' smashRequested=' + game.input.smashRequested +
+          ' isSmashActive=' + game.isSmashActive + ' frames=' + (window.__frames || 0));
+
+      const up = new PointerEvent('pointerup', { clientX: 200, clientY: 350, bubbles: true, pointerId: 1, isPrimary: true });
+      window.dispatchEvent(up);
+      await wait(400);
+
+      log('after release+400ms: isSmashActive=' + game.isSmashActive +
+          ' smashPillarsLeft=' + game.smashPillarsLeft +
+          ' destroyed=' + game.pillars.pillars.filter(p => p.isDestroyed).length +
+          ' scoreDelta=' + (game.score - beforeScore) +
+          ' speedMul=' + (game.pillars.speedMul || 1));
+
+      const ok = game.score > beforeScore || game.pillars.pillars.some(p => p.isDestroyed);
+      log(ok ? 'SMASH OK' : 'SMASH FAIL');
+      log('DONE');
+    } catch (e) {
+      log('FATAL: ' + (e && (e.stack || e.message)));
+    }
+  </script>
+</body>
+</html>

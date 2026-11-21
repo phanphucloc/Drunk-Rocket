@@ -16,9 +16,25 @@
 
 import { TIER_THEMES } from '../graphics/themes.js';
 
-// Số điểm để qua 1 địa danh (chương). 12 điểm ~ 22 giây -> mỗi vùng miền có thời gian thở.
-// Đổi 1 số này là đổi nhịp độ cả game.
-export const POINTS_PER_CHAPTER = 12;
+// Số CỔNG để qua 1 địa danh (chương). 12 cổng ~ 22-25 giây -> mỗi vùng miền đủ thời gian
+// để thời tiết chuyển (nắng -> mưa -> đêm). Đổi 1 số này là đổi nhịp độ cả game.
+// Chương tính theo SỐ CỔNG ĐÃ VƯỢT (không theo điểm) để nhịp thời tiết luôn ổn định,
+// còn điểm (Near-Miss / Smash / hạt gió) chỉ dùng cho bảng xếp hạng.
+export const POINTS_PER_CHAPTER = 10;
+export const GATES_PER_CHAPTER = POINTS_PER_CHAPTER; // tương thích tên cũ
+
+// Chia 5 phẩm sắc cho 9 tỉnh trong 1 vòng: 2 - 2 - 2 - 2 - 1
+// (Trắng -> Xanh -> Tím -> Vàng -> Ngũ Sắc). Người chơi mới thấy "lên sắc" ngay ở tỉnh 3.
+export const COLOR_SPLIT = [0, 0, 1, 1, 2, 2, 3, 3, 4];
+
+/** 5 phẩm sắc trong 1 vòng — chỉ đổi BẢNG MÀU, không đổi hình dáng. */
+export const KITE_COLORS = [
+  { key: 'bach', nameKey: 'color.1', paper: '#f9f9f4', light: '#ffffff', dark: '#cdd5da', trim: '#9fb3c8', motif: '#7f9bb5' },
+  { key: 'thanh', nameKey: 'color.2', paper: '#d9f6e3', light: '#f4fffa', dark: '#8ed2af', trim: '#2f9e6a', motif: '#7fe3c4' },
+  { key: 'tu', nameKey: 'color.3', paper: '#eee1ff', light: '#fbf4ff', dark: '#b48ce0', trim: '#7b3fd4', motif: '#c9a2ff' },
+  { key: 'hoang', nameKey: 'color.4', paper: '#ffe8a8', light: '#fff9de', dark: '#d9a83a', trim: '#c9902a', motif: '#ffd76a' },
+  { key: 'ngusac', nameKey: 'color.5', paper: '#ffd76a', light: '#fff3c4', dark: '#e0a020', trim: '#e63946', motif: '#2fb894', rainbow: true }
+];
 
 // Danh sách địa danh mặc định (số hiệu tier trong themes.js)
 export const DEFAULT_LANDMARKS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
@@ -85,9 +101,19 @@ function themeFor(tier) {
  * Tính toàn bộ tiến trình từ điểm số:
  * { lapIndex, lap, lapNumber, chapterInLap, chapterNumber, globalChapter, kiteStage, theme }
  */
-export function getProgression(score = 0) {
-  const safeScore = Math.max(0, Math.floor(score));
-  let remaining = Math.floor(safeScore / POINTS_PER_CHAPTER);
+export function colorStageFor(chapterInLap = 0) {
+  const idx = Math.max(0, Math.min(COLOR_SPLIT.length - 1, chapterInLap));
+  return COLOR_SPLIT[idx] + 1; // 1..5
+}
+
+/** Tính tiến trình từ ĐIỂM (15 điểm = 1 địa danh).
+ * { lapIndex, lap, lapNumber, chapterInLap, chapterNumber, globalChapter,
+ *   kiteStage (hình dáng 1..5), colorStage (phẩm sắc 1..5), theme }
+ */
+export function getProgression(gatesPassed = 0) {
+  const gates = Math.max(0, Math.floor(gatesPassed));
+  const chapterIndex = Math.floor(gates / POINTS_PER_CHAPTER);
+  let remaining = chapterIndex;
 
   for (let i = 0; i < LAPS.length; i++) {
     const list = lapLandmarks(LAPS[i]);
@@ -99,15 +125,16 @@ export function getProgression(score = 0) {
         lapNumber: i + 1,
         chapterInLap: remaining,
         chapterNumber: remaining + 1,
-        globalChapter: remaining,
+        globalChapter: chapterIndex,
         kiteStage: LAPS[i].kite,
+        colorStage: colorStageFor(remaining),
         theme: themeFor(tier)
       };
     }
     remaining -= list.length;
   }
 
-  // Hết 5 vòng: lặp lại vòng cuối vô tận
+  // Hết 5 vòng: lặp lại vòng cuối vô tận, giữ hình dáng + phẩm sắc cao nhất
   const lastIndex = LAPS.length - 1;
   const lastLap = LAPS[lastIndex];
   const list = lapLandmarks(lastLap);
@@ -118,8 +145,9 @@ export function getProgression(score = 0) {
     lapNumber: lastIndex + 1,
     chapterInLap: idx,
     chapterNumber: idx + 1,
-    globalChapter: remaining,
+    globalChapter: chapterIndex,
     kiteStage: lastLap.kite,
+    colorStage: colorStageFor(idx),
     theme: themeFor(list[idx])
   };
 }
@@ -150,9 +178,19 @@ export function getTierFromScore(score = 0) {
   return getProgression(score).theme.tier;
 }
 
-export function getKiteStyle(stage = 1) {
-  const idx = Math.max(0, Math.min(KITE_STAGES.length - 1, Math.round(stage) - 1));
-  return KITE_STAGES[idx];
+/** Ghép hình dáng (theo vòng) + phẩm sắc (theo tỉnh trong vòng). */
+export function getKiteStyle(stage = 1, colorStage = 1) {
+  const si = Math.max(0, Math.min(KITE_STAGES.length - 1, Math.round(stage) - 1));
+  const ci = Math.max(0, Math.min(KITE_COLORS.length - 1, Math.round(colorStage) - 1));
+  const shape = KITE_STAGES[si];
+  const color = KITE_COLORS[ci];
+  return {
+    ...shape,
+    ...color,          // phẩm sắc ghi đè bảng màu
+    colorStage: ci + 1,
+    colorKey: color.key,
+    nameKey: shape.nameKey
+  };
 }
 
 /** Tổng số địa danh của cả 5 vòng (dùng cho màn cốt truyện) */

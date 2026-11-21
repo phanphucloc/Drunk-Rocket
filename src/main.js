@@ -1,6 +1,7 @@
 import { Game } from './core/game.js';
 import { applyDomI18n, t, setLang, getLang } from './i18n.js';
 import { infoPanels } from './ui/infoPanels.js';
+import { initStampBook } from './ui/stampBook.js';
 
 window.addEventListener('DOMContentLoaded', () => {
   const canvas = document.getElementById('game-canvas');
@@ -18,6 +19,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
   const game = new Game(canvas);
   game.start();
+  // Hâm nóng cảnh của 9 địa danh trong lúc người chơi ở màn READY
+  if (game.scenic && game.scenic.preWarmAll) game.scenic.preWarmAll();;
   window.game = game;
 
   // Nhãn nút âm thanh / ngôn ngữ theo i18n
@@ -96,7 +99,7 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   // ---- Tự động PAUSE khi có popup/bảng điểm/cài đặt đang mở ----
-  const MODAL_IDS = ['leaderboard-modal', 'story-modal', 'skills-modal', 'landmark-modal', 'settings-modal'];
+  const MODAL_IDS = ['leaderboard-modal', 'story-modal', 'skills-modal', 'landmark-modal', 'settings-modal', 'stamps-modal'];
   const isAnyModalOpen = () => MODAL_IDS.some((id) => {
     const elm = document.getElementById(id);
     return elm && !elm.classList.contains('hidden');
@@ -110,9 +113,27 @@ window.addEventListener('DOMContentLoaded', () => {
     attributeFilter: ['class']
   });
   setInterval(syncPause, 400); // dự phòng nếu có popup bật/tắt bằng cách khác
+
+  // Ẩn tab / chuyển app: tạm dừng để không chết oan và không tốn pin
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      if (game && game.setPaused) game.setPaused(true);
+      if (game && game._wasHidden !== undefined) game._wasHidden = true;
+    } else {
+      syncPause();
+    }
+  });
   syncPause();
 
   // Căn ô giới thiệu địa danh theo canvas (sau khi layout ổn định)
+  // PWA: chơi offline sau lần tải đầu (chỉ khi chạy http/https)
+  if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
+    });
+  }
+
+  initStampBook();
   infoPanels.positionChip();
   setTimeout(() => infoPanels.positionChip(), 250);
 

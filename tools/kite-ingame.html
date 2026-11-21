@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>kite-ingame</title>
+  <style>body{margin:0;background:#0b1512}canvas{display:block}#err{position:fixed;left:0;top:0;color:#7fe3c4;background:rgba(0,0,0,.8);font:11px monospace;white-space:pre-wrap;z-index:9}</style>
+</head>
+<body>
+  <canvas id="c" width="400" height="700"></canvas>
+  <pre id="err"></pre>
+  <script>
+    var log = function (m) { document.getElementById('err').textContent += m + '\n'; };
+    window.onerror = function (m, u, l, c, e) { log('ERR ' + m + ' @' + l + ':' + c + '\n' + ((e && e.stack) || '')); };
+  </script>
+  <script type="module">
+    log('step 0: module loaded');
+    try {
+      const { Game } = await import('../src/core/game.js');
+      log('step 1: Game imported');
+      const params = new URLSearchParams(location.search);
+      const gates = Number(params.get('gates') || 0);
+      const game = new Game(document.getElementById('c'));
+      log('step 2: game created, theme=' + (game.currentTheme && game.currentTheme.name));
+      game.state = 'PLAYING';
+      game.gatesPassed = gates;
+      game.score = Math.round(gates * 1.6);
+      game._syncProgression(true);
+      log('step 3: sync ok, sắc=' + game.colorStage + ' hình=' + game.kiteStage + ' vòng=' + game.lapNumber);
+      game.rocket.y = 330;
+      game.rocket.x = 120;
+      game.rocket.angle = -0.12;
+      game.rocket.isThrusting = true;
+      game.drunkMeter = 100;
+      game.nextSmashChain = params.get('chain') === '1' ? 2 : 0;
+      game.smashChainCount = game.nextSmashChain >= 2 ? 2 : 1;
+      game.totalTime = 1.2;
+      game.scenic.fadeProgress = 1;
+      game.render();
+      log('step 4: rendered');
+    } catch (e) {
+      log('FATAL ' + (e && (e.stack || e.message)));
+    }
+  </script>
+</body>
+</html>

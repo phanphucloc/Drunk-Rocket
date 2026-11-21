@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>smash-visual</title>
+  <style>body{margin:0;background:#0b1512}canvas{display:block}</style>
+</head>
+<body>
+  <canvas id="c" width="400" height="700"></canvas>
+  <script type="module">
+    import { Game } from '../src/core/game.js';
+    import { LaserPillar } from '../src/entities/laserPillar.js';
+
+    const params = new URLSearchParams(location.search);
+    const advance = Number(params.get('f') || 20);
+    const chain = params.get('chain') === '1';
+
+    const game = new Game(document.getElementById('c'));
+    game.state = 'PLAYING';
+    game.drunkMeter = 100;
+    game.score = 12;
+    game.nextSmashChain = chain ? 2 : 0;
+    game.smashChainCount = chain ? 2 : 1;
+    game.pillars.pillars = [
+      new LaserPillar(70, 340, 148, 52, { theme: game.currentTheme, tier: 1 }),
+      new LaserPillar(340, 380, 148, 52, { theme: game.currentTheme, tier: 1 })
+    ];
+
+    // đếm frame: tới frame mong muốn thì đóng băng để chụp đúng khoảnh khắc lướt
+    const origUpdate = game.update.bind(game);
+    let n = 0;
+    let triggered = false;
+    game.update = (dt) => {
+      if (n >= advance) {
+        game.paused = true;
+        return;
+      }
+      if (!triggered) { triggered = true; game._triggerSupernovaSmash(); }
+      n++;
+      origUpdate(dt);
+    };
+
+    game.start();
+    document.title = 'ready';
+  </script>
+</body>
+</html>

@@ -68,6 +68,23 @@
       const sfx = await renderSfx();
       log(`SFX: peak=${sfx.peak.toFixed(4)} rms=${sfx.rms.toFixed(5)}`);
 
+      // 3) AM THANH DEM: de + ech
+      const renderNight = async (fn) => {
+        const oc = new Offline(1, 44100 * 1.0, 44100);
+        sound.ctx = oc;
+        sound.sfxGainNode = null;
+        sound.isMuted = false;
+        sound.sfxVolume = 1;
+        sound._ensureSfxBus();
+        fn.call(sound);
+        const buf = await oc.startRendering();
+        return analyse(buf);
+      };
+      const cricket = await renderNight(sound.playCricketChirp);
+      log(`CRICKET: peak=${cricket.peak.toFixed(4)} rms=${cricket.rms.toFixed(5)}`);
+      const frog = await renderNight(sound.playFrogCroak);
+      log(`FROG: peak=${frog.peak.toFixed(4)} rms=${frog.rms.toFixed(5)}`);
+
       const okMusic = log.length > 0; // xem từng dòng
       log('DONE');
     } catch (e) {

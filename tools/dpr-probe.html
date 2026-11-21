@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>dpr-probe</title>
+  <style>body{margin:0;background:#000;color:#0f0;font:12px monospace}pre{white-space:pre-wrap}canvas{opacity:.1;width:400px;height:700px}</style>
+</head>
+<body>
+  <pre id="out">running...</pre>
+  <canvas id="c1" width="400" height="700"></canvas>
+  <canvas id="c2" width="400" height="700"></canvas>
+  <script type="module">
+    import { Game } from '../src/core/game.js';
+
+    const out = document.getElementById('out');
+    const lines = [];
+    const log = (s) => { lines.push(s); out.textContent = lines.join('\n'); };
+    const fails = [];
+    const check = (n, c, e = '') => { log((c ? 'PASS ' : 'FAIL ') + n + (e ? ' — ' + e : '')); if (!c) fails.push(n); };
+
+    try {
+      // DPR = 1
+      const g1 = new Game(document.getElementById('c1'));
+      check('DPR 1: backing 400x700', g1.canvas.width === 400 && g1.canvas.height === 700,
+        `${g1.canvas.width}x${g1.canvas.height}`);
+      check('DPR 1: transform scale = 1', Math.abs(g1.ctx.getTransform().a - 1) < 0.01,
+        'a=' + g1.ctx.getTransform().a);
+
+      // DPR = 2 (giả lập)
+      Object.defineProperty(window, 'devicePixelRatio', { value: 2, configurable: true });
+      const g2 = new Game(document.getElementById('c2'));
+      g2.resize();
+      check('DPR 2: backing 800x1400', g2.canvas.width === 800 && g2.canvas.height === 1400,
+        `${g2.canvas.width}x${g2.canvas.height}`);
+      check('DPR 2: transform scale = 2', Math.abs(g2.ctx.getTransform().a - 2) < 0.01,
+        'a=' + g2.ctx.getTransform().a);
+      check('DPR 2: toạ độ logic vẫn 400x700', g2.width === 400 && g2.height === 700);
+
+      // Vẫn vẽ được (không lỗi) sau khi đổi DPR
+      g2.state = 'PLAYING';
+      g2.render();
+      check('DPR 2: render không lỗi', true);
+
+      log('');
+      log(fails.length ? 'FAILED: ' + fails.join(', ') : 'DPR TEST PASSED');
+      log('DONE');
+    } catch (e) {
+      log('FATAL: ' + (e && (e.stack || e.message)));
+    }
+  </script>
+</body>
+</html>

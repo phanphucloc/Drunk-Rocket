@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>stamps-probe</title>
+  <link rel="stylesheet" href="../style.css">
+  <style>
+    body { margin: 0; background: #0b1512; font-family: "Be Vietnam Pro", sans-serif; }
+    #top-toolbar { position: fixed; top: 10px; right: 10px; }
+  </style>
+</head>
+<body>
+  <div id="top-toolbar">
+    <button class="arcade-btn btn-square" type="button">🏆</button>
+    <button class="arcade-btn btn-square" id="btn-open-story" type="button">📖</button>
+    <button class="arcade-btn btn-square" id="btn-open-skills" type="button">💎</button>
+    <button class="arcade-btn btn-square" id="btn-open-settings" type="button">⚙</button>
+  </div>
+  <pre id="err" style="position:fixed;left:8px;bottom:8px;color:#7fe3c4;font:11px monospace"></pre>
+  <script>
+    window.onerror = function (m, u, l, c, e) {
+      document.getElementById('err').textContent = 'ERR ' + m + ' @' + l;
+    };
+  </script>
+  <script type="module">
+    import { initStampBook, showStampBook } from '../src/ui/stampBook.js';
+    import { recordStamp } from '../src/core/stamps.js';
+
+    localStorage.removeItem('dieu_stamps_v1');
+    [[1, 'sun'], [1, 'rain'], [1, 'stars'], [2, 'rain'], [3, 'storm'], [4, 'sun'], [4, 'fog'], [5, 'stars'], [6, 'clouds'], [7, 'sun'], [8, 'rain']]
+      .forEach(([tier, w]) => recordStamp(tier, w));
+
+    initStampBook();
+    showStampBook();
+  </script>
+</body>
+</html>

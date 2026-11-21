@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>night-audio</title>
+  <style>body{margin:0;background:#000;color:#0f0;font:12px monospace}pre{white-space:pre-wrap}</style>
+</head>
+<body>
+  <pre id="out">running...</pre>
+  <script type="module">
+    import { sound } from '../src/audio/audioSynth.js';
+
+    const out = document.getElementById('out');
+    const lines = [];
+    const log = (s) => { lines.push(s); out.textContent = lines.join('\n'); };
+
+    const Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    const analyse = (buffer) => {
+      const d = buffer.getChannelData(0);
+      let peak = 0, sum = 0;
+      for (let i = 0; i < d.length; i++) { const v = Math.abs(d[i]); if (v > peak) peak = v; sum += d[i] * d[i]; }
+      return { peak, rms: Math.sqrt(sum / d.length) };
+    };
+
+    const render = async (fn) => {
+      const oc = new Offline(1, 44100 * 0.8, 44100);
+      sound.ctx = oc;
+      sound.sfxGainNode = null;
+      sound.isMuted = false;
+      sound.sfxVolume = 1;
+      sound._ensureSfxBus();
+      fn.call(sound);
+      const buf = await oc.startRendering();
+      return analyse(buf);
+    };
+
+    try {
+      const cricket = await render(sound.playCricketChirp);
+      log(`DE (cricket): peak=${cricket.peak.toFixed(4)} rms=${cricket.rms.toFixed(5)}`);
+      const frog = await render(sound.playFrogCroak);
+      log(`ECH (frog): peak=${frog.peak.toFixed(4)} rms=${frog.rms.toFixed(5)}`);
+      log(cricket.peak > 0.01 && frog.peak > 0.01 ? 'NIGHT AUDIO OK' : 'NIGHT AUDIO FAIL');
+      log('DONE');
+    } catch (e) {
+      log('FATAL: ' + (e && (e.stack || e.message)));
+    }
+  </script>
+</body>
+</html>

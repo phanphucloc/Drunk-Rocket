@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>5 hình × 5 sắc</title>
+  <style>
+    body { margin: 0; background: #0f1a17; color: #e8b84b; font-family: monospace; }
+    h3 { font-size: 12px; color: #7fe3c4; margin: 8px 0 4px 10px; letter-spacing: .1em; }
+    .row { display: flex; gap: 4px; padding: 0 8px 6px; }
+    figure { margin: 0; text-align: center; }
+    figcaption { font-size: 9px; padding-top: 2px; color: #cfe3da; }
+    canvas { background: radial-gradient(circle at 50% 40%, #1b3a32, #0b1512); border: 1px solid #2a4a40; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <div id="out"></div>
+  <script type="module">
+    import { drawRocket } from '../src/graphics/renderer.js';
+    import { KITE_COLORS, KITE_STAGES } from '../src/core/progression.js';
+
+    const host = document.getElementById('out');
+    const names = ['Bạch Nguyệt (Trắng)', 'Thanh Ngọc (Xanh)', 'Tử Vân (Tím)', 'Hoàng Kim (Vàng)', 'Ngũ Sắc'];
+
+    KITE_STAGES.forEach((shape, si) => {
+      const h = document.createElement('h3');
+      h.textContent = `CẤP ${shape.stage} — ${shape.shape.toUpperCase()}`;
+      host.appendChild(h);
+      const row = document.createElement('div');
+      row.className = 'row';
+      KITE_COLORS.forEach((color, ci) => {
+        const fig = document.createElement('figure');
+        const cv = document.createElement('canvas');
+        cv.width = 150; cv.height = 130;
+        fig.appendChild(cv);
+        const cap = document.createElement('figcaption');
+        cap.textContent = names[ci];
+        fig.appendChild(cap);
+        row.appendChild(fig);
+
+        const ctx = cv.getContext('2d');
+        ctx.translate(70, 70);
+        ctx.scale(2.1, 2.1);
+        drawRocket(ctx, 0, 0, {
+          stage: shape.stage,
+          colorStage: ci + 1,
+          dizzyTime: 0.7,
+          isThrusting: true
+        });
+      });
+      host.appendChild(row);
+    });
+  </script>
+</body>
+</html>

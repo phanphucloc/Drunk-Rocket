@@ -1,9 +1,11 @@
-﻿/**
+import { CONFIG } from '../config.js';
+
+/**
  * Ghost Wrecks Manager (Sprint 2.3)
  * Fetches and renders player death markers & tombstones along the race track.
  */
 export class GhostManager {
-  constructor(apiBaseUrl = 'https://drunk-rocket-backend.ppldhsp.workers.dev') {
+  constructor(apiBaseUrl = CONFIG.leaderboardUrl) {
     this.apiBaseUrl = apiBaseUrl;
     this.ghosts = [];
     this.activeWrecks = [];

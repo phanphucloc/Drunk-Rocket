@@ -673,3 +673,99 @@ html, body {
 .hidden {
   display: none !important;
 }
+
+/* Thanh tiến độ cổng trong ô địa danh (12 cổng = 1 địa danh) */
+.chip-progress {
+  display: block;
+  height: 3px;
+  margin-top: 4px;
+  border-radius: 2px;
+  background: rgba(243, 234, 214, 0.22);
+  overflow: hidden;
+}
+.chip-progress i {
+  display: block;
+  height: 100%;
+  width: 0%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #e8b84b, #2fb894);
+  transition: width 220ms ease-out;
+}
+
+/* ===== Sổ tay bưu thiếp ===== */
+.stamps-card {
+  max-width: 430px;
+  width: calc(100vw - 32px);
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.stamps-card .modal-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.stamps-count {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--gold, #e8b84b);
+  white-space: nowrap;
+}
+
+.stamps-hint {
+  margin: 4px 0 10px;
+  font-size: 11px;
+  line-height: 1.45;
+  opacity: 0.75;
+}
+
+.stamps-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.stamps-row {
+  display: grid;
+  grid-template-columns: 1.6fr repeat(6, 1fr);
+  gap: 3px;
+  align-items: center;
+}
+
+.stamps-cell {
+  text-align: center;
+  font-size: 12px;
+  padding: 5px 2px;
+  border-radius: 4px;
+  background: rgba(243, 234, 214, 0.06);
+  line-height: 1.2;
+}
+
+.stamps-cell.stamps-landmark {
+  text-align: left;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  background: transparent;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stamps-row-head .stamps-cell {
+  background: transparent;
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+.stamps-cell.is-got {
+  background: rgba(47, 184, 148, 0.22);
+  box-shadow: inset 0 0 0 1px rgba(47, 184, 148, 0.5);
+}
+
+.stamps-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}

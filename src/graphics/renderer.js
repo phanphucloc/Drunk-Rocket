@@ -2,7 +2,7 @@
  * Canvas 2D Vector & Pixel-Art Entity Renderer
  * Cyber Neon Arcade Palette with Goofy Comedic Cartoon Styling
  */
-import { KITE_STAGES } from '../core/progression.js';
+import { getKiteStyle } from '../core/progression.js';
 
 export const PALETTE = {
   VOID: '#0b0e14',
@@ -43,15 +43,22 @@ export function drawRocket(ctx, x, y, options = {}) {
   const isSmashing = !!options.isSmashing;
   const justScored = !!options.justScored;
 
-  const stageIdx = Math.max(0, Math.min(KITE_STAGES.length - 1, (options.stage || 1) - 1));
-  const style = KITE_STAGES[stageIdx];
+  // Hình dáng theo VÒNG (1..5) + phẩm sắc theo TỈNH trong vòng (1..5)
+  const style = getKiteStyle(options.stage || 1, options.colorStage || 1);
   const shape = style.shape || 'paper';
 
   const paper = isDead ? '#8d939c' : style.paper;
   const paperLight = isDead ? '#b3b8bf' : style.light;
   const paperDark = isDead ? '#6d727a' : style.dark;
-  const trim = isDead ? '#8a4a4f' : style.trim;
-  const jade = isDead ? '#5f7f7a' : style.motif;
+  let trim = isDead ? '#8a4a4f' : style.trim;
+  let jade = isDead ? '#5f7f7a' : style.motif;
+
+  // Phẩm sắc "Ngũ Sắc" (tỉnh cuối mỗi vòng): viền & hoạ tiết chuyển màu cầu vồng
+  if (style.rainbow && !isDead) {
+    const hue = (dizzyTime * 55) % 360;
+    trim = `hsl(${hue.toFixed(0)}, 88%, 56%)`;
+    jade = `hsl(${((hue + 150) % 360).toFixed(0)}, 82%, 62%)`;
+  }
   const bamboo = '#8a6a3a';
   const bambooDark = '#5a4425';
 
@@ -426,6 +433,13 @@ export function drawRocket(ctx, x, y, options = {}) {
       ctx.quadraticCurveTo(-9, -10, -13, 0);
       ctx.quadraticCurveTo(-9, 10, 0, 13);
       ctx.quadraticCurveTo(9, 11, 17, 0);
+    } else if (style.stage === 2) {
+      // DIỀU SÁO: thân "cánh cung" rộng hơn cấp 1, mép sau hơi lượn
+      ctx.moveTo(18, 0);
+      ctx.quadraticCurveTo(12, -9.5, 2, -13.5);
+      ctx.quadraticCurveTo(-8, -10, -14, 0);
+      ctx.quadraticCurveTo(-8, 10, 2, 13.5);
+      ctx.quadraticCurveTo(12, 9.5, 18, 0);
     } else {
       ctx.moveTo(16, 0);
       ctx.quadraticCurveTo(10, -8, 1, -12);
@@ -439,6 +453,41 @@ export function drawRocket(ctx, x, y, options = {}) {
     ctx.strokeStyle = trim;
     ctx.lineWidth = 1.8;
     ctx.stroke();
+
+    // ---- DIỀU SÁO: 2 vây nhỏ + viền vàng kép + núm tua ----
+    if (style.stage === 2 && !isDead) {
+      // vây trên/dưới (nhỏ hơn nhiều so với cánh lụa cấp 3)
+      ctx.fillStyle = paperLight;
+      ctx.strokeStyle = trim;
+      ctx.lineWidth = 1;
+      for (const dir of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(4, dir * 10);
+        ctx.quadraticCurveTo(-2, dir * 18, -10, dir * 14);
+        ctx.quadraticCurveTo(-5, dir * 11, 1, dir * 9);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      }
+      // viền vàng mảnh bên trong
+      ctx.strokeStyle = 'rgba(232, 184, 75, 0.85)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(14.5, 0);
+      ctx.quadraticCurveTo(9, -7.5, 2, -10.6);
+      ctx.quadraticCurveTo(-6.5, -7.6, -11.4, 0);
+      ctx.quadraticCurveTo(-6.5, 7.6, 2, 10.6);
+      ctx.quadraticCurveTo(9, 7.5, 14.5, 0);
+      ctx.stroke();
+      // núm tua ở đuôi
+      ctx.fillStyle = '#ffd76a';
+      ctx.beginPath();
+      ctx.arc(-13, 0, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(179, 23, 42, 0.8)';
+      ctx.lineWidth = 0.9;
+      ctx.stroke();
+    }
 
     // vệt sáng trên cánh
     if (!isDead) {
@@ -803,7 +852,8 @@ export class EntityRenderer {
       isDead: !!options.isDead,
       isSmashing: !!options.isSmashing,
       justScored: !!options.justScored,
-      stage: options.stage || rocket.kiteStage || 1
+      stage: options.stage || rocket.kiteStage || 1,
+      colorStage: options.colorStage || rocket.colorStage || 1
     });
   }
 

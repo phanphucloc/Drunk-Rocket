@@ -1,0 +1,2341 @@
+﻿
+===== src/core/game.js =====
+
+import { InputManager } from './input.js';
+import { Rocket } from '../entities/rocket.js';
+import { LaserPillarManager } from '../entities/laserPillar.js';
+import { EnergyCellManager } from '../entities/energyCell.js';
+import { Starfield } from '../graphics/starfield.js';
+import { WeatherSystem } from '../graphics/weather.js';
+import { ScenicLandmarksManager } from '../graphics/scenicLandmarks.js';
+import { drawNightLights } from '../graphics/nightLights.js';
+import { ParticleSystem } from '../graphics/particles.js';
+import { EntityRenderer } from '../graphics/renderer.js';
+import { AudioSynthesizer } from '../audio/audioSynth.js';
+import { HUD } from '../ui/hud.js';
+import { StoryOverlay } from '../ui/storyOverlay.js';
+import { infoPanels } from '../ui/infoPanels.js';
+import { LeaderboardModal } from '../ui/leaderboardModal.js';
+import { ShareCard } from '../ui/shareCard.js';
+import { PerkDraftManager } from './perks.js';
+import { GhostManager } from '../entities/ghosts.js';
+import { getProgression, getThemeForScore, difficultyFor } from './progression.js';
+import { toggleLang, t } from '../i18n.js';
+
+export class Game {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+
+    this.width = 400;
+    this.height = 700;
+    this.scale = 1;
+
+    this.state = 'READY';
+
+    this.input = new InputManager(this.canvas);
+    this.audio = new AudioSynthesizer();
+    this.starfield = new Starfield(this.width, this.height);
+    this.scenic = new ScenicLandmarksManager(this.width, this.height);
+    // Thá»i tiáº¿t váº½ Ä‘Ã¨ lÃªn cáº£nh Ä‘á»‹a danh nÃªn luÃ´n nhÃ¬n tháº¥y; starfield chá»‰ cÃ²n giá»¯ ná»n trá»i.
+    this.starfield.externalWeather = true;
+    this.starfield.weather = 'none';
+    this.weather = new WeatherSystem(this.width, this.height);
+    this.weather.onAmbientChange = (ambient) => {
+      if (this.audio && this.audio.setAmbientTheme) this.audio.setAmbientTheme(ambient);
+    };
+    this.weather.onLightning = () => {
+      if (this.audio && this.audio.playThunderClap) this.audio.playThunderClap();
+    };
+    this.particles = new ParticleSystem();
+    this.pillars = new LaserPillarManager(this.width, this.height);
+    this.energyCells = new EnergyCellManager(this.width, this.height);
+    this.hud = new HUD(this.width, this.height);
+    this.story = new StoryOverlay(this.width, this.height);
+    this.rocket = new Rocket(100, 320);
+    this.perks = new PerkDraftManager(this);
+    this.ghosts = new GhostManager();
+    this.currentTheme = getThemeForScore(0);
+    this.kiteStage = 1;
+    this.difficulty = difficultyFor(0);
+    this.lapNumber = 1;
+    this.chapterNumber = 1;
+    this._chapterGlobal = 0;
+    this.starfield.setTheme(this.currentTheme);
+    this.weather.setTheme(this.currentTheme);
+    if (this.audio && this.audio.setAmbientTheme) this.audio.setAmbientTheme(this.weather.ambient, true);
+    if (this.audio && this.audio.setMusicTheme) this.audio.setMusicTheme(this.currentTheme.music, true);
+    this.dragonCelebrated = false;
+    this.introShown = false;
+    this.paused = false;
+    // Báº¥t tá»­ ngáº¯n má»—i láº§n Ä‘á»•i chÆ°Æ¡ng (trÃ¡nh cháº¿t oan khi cáº£nh vá»«a Ä‘á»•i, ngÆ°á»i chÆ¡i Ä‘ang nhÃ¬n)
+    this.invincibleTimer = 0;
+    if (infoPanels) infoPanels.setLandmark(this.currentTheme, 1, 1);
+
+    // Active Perk Modifiers
+    this.shieldActive = false;
+    this.hasQuantumDrift = false;
+    this.quantumTimer = 0;
+    this.quantumCooldownTimer = 0;
+    this.quantumMaxCooldown = 4.0;
+    this.hasDrunkMagnet = false;
+    this.magnetParticleTimer = 0;
+    this.perkDraftCooldown = 0;
+    this.nearMissMultiplier = 1;
+    this.smashChainCount = 1;
+    this.smashedCountInSupernova = 0;
+    this.maxSmashCount = 1;
+    this.passiveChargeRate = 0;
+    this.perkDurations = {};
+
+    // Visual expression feedback
+    this.justScoredTimer = 0;
+
+    this.leaderboard = new LeaderboardModal('https://drunk-rocket-backend.ppldhsp.workers.dev');
+
+    // Scoring & Overdrive
+    this.score = 0;
+    this.bestScore = parseInt(localStorage.getItem('drunk_rocket_best') || '0', 10);
+    this.deathCount = parseInt(localStorage.getItem('drunk_rocket_deaths') || '0', 10);
+
+    // Drunk-Meter Overdrive (0 to 100)
+    this.drunkMeter = 0;
+    this.isSmashActive = false;
+    this.smashDuration = 0;
+    this.smashTargetX = 100;
+    this.originalRocketX = 100;
+
+    // Timers
+    this.lastTime = 0;
+    this.totalTime = 0;
+    this.timeSinceDeath = 0;
+    this.runStartTime = 0;
+    this.isRunning = false;
+
+    this._onScore = this._onScore.bind(this);
+    this._onNearMiss = this._onNearMiss.bind(this);
+    this._onCollectCell = this._onCollectCell.bind(this);
+    this.loop = this.loop.bind(this);
+
+    // KÃ­ch hoáº¡t sáº¥m sÃ©t Ä‘á»“ng bá»™ vá»›i chá»›p Ä‘iá»‡n áº£nh
+    if (this.starfield) {
+      this.starfield.onLightning = () => {
+        if (this.audio) this.audio.playThunderClap();
+      };
+    }
+
+    // Káº¿t ná»‘i nÃºt báº¥m thanh cÃ´ng cá»¥ TOP, Ã‚m thanh & Game Over
+    this._bindToolbarButtons();
+
+    // Pointer move listener for card hover effects
+    this.canvas.addEventListener('pointermove', (e) => {
+      if (this.perks && this.perks.isDrafting) {
+        const rect = this.canvas.getBoundingClientRect();
+        const clientX = (e.clientX - rect.left) * (this.width / rect.width);
+        const clientY = (e.clientY - rect.top) * (this.height / rect.height);
+        this.perks.setHover(clientX, clientY);
+        this.canvas.style.cursor = this.perks.hoveredIndex !== -1 ? 'pointer' : 'default';
+      } else {
+        this.canvas.style.cursor = 'default';
+      }
+    });
+
+    // Pointer down listener for card selection
+    this.canvas.addEventListener('pointerdown', (e) => {
+      // Direct click on Overdrive Orb when full (center: cx = width/2, cy = 126, radius = 35)
+      const rect = this.canvas.getBoundingClientRect();
+      const clickX = (e.clientX - rect.left) * (this.width / rect.width);
+      const clickY = (e.clientY - rect.top) * (this.height / rect.height);
+      const distToOrb = Math.hypot(clickX - this.width / 2, clickY - 126);
+      if (this.state === 'PLAYING' && this.drunkMeter >= 100 && this.score >= 10 && distToOrb <= 36) {
+        e.preventDefault();
+        e.stopPropagation();
+        this._triggerSupernovaSmash();
+        return;
+      }
+      if (this.perks && this.perks.isDrafting) {
+        const rect = this.canvas.getBoundingClientRect();
+        const clientY = (e.clientY - rect.top) * (this.height / rect.height);
+        let cardIdx = -1;
+        if (clientY >= 240 && clientY <= 315) cardIdx = 0;
+        else if (clientY >= 335 && clientY <= 410) cardIdx = 1;
+        else if (clientY >= 430 && clientY <= 505) cardIdx = 2;
+
+        if (cardIdx !== -1) {
+          e.preventDefault();
+          e.stopPropagation();
+          this.perks.selectCard(cardIdx);
+          this.input.consumeTap();
+          this.input.consumeDoubleTap();
+        }
+      }
+    });
+
+    this.resize();
+    window.addEventListener('resize', () => this.resize());
+    window.addEventListener('keydown', (e) => {
+      if (this.perks && this.perks.isDrafting) {
+        let cardIdx = -1;
+        if (e.key === '1') cardIdx = 0;
+        else if (e.key === '2') cardIdx = 1;
+        else if (e.key === '3') cardIdx = 2;
+
+        if (cardIdx !== -1) {
+          e.preventDefault();
+          e.stopPropagation();
+          this.perks.selectCard(cardIdx);
+          this.input.consumeTap();
+          this.input.consumeDoubleTap();
+        }
+      }
+    });
+  }
+
+  resize() {
+    const windowWidth = window.innerWidth;
+    const windowHeight = window.innerHeight;
+
+    const scaleX = windowWidth / this.width;
+    const scaleY = windowHeight / this.height;
+    this.scale = Math.min(scaleX, scaleY);
+
+    // Backing store giá»¯ 400x700 (má»i há»‡ toáº¡ Ä‘á»™ trong game dÃ¹ng há»‡ nÃ y).
+    this.canvas.width = this.width;
+    this.canvas.height = this.height;
+
+    // NHÆ¯NG pháº£i thu khung hiá»ƒn thá»‹ (CSS) theo mÃ n hÃ¬nh â€” trÆ°á»›c Ä‘Ã¢y thiáº¿u bÆ°á»›c nÃ y
+    // nÃªn trÃªn Ä‘iá»‡n thoáº¡i háº¹p (<400px) canvas trÃ n ra ngoÃ i, cáº¯t máº¥t 2 bÃªn.
+    const cssW = Math.max(1, Math.floor(this.width * this.scale));
+    const cssH = Math.max(1, Math.floor(this.height * this.scale));
+    this.canvas.style.width = cssW + 'px';
+    this.canvas.style.height = cssH + 'px';
+
+    if (this.scenic) this.scenic.resize(this.width, this.height);
+    if (this.weather) this.weather.resize(this.width, this.height);
+    if (this.story) this.story.resize(this.width, this.height);
+  }
+
+  start() {
+    this.isRunning = true;
+    this.lastTime = performance.now();
+    requestAnimationFrame(this.loop);
+  }
+
+  _restart() {
+    this.score = 0;
+    this.drunkMeter = 0;
+    this.isSmashActive = false;
+    this.smashDuration = 0;
+    this.smashedCountInSupernova = 0;
+    this.maxSmashCount = 1;
+    this.rocket.reset(100, 320);
+    this.rocket.scale = 1.0;
+    this.rocket.radius = 12;
+    this.rocket.isQuantum = false;
+    this.justScoredTimer = 0;
+    if (this.perks) this.perks.reset();
+    this.shieldActive = false;
+    this.hasQuantumDrift = false;
+    this.quantumTimer = 0;
+    this.quantumCooldownTimer = 0;
+    this.hasDrunkMagnet = false;
+    this.magnetParticleTimer = 0;
+    this.perkDraftCooldown = 0;
+    this.nearMissMultiplier = 1;
+    this.smashChainCount = 1;
+    this.passiveChargeRate = 0;
+    this.perkDurations = {};
+    this.pillars.reset();
+    this.energyCells.reset();
+    this.particles.reset();
+    this.currentTheme = getThemeForScore(0);
+    this.kiteStage = 1;
+    this.lapNumber = 1;
+    this.difficulty = difficultyFor(0);
+    this.chapterNumber = 1;
+    this._chapterGlobal = 0;
+    if (this.starfield) this.starfield.setTheme(this.currentTheme);
+    if (this.weather) this.weather.setTheme(this.currentTheme);
+    if (this.audio) {
+      if (this.audio.stopLaserProximity) this.audio.stopLaserProximity();
+      if (this.audio.stopAmbient) this.audio.stopAmbient();
+    }
+    const gameoverActions = document.getElementById('gameover-actions');
+    if (gameoverActions) gameoverActions.classList.add('hidden');
+    this.state = 'READY';
+    this.timeSinceDeath = 0;
+    this.dragonCelebrated = false;
+    this.invincibleTimer = 0;
+    if (infoPanels) infoPanels.setLandmark(this.currentTheme, 1, 1);
+    if (this.audio && this.audio.setMusicTheme) this.audio.setMusicTheme(this.currentTheme.music, true);
+    if (this.story) this.story.phase = 'idle';
+  }
+
+  _onScore(pillar) {
+    this.score += 1;
+    this.justScoredTimer = 0.6; // Cheerful expression timer
+    const prevChapter = this._chapterGlobal;
+    const prevLap = this.lapNumber;
+    const prog = getProgression(this.score);
+    this.currentTheme = prog.theme;
+    this.kiteStage = prog.kiteStage;
+    this.lapNumber = prog.lapNumber;
+    this.chapterNumber = prog.chapterNumber;
+    this._chapterGlobal = prog.globalChapter;
+    this.difficulty = difficultyFor(prog.lapIndex);
+
+    const chapterChanged = prevChapter !== undefined && prog.globalChapter !== prevChapter;
+    const lapChanged = prevLap !== undefined && prog.lapNumber !== prevLap;
+    if (chapterChanged || lapChanged) {
+      this.starfield.setTheme(this.currentTheme);
+      if (this.weather) this.weather.setTheme(this.currentTheme);
+      if (this.scenic) this.scenic.setTier(this.currentTheme.tier);
+      this.hud.triggerSmashEffects();
+      // 1.2s báº¥t tá»­: ngÆ°á»i chÆ¡i vá»«a "sang vÃ¹ng má»›i", cho há» 1 nhá»‹p thá»Ÿ
+      this.invincibleTimer = 1.2;
+      // Äá»•i bá»™ nháº¡c theo vÃ¹ng miá»n (crossfade)
+      if (this.audio && this.audio.setMusicTheme) this.audio.setMusicTheme(this.currentTheme.music);
+      // LÃªn vÃ²ng = lÃªn cáº¥p diá»u -> tiáº¿ng "lÃªn dÃ¢y" riÃªng cho tá»«ng cáº¥p
+      if (lapChanged && this.audio && this.audio.playKiteUpgrade) this.audio.playKiteUpgrade(prog.kiteStage);
+      // Cáº­p nháº­t Ã´ giá»›i thiá»‡u Ä‘á»‹a danh á»Ÿ gÃ³c pháº£i (báº¥m vÃ o Ä‘á»ƒ xem chi tiáº¿t)
+      if (infoPanels) infoPanels.setLandmark(this.currentTheme, prog.lapNumber, prog.chapterNumber);
+    }
+
+    // (ÄÃ£ bá» má»‘c 30 Ä‘iá»ƒm "hoÃ¡ rá»“ng" â€” cáº¥p báº­c giá» theo VÃ’NG: má»—i vÃ²ng lÃªn 1 cáº¥p diá»u)
+
+    // Regular pillar gives +10% Overdrive (10 pillars cleared = 100% Smash ready)
+    this.drunkMeter = Math.min(100, this.drunkMeter + 10);
+    this.audio.playScore(); // Cheerful "HEYYY!" sound
+    this.particles.emitScoreSparkles(this.rocket.x + 20, this.rocket.y);
+
+    const pX = pillar ? pillar.x + (pillar.width || 52) / 2 : this.rocket.x + 20;
+    const pY = pillar ? pillar.gapY : this.rocket.y;
+    this.particles.emitEnergySiphon(pX, pY, this.width / 2, 126, 9);
+
+    // Spawn 2 to 4 moving floating energy particles midway between the cleared pillar and upcoming pillar
+    const upcomingPillars = this.pillars.pillars.filter(p => !p.passed && !p.isDestroyed && p.x > (pillar ? pillar.x : this.rocket.x));
+    const nextPillar = upcomingPillars.length > 0 ? upcomingPillars[0] : null;
+
+    let midX;
+    if (nextPillar && pillar) {
+      const clearedRight = pillar.x + (pillar.width || 52);
+      midX = (clearedRight + nextPillar.x) / 2;
+    } else if (pillar) {
+      midX = pillar.x + (pillar.width || 52) + 160;
+    } else {
+      midX = this.rocket.x + 180;
+    }
+
+    const clusterCount = Math.floor(Math.random() * 3) + 2; // 2, 3, or 4 cells
+    const midY = (pillar && nextPillar) ? (pillar.gapY + nextPillar.gapY) / 2 : (pillar ? pillar.gapY : 350);
+    this.energyCells.spawnCluster(midX, midY, clusterCount);
+
+    if (this.perks) this.perks.onPassPillar();
+
+    if (this.perks) this.perks.checkMilestone(this.score);
+    if (this.ghosts && pillar) this.ghosts.spawnForPillar(pillar, this.score);
+    if (this.score > this.bestScore) {
+      this.bestScore = this.score;
+      localStorage.setItem('drunk_rocket_best', this.bestScore.toString());
+    }
+  }
+
+  _onNearMiss(pillar) {
+    const bonus = 2 * this.nearMissMultiplier;
+    this.score += bonus;
+    this.justScoredTimer = 0.8;
+    this.drunkMeter = Math.min(100, this.drunkMeter + (12 * this.nearMissMultiplier));
+    this.audio.playNearMiss();
+    this.hud.showNearMiss(bonus);
+    this.particles.emitNearMiss(this.rocket.x, this.rocket.y);
+
+    const pX = pillar ? pillar.x + (pillar.width || 52) / 2 : this.rocket.x + 20;
+    const pY = pillar ? pillar.gapY : this.rocket.y;
+    this.particles.emitEnergySiphon(pX, pY, this.width / 2, 126, 14);
+
+    if (this.perks) this.perks.checkMilestone(this.score);
+    if (this.ghosts && pillar) this.ghosts.spawnForPillar(pillar, this.score);
+    if (this.score > this.bestScore) {
+      this.bestScore = this.score;
+      localStorage.setItem('drunk_rocket_best', this.bestScore.toString());
+    }
+  }
+
+  /**
+   * Energy cell pickup: DOES NOT ADD LEVEL SCORE, ONLY CHARGES OVERDRIVE SMASH (+4% each)
+   */
+  _onCollectCell(cell) {
+    this.drunkMeter = Math.min(100, this.drunkMeter + 2);
+    if (this.audio.playCellCollect) {
+      this.audio.playCellCollect();
+    }
+    this.particles.emitCellPickup(cell.x, cell.y);
+    this.particles.emitEnergySiphon(cell.x, cell.y, this.width / 2, 126, 6);
+  }
+
+  _triggerSupernovaSmash(forcedChain = false) {
+    if (this.isSmashActive) return;
+    if (!forcedChain && (this.drunkMeter < 100 || this.score < 10)) return;
+
+    this.isSmashActive = true;
+    this.drunkMeter = 0;
+    this.originalRocketX = this.rocket.x;
+    const isChain = forcedChain || (this.smashChainCount >= 2);
+
+    this.audio.playSmash(isChain);
+    this.hud.triggerSmashEffects();
+
+    // 1. Pha huy cot: Neu co Chain Reaction thi pha 2 cot, con Smash thuong thi pha 1 cot
+    const targetCount = isChain ? 2 : 1;
+    const smashedList = this.pillars.destroyFrontPillars(this.rocket.x, targetCount);
+
+    // Xac dinh dich den (Destination X) dua vao vi tri cot xa nhat bi pha
+    let targetX = this.rocket.x + 160;
+    if (smashedList.length > 0) {
+      const lastPillar = smashedList[smashedList.length - 1];
+      targetX = lastPillar.x + (lastPillar.width || 52) / 2;
+    } else {
+      targetX = isChain ? this.width - 45 : this.width / 2 + 50;
+    }
+
+    // Gioi han dich den trong man hinh an toan
+    this.smashTargetX = Math.min(this.width - 45, Math.max(this.rocket.x + 90, targetX));
+    this.smashStartX = this.rocket.x;
+    // Thoi gian luot: 0.95s cho 2 cot, 0.70s cho 1 cot
+    this.smashTotalDuration = isChain ? 0.95 : 0.70;
+    this.smashDuration = this.smashTotalDuration;
+
+    // Kich hoat hieu ung no tung va cong diem (+3 moi cot)
+    for (const smashed of smashedList) {
+      this.score += 3;
+      this.particles.emitPillarSmash(smashed.x + (smashed.width || 52) / 2, smashed.gapY || 350);
+      if (this.ghosts) this.ghosts.spawnForPillar(smashed, this.score);
+    }
+    if (this.score > this.bestScore) {
+      this.bestScore = this.score;
+      localStorage.setItem('drunk_rocket_best', this.bestScore.toString());
+    }
+  }
+
+  /** Táº¡m dá»«ng toÃ n bá»™ gameplay (dÃ¹ng khi má»Ÿ popup/báº£ng Ä‘iá»ƒm/cÃ i Ä‘áº·t). */
+  setPaused(paused) {
+    const next = !!paused;
+    if (this.paused === next) return;
+    this.paused = next;
+
+    if (this.input) {
+      this.input.consumeTap();
+      this.input.consumeDoubleTap();
+    }
+    if (this.audio) {
+      if (next) {
+        if (this.audio.stopLaserProximity) this.audio.stopLaserProximity();
+        if (this.audio.setMusicDuck) this.audio.setMusicDuck(0.35);
+      } else if (this.audio.setMusicDuck) {
+        this.audio.setMusicDuck(1);
+      }
+    }
+  }
+
+  _die() {
+    if (this.state === 'GAMEOVER') return;
+    this.state = 'GAMEOVER';
+    if (this.audio && this.audio.stopLaserProximity) this.audio.stopLaserProximity();
+    this.timeSinceDeath = 0;
+    this.deathCount++;
+    localStorage.setItem('drunk_rocket_deaths', this.deathCount.toString());
+
+    this.audio.playCrash(); // Comic "QUÃ‰O QUÃˆO QUEO" failure sound
+    this.hud.triggerCrashEffects();
+
+    const safeX = typeof this.rocket.x === 'number' && !isNaN(this.rocket.x) ? this.rocket.x : 100;
+    const safeY = typeof this.rocket.y === 'number' && !isNaN(this.rocket.y) ? Math.min(Math.max(this.rocket.y, 20), this.height - 20) : 350;
+    this.particles.emitExplosion(safeX, safeY);
+
+    const runDuration = performance.now() - this.runStartTime;
+    if (this.ghosts) this.ghosts.submitGhost(localStorage.getItem('drunk_player_name') || 'ACE', this.score, safeY);
+    const gameoverActions = document.getElementById('gameover-actions');
+    if (gameoverActions) gameoverActions.classList.remove('hidden');
+    if (this.leaderboard) {
+      this.leaderboard.show(this.score, runDuration);
+    }
+  }
+
+  update(dt) {
+    if (this.paused) {
+      if (this.input) {
+        this.input.consumeTap();
+        this.input.consumeDoubleTap();
+      }
+      return;
+    }
+    this.totalTime += dt;
+    this.hud.update(dt);
+    if (this.audio && this.audio.updateAmbientTick) {
+      this.audio.updateAmbientTick(dt);
+    }
+    if (this.audio && this.audio.updateMusicTick) {
+      this.audio.updateMusicTick(dt);
+    }
+    this.particles.update(dt);
+    this.starfield.update(dt, this.state === 'PLAYING' ? 1 : 0.2);
+    if (this.scenic) this.scenic.update(dt, this.currentTheme ? this.currentTheme.tier : 1);
+    if (this.weather) this.weather.update(dt);
+
+    if (this.invincibleTimer > 0) this.invincibleTimer = Math.max(0, this.invincibleTimer - dt);
+
+    // Äá»™ sÃ¡ng cá»§a Ä‘Ã¨n ban Ä‘Ãªm: trá»i cÃ ng tá»‘i (mÆ°a giÃ´ng, Ä‘Ãªm, sÆ°Æ¡ng) Ä‘Ã¨n cÃ ng rÃµ
+    const darkTarget = (this.weather && this.weather.isDark) ? 1 : 0;
+    this.nightLevel = (this.nightLevel || 0) + (darkTarget - (this.nightLevel || 0)) * Math.min(1, dt * 2.2);
+    if (this.story) this.story.update(dt);
+
+    if (this.leaderboard && this.leaderboard.isOpen) {
+      this.input.consumeTap();
+      this.input.consumeDoubleTap();
+      return;
+    }
+
+    if (this.justScoredTimer > 0) {
+      this.justScoredTimer -= dt;
+    }
+
+    // 1. Freeze game loop during Pre-draft (1.0s), Drafting, and Post-draft (1.0s)
+    if (this.perks && (this.perks.isPreDraft || this.perks.isDrafting || this.perks.isPostDraft)) {
+      // Freeze rocket velocity and orientation completely in mid-air
+      this.rocket.vx = 0;
+      this.rocket.vy = 0;
+      this.input.consumeTap();
+      this.input.consumeDoubleTap();
+      this.perks.update(dt);
+      return;
+    }
+
+    if (this.passiveChargeRate > 0) {
+      this.drunkMeter = Math.min(100, this.drunkMeter + this.passiveChargeRate * dt);
+    }
+
+    // Drunk Magnet ambient suction VFX
+    if (this.hasDrunkMagnet) {
+      this.magnetParticleTimer += dt;
+      if (this.magnetParticleTimer >= 0.3) {
+        this.magnetParticleTimer = 0;
+        this.particles.emitMagnetSuction(this.rocket.x, this.rocket.y, 2);
+      }
+    }
+
+    // Quantum Drift cooldown timer
+    if (this.quantumCooldownTimer > 0) {
+      this.quantumCooldownTimer -= dt;
+    }
+
+    // Quantum Drift active duration timer
+    if (this.quantumTimer > 0) {
+      this.quantumTimer -= dt;
+      this.rocket.isQuantum = (this.quantumTimer > 0);
+      for (const p of this.pillars.pillars) {
+        if (this.rocket.x >= p.x - 30 && this.rocket.x <= p.x + p.width + 30) {
+          p.quantumPhased = true;
+        }
+      }
+    } else {
+      this.rocket.isQuantum = false;
+    }
+
+    const hasTap = this.input.consumeTap();
+    const hasDoubleTap = this.input.consumeDoubleTap();
+
+    if (this.state === 'READY') {
+      if (this.leaderboard && this.leaderboard.isOpen) {
+        this.input.consumeTap();
+        this.input.consumeDoubleTap();
+        return;
+      }
+      this.rocket.y = 320 + Math.sin(this.totalTime * 4) * 8;
+      this.rocket.rotation = Math.sin(this.totalTime * 3) * 0.1;
+
+      if (hasTap || hasDoubleTap) {
+        this.state = 'PLAYING';
+        this.runStartTime = performance.now();
+        this.invincibleTimer = Math.max(this.invincibleTimer, 1.0);
+        this.rocket.thrust();
+        this.audio.playThrust();
+        if (this.audio.setAmbientTheme && this.weather) {
+          this.audio.setAmbientTheme(this.weather.ambient || 'birds');
+        }
+        this.particles.emitThrust(this.rocket.x, this.rocket.y, this.rocket.rotation);
+      }
+    } else if (this.state === 'PLAYING') {
+      if (hasDoubleTap && this.drunkMeter >= 100) {
+        this._triggerSupernovaSmash();
+      }
+
+      // Supernova Smash: Äá»‘t chÃ¡y lá»­a rá»“ng vÃ  lÆ°á»›t tháº³ng Ä‘áº¿n vá»‹ trÃ­ cá»™t bá»‹ phÃ¡
+      if (this.isSmashActive) {
+        this.smashDuration -= dt;
+        const elapsed = this.smashTotalDuration - this.smashDuration;
+        const t = Math.min(1, Math.max(0, elapsed / this.smashTotalDuration));
+
+        // HÃ m chuyá»ƒn Ä‘á»™ng lÆ°á»›t phi tiÃªu (Ease-Out Cubic)
+        const easeT = 1 - Math.pow(1 - t, 3);
+
+        if (t < 0.72) {
+          // Giai Ä‘oáº¡n 1: LÆ°á»›t tháº§n tá»‘c tá»›i Ä‘Ã­ch cá»™t bá»‹ phÃ¡ há»§y
+          const forwardT = t / 0.72;
+          this.rocket.x = this.smashStartX + (this.smashTargetX - this.smashStartX) * (1 - Math.pow(1 - forwardT, 2.5));
+          this.rocket.angle = -0.15; // Giá»¯ mÅ©i hÆ°á»›ng tháº³ng vá» trÆ°á»›c
+          this.rocket.vy = 0; // KhÃ´ng bá»‹ rÆ¡i trong lÃºc lÆ°á»›t
+        } else {
+          // Giai Ä‘oáº¡n 2: TrÃ´i Ãªm Ã¡i vá» vá»‹ trÃ­ bay chuáº©n
+          const returnT = (t - 0.72) / 0.28;
+          this.rocket.x = this.smashTargetX + (this.originalRocketX - this.smashTargetX) * (returnT * returnT);
+          this.rocket.vy = 0;
+        }
+
+        // Äá»‘t lá»­a rá»“ng pháº£n lá»±c cuá»“n cuá»™n phÃ­a sau Ä‘uÃ´i
+        this.particles.emitSmashFireTrail(this.rocket.x, this.rocket.y, this.rocket.angle || 0);
+
+        // KHI Káº¾T THÃšC HOÃ€N TOÃ€N CÃš LÆ¯á»šT: Tráº£ vá» vá»‹ trÃ­ chuáº©n vÃ  KIá»‚M TRA HIá»†N Báº¢NG CHá»ŒN THáºº BÃ€I!
+        if (this.smashDuration <= 0) {
+          this.isSmashActive = false;
+          this.rocket.x = this.originalRocketX;
+          this.rocket.vx = 0;
+          this.rocket.vy = 0;
+
+          // Chain Reaction dÃ¹ng 1 láº§n lÃ  háº¿t -> reset vá» 1 cá»™t
+          this.smashChainCount = 1;
+
+          // Sau khi lÆ°á»›t xong cá»™t má»›i kiá»ƒm tra Ä‘iá»ƒm Ä‘á»ƒ hiá»‡n báº£ng chá»n tháº» bÃ i
+          if (this.perks) {
+            this.perks.checkMilestone(this.score);
+          }
+        }
+      }
+
+      if (hasTap && !this.isSmashActive) {
+        this.rocket.thrust();
+        this.audio.playThrust();
+        this.particles.emitThrust(this.rocket.x, this.rocket.y, this.rocket.rotation);
+
+        if (this.hasQuantumDrift && this.quantumCooldownTimer <= 0) {
+          this.quantumTimer = 1.8;
+          this.quantumCooldownTimer = this.quantumMaxCooldown;
+          this.rocket.isQuantum = true;
+          this.audio.playMedal();
+        }
+      }
+
+      if (this.isSmashActive) {
+        // Trong lÃºc Ä‘ang Smash, giá»¯ nguyÃªn vá»‹ trÃ­ lÆ°á»›t vÃ  khÃ´ng cho trá»ng lá»±c kÃ©o rÆ¡i
+        this.rocket.vy = 0;
+        this.rocket.isThrusting = true;
+      } else {
+        this.rocket.update(dt, false, this.totalTime);
+      }
+      this.pillars.update(dt, this.rocket, this._onScore, this._onNearMiss, this.score, this.difficulty);
+      this.energyCells.update(dt, this.pillars.speed, this.rocket, this.hasDrunkMagnet, this._onCollectCell);
+      if (this.ghosts) this.ghosts.update(dt, this.pillars.speed);
+
+      // Proximity Laser Hum & Electric Crackle ("xáº¹t xáº¹t" gets louder as rocket approaches beam)
+      if (!this.isSmashActive && this.quantumTimer <= 0) {
+        let maxProximity = 0;
+        for (const p of this.pillars.pillars) {
+          if (p.isDestroyed) continue;
+          if (p.x + p.width > this.rocket.x - 45 && p.x < this.rocket.x + 220) {
+            const cx = p.x + p.width / 2;
+            const cy = p.gapY;
+            let rx = this.rocket.x;
+            let ry = this.rocket.y;
+            if (p.angle !== 0) {
+              const cos = Math.cos(-p.angle);
+              const sin = Math.sin(-p.angle);
+              const dx = this.rocket.x - cx;
+              const dy = this.rocket.y - cy;
+              rx = cx + (dx * cos - dy * sin);
+              ry = cy + (dx * sin + dy * cos);
+            }
+
+            // Distance to active vertical laser beam in the gap
+            const clampedY = Math.max(p.topY, Math.min(p.bottomY, ry));
+            const distToBeam = Math.hypot(rx - cx, ry - clampedY);
+
+            // Distance to top/bottom emitter heads
+            const distToTopHead = Math.hypot(rx - cx, ry - p.topY);
+            const distToBottomHead = Math.hypot(rx - cx, ry - p.bottomY);
+            const minDist = Math.min(distToBeam, distToTopHead, distToBottomHead);
+
+            const dangerRadius = 180;
+            if (minDist < dangerRadius) {
+              const prox = Math.max(0, 1 - (minDist / dangerRadius));
+              maxProximity = Math.max(maxProximity, prox);
+            }
+          }
+        }
+        if (this.audio && this.audio.updateLaserProximity) {
+          this.audio.updateLaserProximity(maxProximity);
+        }
+      } else {
+        if (this.audio && this.audio.stopLaserProximity) {
+          this.audio.stopLaserProximity();
+        }
+      }
+
+      // Boundary collision check (ceiling or floor)
+      if (!this.isSmashActive && this.invincibleTimer <= 0 && (this.rocket.y - this.rocket.radius <= 0 || this.rocket.y + this.rocket.radius >= this.height)) {
+        this._die();
+        return;
+      }
+
+      // Pillar collision check
+      if (!this.isSmashActive && this.quantumTimer <= 0 && this.invincibleTimer <= 0) {
+        const collided = this.pillars.checkCollision(this.rocket);
+        if (collided) {
+          if (this.shieldActive) {
+            this.shieldActive = false;
+            collided.isDestroyed = true;
+            this.hud.triggerSmashEffects();
+            this.particles.emitPillarSmash(collided.x + (collided.width || 52) / 2, collided.gapY || 350);
+            this.audio.playSmash();
+            this.quantumTimer = 1.2;
+            this.rocket.isQuantum = true;
+          } else {
+            this._die();
+            return;
+          }
+        }
+      }
+    } else if (this.state === 'GAMEOVER') {
+      this.timeSinceDeath += dt;
+      if (this.timeSinceDeath >= 0.1 && (hasTap || hasDoubleTap)) {
+        this._restart();
+      }
+    }
+  }
+
+  render() {
+    this.ctx.save();
+
+    const shake = this.hud.getShakeOffset();
+    this.ctx.translate(shake.x, shake.y);
+
+    this.starfield.draw(this.ctx);
+    if (this.scenic) this.scenic.draw(this.ctx);
+    // Thá»i tiáº¿t: lá»›p mÃ u trá»i + mÃ¢y + sao + náº¯ng (náº±m trÃªn tranh, dÆ°á»›i nhÃ¢n váº­t)
+    if (this.weather) this.weather.drawSky(this.ctx);
+
+    // ÄÃ¨n cá»­a sá»• / Ä‘Ã¨n thuyá»n / Ä‘Ã¨n cáº§u sÃ¡ng lÃªn khi trá»i tá»‘i
+    drawNightLights(this.ctx, this.currentTheme, this.nightLevel || 0, this.totalTime || 0);
+
+    for (const p of this.pillars.pillars) {
+      if (!p.isDestroyed) {
+        EntityRenderer.drawLaserPillar(this.ctx, p, this.height, this.currentTheme);
+      }
+    }
+
+    // Draw Floating Energy Cells
+    this.energyCells.draw(this.ctx);
+
+    this.particles.draw(this.ctx);
+
+    if (this.ghosts) this.ghosts.draw(this.ctx);
+
+    // Draw Drunk Magnet Field Lines around Rocket
+    if (this.hasDrunkMagnet && !this.rocket.isDead && this.state !== 'GAMEOVER') {
+      this.ctx.save();
+      const mPulse = Math.sin(this.totalTime * 6) * 4;
+      const mRadius = 40 + mPulse;
+
+      this.ctx.strokeStyle = 'rgba(0, 240, 255, 0.45)';
+      this.ctx.lineWidth = 1.5;
+      this.ctx.setLineDash([4, 6]);
+
+      this.ctx.beginPath();
+      this.ctx.arc(this.rocket.x, this.rocket.y, mRadius, -Math.PI * 0.7, Math.PI * 0.7);
+      this.ctx.stroke();
+
+      this.ctx.beginPath();
+      this.ctx.arc(this.rocket.x - 6, this.rocket.y, mRadius - 10, -Math.PI * 0.6, Math.PI * 0.6);
+      this.ctx.stroke();
+
+      this.ctx.fillStyle = '#00f0ff';
+      this.ctx.font = 'bold 11px monospace';
+      this.ctx.textAlign = 'center';
+      this.ctx.fillText('ðŸŒª VÃ“ HÃšT GIÃ“', this.rocket.x, this.rocket.y - this.rocket.radius - 12);
+      this.ctx.restore();
+    }
+
+    // Draw Rocket with funny comical styling
+    EntityRenderer.drawRocket(this.ctx, this.rocket, {
+      isDead: this.state === 'GAMEOVER',
+      isSmashing: this.isSmashActive,
+      justScored: this.justScoredTimer > 0,
+      isInvincible: this.invincibleTimer > 0 && this.state === 'PLAYING',
+      stage: this.kiteStage || 1
+    });
+
+    // Quantum Drift Hologram / Ready indicator
+    if (this.hasQuantumDrift && this.state !== 'GAMEOVER') {
+      if (this.quantumTimer > 0) {
+        this.ctx.save();
+        this.ctx.strokeStyle = '#00f0ff';
+        this.ctx.lineWidth = 1.5;
+        this.ctx.setLineDash([4, 4]);
+        this.ctx.beginPath();
+        this.ctx.arc(this.rocket.x, this.rocket.y, this.rocket.radius + 14, 0, Math.PI * 2);
+        this.ctx.stroke();
+
+        for (let qi = 0; qi < 3; qi++) {
+          const qAngle = this.totalTime * 10 + qi * (Math.PI * 2 / 3);
+          const qx1 = this.rocket.x + Math.cos(qAngle) * (this.rocket.radius + 6);
+          const qy1 = this.rocket.y + Math.sin(qAngle) * (this.rocket.radius + 6);
+          const qx2 = this.rocket.x + Math.cos(qAngle + 0.5) * (this.rocket.radius + 14);
+          const qy2 = this.rocket.y + Math.sin(qAngle + 0.5) * (this.rocket.radius + 14);
+          this.ctx.strokeStyle = '#ffffff';
+          this.ctx.beginPath();
+          this.ctx.moveTo(qx1, qy1);
+          this.ctx.lineTo(qx2, qy2);
+          this.ctx.stroke();
+        }
+        this.ctx.restore();
+      } else if (this.quantumCooldownTimer <= 0) {
+        this.ctx.save();
+        this.ctx.strokeStyle = 'rgba(0, 240, 255, 0.4)';
+        this.ctx.lineWidth = 1.2;
+        this.ctx.beginPath();
+        this.ctx.arc(this.rocket.x, this.rocket.y, this.rocket.radius + 6, 0, Math.PI * 2);
+        this.ctx.stroke();
+        this.ctx.restore();
+      }
+    }
+
+    // Beer Bubble Plasma Shield FX
+    if (this.shieldActive && this.state !== 'GAMEOVER') {
+      this.ctx.save();
+      const pulse = Math.sin(this.totalTime * 8) * 2;
+      const shRadius = this.rocket.radius + 12 + pulse;
+
+      const grad = this.ctx.createRadialGradient(
+        this.rocket.x, this.rocket.y, this.rocket.radius * 0.5,
+        this.rocket.x, this.rocket.y, shRadius + 6
+      );
+      grad.addColorStop(0, 'rgba(0, 240, 255, 0.05)');
+      grad.addColorStop(0.65, 'rgba(255, 209, 59, 0.15)');
+      grad.addColorStop(0.95, 'rgba(0, 240, 255, 0.4)');
+      grad.addColorStop(1, 'rgba(0, 240, 255, 0)');
+      this.ctx.fillStyle = grad;
+      this.ctx.beginPath();
+      this.ctx.arc(this.rocket.x, this.rocket.y, shRadius + 6, 0, Math.PI * 2);
+      this.ctx.fill();
+
+      this.ctx.shadowColor = '#00f0ff';
+      this.ctx.shadowBlur = 10;
+      this.ctx.lineWidth = 2.5;
+      this.ctx.strokeStyle = '#00f0ff';
+      this.ctx.beginPath();
+      this.ctx.arc(this.rocket.x, this.rocket.y, shRadius, 0, Math.PI * 2);
+      this.ctx.stroke();
+
+      this.ctx.lineWidth = 1.2;
+      this.ctx.strokeStyle = '#ffd13b';
+      this.ctx.beginPath();
+      this.ctx.arc(this.rocket.x - 3, this.rocket.y - 3, shRadius * 0.75, -Math.PI * 0.4, Math.PI * 0.2);
+      this.ctx.stroke();
+
+      for (let bi = 0; bi < 4; bi++) {
+        const bAngle = this.totalTime * 4 + bi * (Math.PI / 2);
+        const bx = this.rocket.x + Math.cos(bAngle) * shRadius;
+        const by = this.rocket.y + Math.sin(bAngle) * shRadius;
+        this.ctx.fillStyle = bi % 2 === 0 ? '#ffd13b' : '#ffffff';
+        this.ctx.beginPath();
+        this.ctx.arc(bx, by, 2.5, 0, Math.PI * 2);
+        this.ctx.fill();
+      }
+
+      this.ctx.restore();
+    }
+
+    // MÆ°a / tuyáº¿t / sÃ©t váº½ trÆ°á»›c nhÃ¢n váº­t vÃ  HUD (táº¡o cáº£m giÃ¡c thá»i tiáº¿t á»Ÿ sÃ¡t á»‘ng kÃ­nh)
+    if (this.weather) this.weather.drawForeground(this.ctx);
+
+    // Tháº» cá»‘t truyá»‡n chÆ°Æ¡ng / mÃ n káº¿t Diá»u Rá»“ng
+    if (this.story) this.story.draw(this.ctx);
+
+    if (this.perks) this.perks.draw(this.ctx, this.width, this.height);
+    this.hud.draw(
+      this.ctx,
+      this.state,
+      this.score,
+      this.bestScore,
+      this.totalTime,
+      this.timeSinceDeath,
+      this.drunkMeter,
+      this.isSmashActive,
+      this.smashChainCount || 1,
+      this.currentTheme,
+      {
+        darkScene: this.weather ? this.weather.isDark : false,
+        lapNumber: this.lapNumber,
+        chapterNumber: this.chapterNumber,
+        kiteStage: this.kiteStage,
+        theme: this.currentTheme
+      }
+    );
+
+    // Hiá»‡u á»©ng Ã¡nh sÃ¡ng Ä‘iá»‡n áº£nh (chá»›p sÃ©t toÃ n khung & vignette theo thá»i tiáº¿t)
+    if (this.weather && this.weather.drawOverlay) {
+      this.weather.drawOverlay(this.ctx);
+    } else if (this.starfield && this.starfield.drawOverlay) {
+      this.starfield.drawOverlay(this.ctx);
+    }
+
+    this.ctx.restore();
+  }
+
+  _bindToolbarButtons() {
+    const btnTop = document.getElementById('btn-open-leaderboard');
+    if (btnTop) {
+      btnTop.addEventListener('pointerdown', (e) => e.stopPropagation());
+      btnTop.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (this.leaderboard) {
+          if (this.leaderboard.isOpen) {
+            this.leaderboard.hide();
+          } else {
+            this.leaderboard.show(0, 0);
+          }
+        }
+      });
+    }
+
+    const btnSound = document.getElementById('btn-toggle-sound');
+    if (btnSound) {
+      btnSound.addEventListener('pointerdown', (e) => e.stopPropagation());
+      btnSound.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (this.audio) {
+          const isMuted = this.audio.toggleMute();
+          btnSound.textContent = isMuted ? 'ðŸ”‡' : 'ðŸ”Š';
+          btnSound.title = t(isMuted ? 'toolbar.soundOff' : 'toolbar.soundOn');
+          btnSound.classList.toggle('muted', isMuted);
+          if (!isMuted && this.weather) {
+            this.audio.setAmbientTheme(this.weather.ambient || 'birds', true);
+          }
+        }
+      });
+    }
+
+    // NÃºt Ä‘á»•i ngÃ´n ngá»¯ VI / EN
+    const btnLang = document.getElementById('btn-toggle-lang');
+    if (btnLang) {
+      btnLang.addEventListener('pointerdown', (e) => e.stopPropagation());
+      btnLang.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleLang();
+        const span = btnLang.querySelector('[data-i18n]');
+        if (span) span.textContent = t('toolbar.lang');
+      });
+    }
+
+    const btnShare = document.getElementById('btn-share-challenge');
+    if (btnShare) {
+      btnShare.addEventListener('pointerdown', (e) => e.stopPropagation());
+      btnShare.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const res = await ShareCard.share(this.score, this.deathCount);
+        const toast = document.getElementById('toast');
+        if (toast) {
+          toast.textContent = res && res.method === 'clipboard' ? t('share.copied') : t('share.opened');
+          toast.classList.remove('hidden');
+          setTimeout(() => toast.classList.add('hidden'), 2500);
+        }
+      });
+    }
+
+    const btnSaveScore = document.getElementById('btn-save-score');
+    if (btnSaveScore) {
+      btnSaveScore.addEventListener('pointerdown', (e) => e.stopPropagation());
+      btnSaveScore.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (this.leaderboard) {
+          const runDuration = performance.now() - this.runStartTime;
+          this.leaderboard.show(this.score, runDuration);
+        }
+      });
+    }
+  }
+
+  loop(timestamp) {
+    if (!this.isRunning) return;
+
+    const dt = Math.min((timestamp - this.lastTime) / 1000, 0.1);
+    this.lastTime = timestamp;
+
+    // Má»™t lá»—i báº¥t ngá» trong update/render KHÃ”NG Ä‘Æ°á»£c phÃ©p lÃ m cháº¿t vÃ²ng láº·p
+    // (trÆ°á»›c Ä‘Ã¢y requestAnimationFrame náº±m sau update/render nÃªn chá»‰ 1 exception
+    // lÃ  game Ä‘á»©ng hÃ¬nh vÄ©nh viá»…n, khÃ´ng báº¥m gÃ¬ Ä‘Æ°á»£c ná»¯a).
+    try {
+      if (!this.paused) {
+        this.update(dt);
+      } else if (this.input) {
+        this.input.consumeTap();
+        this.input.consumeDoubleTap();
+      }
+      this.render();
+    } catch (err) {
+      this.lastError = err;
+      if (!this._errorLogged) {
+        this._errorLogged = true;
+        console.error('[Diá»u Say GiÃ³] lá»—i trong vÃ²ng láº·p:', err);
+      }
+    }
+
+    requestAnimationFrame(this.loop);
+  }
+}
+
+
+===== src/core/physics.js =====
+
+/**
+ * Drunk Physics Engine
+ * Implements asymmetrical gravity (down-left drift) and angled thrust (up-right impulse),
+ * coupled with drunken angular inertia and wobble.
+ */
+export const PHYSICS_CONFIG = {
+  // Gravity
+  GRAVITY_Y: 1050,         // Vertical downward acceleration (px/s^2)
+  GRAVITY_X: -140,         // Leftward drift acceleration (px/s^2)
+
+  // Thrust Impulse
+  THRUST_VY: -350,         // Upward velocity impulse on tap (px/s)
+  THRUST_VX: 130,          // Rightward forward surge on tap (px/s)
+  MAX_VY: 600,             // Terminal downward velocity
+  MIN_VY: -450,            // Terminal upward velocity
+
+  // Horizontal boundaries & damping
+  BASE_X: 100,             // Natural equilibrium X position
+  MIN_X: 45,               // Left screen boundary threshold
+  MAX_X: 200,              // Right screen boundary threshold
+  DRAG_X: 3.5,             // Horizontal aerodynamic damping
+
+  // Angular kinematics
+  THRUST_ANGLE: -0.60,     // ~ -35 degrees (nose up-right on thrust)
+  FALL_ANGLE_MAX: 0.85,    // ~ +48 degrees (nose down-left when dropping)
+  ROTATION_SPEED: 4.5,     // Speed of rotating toward target fall angle
+
+  // Drunk wobble
+  WOBBLE_FREQ: 5.5,        // Sinusoidal wobble frequency (rad/s)
+  WOBBLE_AMP: 35,          // Wobble velocity amplitude (px/s)
+};
+
+export class PhysicsEngine {
+  /**
+   * Applies one physics update tick to the rocket.
+   * @param {Rocket} rocket
+   * @param {number} dt Delta time in seconds
+   * @param {boolean} hasThrust Whether a tap thrust occurred this frame
+   * @param {number} totalTime Game elapsed time in seconds
+   */
+  static updateRocket(rocket, dt, hasThrust, totalTime) {
+    if (rocket.isDead) return;
+
+    if (hasThrust) {
+      // Apply angled thrust: upwards and slightly to the right
+      rocket.vy = PHYSICS_CONFIG.THRUST_VY;
+      rocket.vx = Math.min(rocket.vx + PHYSICS_CONFIG.THRUST_VX, 180);
+      rocket.angle = PHYSICS_CONFIG.THRUST_ANGLE;
+      rocket.isThrusting = true;
+      rocket.thrustTimer = 0.12; // Visual flame duration
+    } else {
+      // Natural gravitational acceleration
+      rocket.vy += PHYSICS_CONFIG.GRAVITY_Y * dt;
+      rocket.vx += PHYSICS_CONFIG.GRAVITY_X * dt;
+
+      // Add drunken wobble to horizontal velocity
+      const wobble = Math.sin(totalTime * PHYSICS_CONFIG.WOBBLE_FREQ) * PHYSICS_CONFIG.WOBBLE_AMP;
+      rocket.vx += wobble * dt;
+
+      // Restoring force toward base X so rocket never gets permanently lost off-screen
+      const displacement = rocket.x - PHYSICS_CONFIG.BASE_X;
+      rocket.vx -= displacement * 1.8 * dt;
+
+      // Apply horizontal drag
+      rocket.vx -= rocket.vx * PHYSICS_CONFIG.DRAG_X * dt;
+
+      // Update rotation (tilts downward as it falls)
+      if (rocket.angle < PHYSICS_CONFIG.FALL_ANGLE_MAX) {
+        rocket.angle += PHYSICS_CONFIG.ROTATION_SPEED * dt;
+      }
+
+      if (rocket.thrustTimer > 0) {
+        rocket.thrustTimer -= dt;
+        if (rocket.thrustTimer <= 0) {
+          rocket.isThrusting = false;
+        }
+      }
+    }
+
+    // Clamp vertical velocity
+    if (rocket.vy > PHYSICS_CONFIG.MAX_VY) rocket.vy = PHYSICS_CONFIG.MAX_VY;
+    if (rocket.vy < PHYSICS_CONFIG.MIN_VY) rocket.vy = PHYSICS_CONFIG.MIN_VY;
+
+    // Integrate positions
+    rocket.x += rocket.vx * dt;
+    rocket.y += rocket.vy * dt;
+
+    // Clamp horizontal position inside playable lane
+    if (rocket.x < PHYSICS_CONFIG.MIN_X) {
+      rocket.x = PHYSICS_CONFIG.MIN_X;
+      rocket.vx = 0;
+    } else if (rocket.x > PHYSICS_CONFIG.MAX_X) {
+      rocket.x = PHYSICS_CONFIG.MAX_X;
+      rocket.vx = 0;
+    }
+  }
+
+  /**
+   * Circle vs AABB Collision Check (Pixel-perfect fair hitbox).
+   * @param {number} cx Circle X
+   * @param {number} cy Circle Y
+   * @param {number} cr Circle Radius
+   * @param {number} rx Box X
+   * @param {number} ry Box Y
+   * @param {number} rw Box Width
+   * @param {number} rh Box Height
+   * @returns {boolean}
+   */
+  static checkCircleAABB(cx, cy, cr, rx, ry, rw, rh) {
+    const closestX = Math.max(rx, Math.min(cx, rx + rw));
+    const closestY = Math.max(ry, Math.min(cy, ry + rh));
+
+    const distanceX = cx - closestX;
+    const distanceY = cy - closestY;
+
+    return (distanceX * distanceX + distanceY * distanceY) < (cr * cr);
+  }
+}
+
+
+===== src/core/progression.js =====
+
+/**
+ * VÃ²ng Ä‘á»i & tiáº¿n trÃ¬nh: 5 VÃ’NG, má»—i vÃ²ng nÃ¢ng cáº¥p chÃº diá»u.
+ * =====================================================================
+ * QUáº¢N LÃ Äá»ŠA DANH:
+ *   - `DEFAULT_LANDMARKS` : danh sÃ¡ch máº·c Ä‘á»‹nh (dÃ¹ng khi vÃ²ng khÃ´ng khai bÃ¡o riÃªng)
+ *   - `LAPS[i].landmarks` : máº£ng sá»‘ hiá»‡u Ä‘á»‹a danh (1..9) cá»§a riÃªng vÃ²ng Ä‘Ã³.
+ *     + Äá»ƒ trá»‘ng / null  -> dÃ¹ng DEFAULT_LANDMARKS
+ *     + Muá»‘n Ä‘á»•i thá»© tá»±, bá»›t, thÃªm hay chuyá»ƒn Ä‘á»‹a danh giá»¯a cÃ¡c vÃ²ng: chá»‰ sá»­a máº£ng nÃ y.
+ *   - ThÃªm Ä‘á»‹a danh má»›i: thÃªm 1 má»¥c vÃ o TIER_THEMES (themes.js) rá»“i thÃªm sá»‘ hiá»‡u vÃ o Ä‘Ã¢y.
+ *
+ * VÃ’NG & DIá»€U:
+ *   - `LAPS[i].kite` : cáº¥p diá»u cá»§a vÃ²ng (1..5) â€” quyáº¿t Ä‘á»‹nh hÃ¬nh dÃ¡ng/mÃ u diá»u.
+ *   - Háº¿t 5 vÃ²ng thÃ¬ quay láº¡i vÃ²ng cuá»‘i (chÆ¡i vÃ´ táº­n), diá»u giá»¯ cáº¥p cao nháº¥t.
+ * =====================================================================
+ */
+
+import { TIER_THEMES } from '../graphics/themes.js';
+
+// Sá»‘ Ä‘iá»ƒm Ä‘á»ƒ qua 1 Ä‘á»‹a danh (chÆ°Æ¡ng). 12 Ä‘iá»ƒm ~ 22 giÃ¢y -> má»—i vÃ¹ng miá»n cÃ³ thá»i gian thá»Ÿ.
+// Äá»•i 1 sá»‘ nÃ y lÃ  Ä‘á»•i nhá»‹p Ä‘á»™ cáº£ game.
+export const POINTS_PER_CHAPTER = 12;
+
+// Danh sÃ¡ch Ä‘á»‹a danh máº·c Ä‘á»‹nh (sá»‘ hiá»‡u tier trong themes.js)
+export const DEFAULT_LANDMARKS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+/**
+ * Cáº¥u hÃ¬nh 5 vÃ²ng. Muá»‘n má»—i vÃ²ng Ä‘i Ã­t/many Ä‘á»‹a danh khÃ¡c nhau thÃ¬ Ä‘iá»n máº£ng riÃªng.
+ * VÃ­ dá»¥: { id: 1, kite: 1, landmarks: [1, 2, 3] }
+ */
+export const LAPS = [
+  { id: 1, kite: 1, nameVi: 'VÃ²ng 1 Â· Khá»Ÿi hÃ nh', nameEn: 'Lap 1 Â· Departure', landmarks: null },
+  { id: 2, kite: 2, nameVi: 'VÃ²ng 2 Â· LÃªn sÃ¡o', nameEn: 'Lap 2 Â· Flute', landmarks: null },
+  { id: 3, kite: 3, nameVi: 'VÃ²ng 3 Â· Dá»‡t lá»¥a', nameEn: 'Lap 3 Â· Silk', landmarks: null },
+  { id: 4, kite: 4, nameVi: 'VÃ²ng 4 Â· Káº¿t ngá»c', nameEn: 'Lap 4 Â· Jade', landmarks: null },
+  { id: 5, kite: 5, nameVi: 'VÃ²ng 5 Â· HoÃ¡ rá»“ng', nameEn: 'Lap 5 Â· Dragon', landmarks: null }
+];
+
+/**
+ * 5 cáº¥p diá»u â€” renderer.js Ä‘á»c báº£ng nÃ y Ä‘á»ƒ váº½.
+ * tails: sá»‘ dáº£i Ä‘uÃ´i nheo, flute: cÃ³ sÃ¡o tre, aura: quáº§ng sÃ¡ng, whiskers: rÃ¢u rá»“ng.
+ */
+export const KITE_STAGES = [
+  {
+    stage: 1, nameKey: 'kite.1', shape: 'paper', scale: 1.00,
+    paper: '#ffd13b', light: '#ffe57f', dark: '#d69e00',
+    trim: '#e63946', motif: '#19c6a6',
+    tails: 2, flute: false, aura: false, whiskers: false
+  },
+  {
+    stage: 2, nameKey: 'kite.2', shape: 'paper', scale: 1.06,
+    paper: '#ffcf3d', light: '#ffeeb0', dark: '#d09a10',
+    trim: '#d62828', motif: '#19c6a6',
+    tails: 3, flute: true, aura: false, whiskers: false
+  },
+  {
+    stage: 3, nameKey: 'kite.3', shape: 'silk', scale: 1.12,
+    paper: '#f7e6c4', light: '#fff6e2', dark: '#c8a97a',
+    trim: '#c2455a', motif: '#e8a0b4',
+    tails: 3, flute: true, aura: false, whiskers: false, wings: true
+  },
+  {
+    stage: 4, nameKey: 'kite.4', shape: 'jade', scale: 1.16,
+    paper: '#b7e3bd', light: '#e6f8e4', dark: '#6fae7a',
+    trim: '#c9a24a', motif: '#2fb894',
+    tails: 4, flute: true, aura: false, whiskers: false, sparkle: true, halo: true
+  },
+  {
+    stage: 5, nameKey: 'kite.5', shape: 'dragon', scale: 1.22,
+    paper: '#ffd76a', light: '#fff2c0', dark: '#d9a52c',
+    trim: '#b3172a', motif: '#e8b84b',
+    tails: 4, flute: true, aura: true, whiskers: true, sparkle: true
+  }
+];
+
+function lapLandmarks(lap) {
+  const list = (lap && Array.isArray(lap.landmarks) && lap.landmarks.length) ? lap.landmarks : DEFAULT_LANDMARKS;
+  return list.filter(tier => TIER_THEMES[tier]);
+}
+
+function themeFor(tier) {
+  return TIER_THEMES[tier] || TIER_THEMES[1];
+}
+
+/**
+ * TÃ­nh toÃ n bá»™ tiáº¿n trÃ¬nh tá»« Ä‘iá»ƒm sá»‘:
+ * { lapIndex, lap, lapNumber, chapterInLap, chapterNumber, globalChapter, kiteStage, theme }
+ */
+export function getProgression(score = 0) {
+  const safeScore = Math.max(0, Math.floor(score));
+  let remaining = Math.floor(safeScore / POINTS_PER_CHAPTER);
+
+  for (let i = 0; i < LAPS.length; i++) {
+    const list = lapLandmarks(LAPS[i]);
+    if (remaining < list.length) {
+      const tier = list[remaining];
+      return {
+        lapIndex: i,
+        lap: LAPS[i],
+        lapNumber: i + 1,
+        chapterInLap: remaining,
+        chapterNumber: remaining + 1,
+        globalChapter: remaining,
+        kiteStage: LAPS[i].kite,
+        theme: themeFor(tier)
+      };
+    }
+    remaining -= list.length;
+  }
+
+  // Háº¿t 5 vÃ²ng: láº·p láº¡i vÃ²ng cuá»‘i vÃ´ táº­n
+  const lastIndex = LAPS.length - 1;
+  const lastLap = LAPS[lastIndex];
+  const list = lapLandmarks(lastLap);
+  const idx = remaining % list.length;
+  return {
+    lapIndex: lastIndex,
+    lap: lastLap,
+    lapNumber: lastIndex + 1,
+    chapterInLap: idx,
+    chapterNumber: idx + 1,
+    globalChapter: remaining,
+    kiteStage: lastLap.kite,
+    theme: themeFor(list[idx])
+  };
+}
+
+/**
+ * Äá»™ khÃ³ theo vÃ²ng â€” chá»‰ tÄƒng NHá»ŠP, khÃ´ng thu háº¹p khe (trÃ¡nh á»©c cháº¿).
+ * spawnInterval: giÃ¢y giá»¯a 2 cá»•ng. breatherEvery: cá»© N cá»•ng thÃ¬ nghá»‰ 1 nhá»‹p.
+ * Muá»‘n chá»‰nh Ä‘á»™ khÃ³: sá»­a Ä‘Ãºng báº£ng dÆ°á»›i Ä‘Ã¢y.
+ */
+export const DIFFICULTY = [
+  { spawnInterval: 1.85, breatherEvery: 10, breatherPause: 0.55 }, // vÃ²ng 1
+  { spawnInterval: 1.72, breatherEvery: 10, breatherPause: 0.5 },  // vÃ²ng 2
+  { spawnInterval: 1.60, breatherEvery: 9, breatherPause: 0.5 },   // vÃ²ng 3
+  { spawnInterval: 1.48, breatherEvery: 9, breatherPause: 0.45 },  // vÃ²ng 4
+  { spawnInterval: 1.36, breatherEvery: 8, breatherPause: 0.45 }   // vÃ²ng 5+
+];
+
+export function difficultyFor(lapIndex = 0) {
+  const idx = Math.max(0, Math.min(DIFFICULTY.length - 1, lapIndex));
+  return DIFFICULTY[idx];
+}
+
+export function getThemeForScore(score = 0) {
+  return getProgression(score).theme;
+}
+
+export function getTierFromScore(score = 0) {
+  return getProgression(score).theme.tier;
+}
+
+export function getKiteStyle(stage = 1) {
+  const idx = Math.max(0, Math.min(KITE_STAGES.length - 1, Math.round(stage) - 1));
+  return KITE_STAGES[idx];
+}
+
+/** Tá»•ng sá»‘ Ä‘á»‹a danh cá»§a cáº£ 5 vÃ²ng (dÃ¹ng cho mÃ n cá»‘t truyá»‡n) */
+export function totalLandmarks() {
+  const set = new Set();
+  LAPS.forEach(lap => lapLandmarks(lap).forEach(t => set.add(t)));
+  DEFAULT_LANDMARKS.forEach(t => { if (TIER_THEMES[t]) set.add(t); });
+  return set.size;
+}
+
+
+===== src/core/perks.js =====
+
+/**
+ * Micro-Roguelite Perk System for Drunk Rocket 3.0
+ * Manages drafting cards, pillar-based durations, resetting durations, and continuous random availability.
+ */
+import { t, getLang } from '../i18n.js';
+
+export const PERK_CATALOG = [
+  {
+    id: 'nano_hull',
+    name: 'LÃ¡ Sen Che ThÃ¢n',
+    nameEn: 'Lotus Leaf Veil',
+    icon: 'ðŸƒ',
+    desc: 'Diá»u nhá» láº¡i 25% (Hiá»‡u lá»±c: qua 3 cá»•ng)',
+    descEn: 'Kite shrinks 25% (lasts 3 gates)',
+    group: 'defense',
+    durationPillars: 3,
+    apply: (game) => {
+      game.rocket.radius = Math.round(12 * 0.75); // 9px
+      game.rocket.scale = 0.75;
+      game.perkDurations.nano_hull = 3;
+    },
+    remove: (game) => {
+      game.rocket.radius = 12;
+      game.rocket.scale = 1.0;
+      delete game.perkDurations.nano_hull;
+    }
+  },
+  {
+    id: 'beer_bubble',
+    name: 'Bá»t RÆ°á»£u Cáº§n',
+    nameEn: 'Rice-Wine Bubble',
+    icon: 'ðŸ«§',
+    desc: 'KhiÃªn bá»t Ä‘á»¡ 1 va cháº¡m (Hiá»‡u lá»±c: qua 1 cá»•ng)',
+    descEn: 'Bubble shield blocks 1 hit (lasts 1 gate)',
+    group: 'defense',
+    durationPillars: 1,
+    apply: (game) => {
+      game.shieldActive = true;
+      game.perkDurations.beer_bubble = 1;
+    },
+    remove: (game) => {
+      game.shieldActive = false;
+      delete game.perkDurations.beer_bubble;
+    }
+  },
+  {
+    id: 'quantum_drift',
+    name: 'XuyÃªn GiÃ³',
+    nameEn: 'Wind Walker',
+    icon: 'ðŸ‘»',
+    desc: 'TÃ ng hÃ¬nh xuyÃªn cá»•ng 1.8s sau má»—i cÃº cháº¡m (qua 2 cá»•ng)',
+    descEn: 'Phase through gates 1.8s after each tap (2 gates)',
+    group: 'defense',
+    durationPillars: 2,
+    apply: (game) => {
+      game.hasQuantumDrift = true;
+      game.quantumCooldownTimer = 0;
+      game.perkDurations.quantum_drift = 2;
+    },
+    remove: (game) => {
+      game.hasQuantumDrift = false;
+      game.quantumTimer = 0;
+      if (game.rocket) game.rocket.isQuantum = false;
+      delete game.perkDurations.quantum_drift;
+    }
+  },
+  {
+    id: 'adrenaline_junkie',
+    name: 'Máº¯t Diá»u Tinh',
+    nameEn: 'Keen Kite Eye',
+    icon: 'ðŸ‘',
+    desc: 'Äiá»ƒm Near-Miss tÄƒng gáº¥p Ä‘Ã´i (Hiá»‡u lá»±c: qua 3 cá»•ng)',
+    descEn: 'Double Near-Miss score (lasts 3 gates)',
+    group: 'offense',
+    durationPillars: 3,
+    apply: (game) => {
+      game.nearMissMultiplier = 2;
+      game.perkDurations.adrenaline_junkie = 3;
+    },
+    remove: (game) => {
+      game.nearMissMultiplier = 1;
+      delete game.perkDurations.adrenaline_junkie;
+    }
+  },
+  {
+    id: 'chain_reaction',
+    name: 'PhÃ¡o DÃ¢y Chuyá»n',
+    nameEn: 'Chain Firecrackers',
+    icon: 'ðŸ§¨',
+    desc: 'Lá»™ng GiÃ³ phÃ¡ 2 cá»•ng liá»n (DÃ¹ng 1 láº§n lÃ  háº¿t)',
+    descEn: 'Wind Burst smashes 2 gates (one use)',
+    group: 'offense',
+    durationPillars: 0,
+    apply: (game) => {
+      game.smashChainCount = 2;
+    },
+    remove: (game) => {
+      game.smashChainCount = 1;
+    }
+  },
+  {
+    id: 'drunk_magnet',
+    name: 'VÃ³ HÃºt GiÃ³',
+    nameEn: 'Wind Net',
+    icon: 'ðŸŒª',
+    desc: 'HÃºt má»i háº¡t giÃ³ trong 220px (Hiá»‡u lá»±c: qua 3 cá»•ng)',
+    descEn: 'Pulls all wind orbs within 220px (lasts 3 gates)',
+    group: 'utility',
+    durationPillars: 3,
+    apply: (game) => {
+      game.hasDrunkMagnet = true;
+      game.passiveChargeRate = 2;
+      game.perkDurations.drunk_magnet = 3;
+    },
+    remove: (game) => {
+      game.hasDrunkMagnet = false;
+      game.passiveChargeRate = 0;
+      delete game.perkDurations.drunk_magnet;
+    }
+  }
+];
+
+export class PerkDraftManager {
+  constructor(game) {
+    this.game = game;
+    this.isDrafting = false;
+    this.isPreDraft = false;
+    this.preDraftTimer = 0;
+    this.isPostDraft = false;
+    this.postDraftTimer = 0;
+    this.selectedCard = null;
+    this.hoveredIndex = -1;
+    this.draftCards = [];
+    this.draftTimer = 0;
+    this.draftMaxDuration = 3.5;
+    this.lastMilestoneScore = -6; // má»‘c Ä‘áº§u á»Ÿ 6 Ä‘iá»ƒm, sau Ä‘Ã³ 18, 30... (lá»‡ch vá»›i chÆ°Æ¡ng)
+    this.milestoneInterval = 12;
+  }
+
+  reset() {
+    this.isDrafting = false;
+    this.isPreDraft = false;
+    this.preDraftTimer = 0;
+    this.isPostDraft = false;
+    this.postDraftTimer = 0;
+    this.selectedCard = null;
+    this.hoveredIndex = -1;
+    this.draftCards = [];
+    this.draftTimer = 0;
+    this.lastMilestoneScore = -6;
+  }
+
+  checkMilestone(currentScore) {
+    // If rocket is currently dashing in Supernova Smash, wait until dash finishes
+    if (this.game && this.game.isSmashActive) return;
+    if (this.isDrafting || this.isPreDraft || this.isPostDraft) return;
+
+    if (currentScore >= this.lastMilestoneScore + this.milestoneInterval) {
+      this.lastMilestoneScore = currentScore;
+      // 1.0s pre-draft pause before showing cards
+      this.isPreDraft = true;
+      this.preDraftTimer = 1.0;
+      if (this.game && this.game.rocket) {
+        this.game.rocket.vx = 0;
+        this.game.rocket.vy = 0;
+      }
+      if (this.game && this.game.audio) {
+        this.game.audio.playMedal();
+      }
+    }
+  }
+
+  triggerDraft() {
+    // REQUIREMENT: Má»—i tháº» bÃ i xuáº¥t hiá»‡n nhiá»u láº§n vÃ  ngáº«u nhiÃªn (khÃ´ng bá»‹ cháº·n vÄ©nh viá»…n)
+    const shuffled = [...PERK_CATALOG].sort(() => 0.5 - Math.random());
+    this.draftCards = shuffled.slice(0, 3);
+    this.isDrafting = true;
+    this.hoveredIndex = -1;
+    this.draftTimer = this.draftMaxDuration;
+
+    if (this.game && this.game.audio) {
+      this.game.audio.playScore();
+    }
+  }
+
+  setHover(clientX, clientY) {
+    if (!this.isDrafting || this.draftCards.length === 0) {
+      this.hoveredIndex = -1;
+      return;
+    }
+
+    const cardW = 320;
+    const cardH = 75;
+    const cardX = this.game.width / 2 - cardW / 2;
+    const startY = 240;
+
+    let found = -1;
+    if (clientX >= cardX && clientX <= cardX + cardW) {
+      for (let idx = 0; idx < this.draftCards.length; idx++) {
+        const cardY = startY + idx * 95;
+        if (clientY >= cardY && clientY <= cardY + cardH) {
+          found = idx;
+          break;
+        }
+      }
+    }
+    this.hoveredIndex = found;
+  }
+
+  selectCard(index) {
+    if (!this.isDrafting || index < 0 || index >= this.draftCards.length) return;
+    const perk = this.draftCards[index];
+
+    this.selectedCard = perk;
+    this.isDrafting = false;
+    this.hoveredIndex = -1;
+
+    // Apply or Reset perk duration back to full
+    perk.apply(this.game);
+
+    // Consume all inputs immediately
+    if (this.game && this.game.input) {
+      this.game.input.consumeTap();
+      this.game.input.consumeDoubleTap();
+      this.game.perkDraftCooldown = 0.5;
+    }
+    if (this.game && this.game.audio) {
+      this.game.audio.playMedal();
+    }
+
+    if (perk.id === 'chain_reaction') {
+      // Khi chá»n tháº» Chain Reaction: dÃ¹ng 1 láº§n ngay láº­p tá»©c
+      this.isPostDraft = false;
+      this.selectedCard = null;
+      this.draftCards = [];
+      this.game.drunkMeter = 100;
+      this.game._triggerSupernovaSmash(true);
+    } else {
+      // CÃ¡c tháº» khÃ¡c: 1.0s post-draft freeze pause Ä‘á»ƒ ngÆ°á»i chÆ¡i chuáº©n bá»‹
+      this.isPostDraft = true;
+      this.postDraftTimer = 1.0;
+    }
+  }
+
+  onPassPillar() {
+    if (!this.game || !this.game.perkDurations) return;
+
+    for (const perk of PERK_CATALOG) {
+      if (this.game.perkDurations[perk.id] !== undefined) {
+        this.game.perkDurations[perk.id]--;
+        // Khi Ä‘i qua Ä‘á»§ sá»‘ cá»™t -> háº¿t hiá»‡u lá»±c, gá»i remove()
+        if (this.game.perkDurations[perk.id] <= 0) {
+          perk.remove(this.game);
+        }
+      }
+    }
+  }
+
+  update(dt) {
+    // 1. Pre-draft 1.0s freeze
+    if (this.isPreDraft) {
+      this.preDraftTimer -= dt;
+      if (this.preDraftTimer <= 0) {
+        this.isPreDraft = false;
+        this.triggerDraft();
+      }
+      return;
+    }
+
+    // 2. Card Drafting
+    if (this.isDrafting) {
+      this.draftTimer -= dt;
+      if (this.draftTimer <= 0) {
+        this.selectCard(0);
+      }
+      return;
+    }
+
+    // 3. Post-draft 1.0s ready pause
+    if (this.isPostDraft) {
+      this.postDraftTimer -= dt;
+      if (this.postDraftTimer <= 0) {
+        this.isPostDraft = false;
+        this.selectedCard = null;
+        this.draftCards = [];
+      }
+    }
+  }
+
+  draw(ctx, width, height) {
+    // Pre-draft 1.0s pause display
+    if (this.isPreDraft) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(11, 14, 20, 0.75)';
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffd13b';
+      ctx.font = '900 24px monospace';
+      ctx.fillText('ðŸŽ‹ ' + t('perk.preDraft') + ' ðŸŽ‹', width / 2, 320);
+
+      ctx.fillStyle = '#00f0ff';
+      ctx.font = 'bold 15px monospace';
+      ctx.fillText(`${t('perk.opening')} (${Math.max(0, this.preDraftTimer).toFixed(1)}s)`, width / 2, 360);
+      ctx.restore();
+      return;
+    }
+
+    // Post-draft 1.0s ready pause display
+    if (this.isPostDraft && this.selectedCard) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(11, 14, 20, 0.8)';
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#05ffa1';
+      ctx.font = '900 22px monospace';
+      ctx.fillText(`âœ” ${t('perk.picked')}: ${this.selectedCard.icon} ${getLang() === 'en' ? (this.selectedCard.nameEn || this.selectedCard.name) : this.selectedCard.name}`, width / 2, 310);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 14px monospace';
+      ctx.fillText(getLang() === 'en' ? (this.selectedCard.descEn || this.selectedCard.desc) : this.selectedCard.desc, width / 2, 340);
+
+      ctx.fillStyle = '#ffd13b';
+      ctx.font = '900 16px monospace';
+      ctx.fillText(`ðŸª ${t('perk.ready')}: ${Math.max(0, this.postDraftTimer).toFixed(1)}s`, width / 2, 380);
+      ctx.restore();
+      return;
+    }
+
+    if (!this.isDrafting || this.draftCards.length === 0) return;
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(11, 14, 20, 0.82)';
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffd13b';
+    ctx.font = '900 22px monospace';
+    ctx.fillText('â­ ' + t('perk.draftTitle') + ' â­', width / 2, 170);
+
+    ctx.fillStyle = '#00f0ff';
+    ctx.font = 'bold 13px monospace';
+    ctx.fillText(`${t('perk.timer')}: ${Math.max(0, this.draftTimer).toFixed(1)}s (1, 2, 3)`, width / 2, 200);
+
+    const cardW = 320;
+    const cardH = 75;
+    const startY = 240;
+
+    this.draftCards.forEach((card, idx) => {
+      const isHovered = idx === this.hoveredIndex;
+      const cardY = startY + idx * 95;
+      const cardX = width / 2 - cardW / 2;
+
+      ctx.save();
+
+      if (isHovered) {
+        const growX = 8;
+        const growY = 4;
+        const hX = cardX - growX / 2;
+        const hY = cardY - growY / 2;
+        const hW = cardW + growX;
+        const hH = cardH + growY;
+
+        ctx.shadowColor = '#00f0ff';
+        ctx.shadowBlur = 20;
+
+        const grad = ctx.createLinearGradient(hX, hY, hX + hW, hY + hH);
+        grad.addColorStop(0, 'rgba(42, 60, 110, 0.98)');
+        grad.addColorStop(1, 'rgba(22, 32, 65, 0.98)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(hX, hY, hW, hH);
+
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = '#ffd13b';
+        ctx.strokeRect(hX, hY, hW, hH);
+
+        ctx.fillStyle = '#ffd13b';
+        ctx.font = '900 17px monospace';
+        ctx.fillText(`â˜…  [${idx + 1}] ${card.icon} ${getLang() === 'en' ? (card.nameEn || card.name) : card.name} â˜…`, width / 2, cardY + 28);
+
+        ctx.fillStyle = '#ffffff';
+        let descSizeH = 12;
+        ctx.font = `bold ${descSizeH}px monospace`;
+        while (descSizeH > 8 && ctx.measureText(getLang() === 'en' ? (card.descEn || card.desc) : card.desc).width > cardW - 22) {
+          descSizeH -= 0.5;
+          ctx.font = `bold ${descSizeH}px monospace`;
+        }
+        ctx.fillText(getLang() === 'en' ? (card.descEn || card.desc) : card.desc, width / 2, cardY + 54);
+      } else {
+        ctx.fillStyle = 'rgba(26, 31, 54, 0.92)';
+        ctx.fillRect(cardX, cardY, cardW, cardH);
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = idx === 0 ? '#ffd13b' : '#00f0ff';
+        ctx.strokeRect(cardX, cardY, cardW, cardH);
+
+        ctx.fillStyle = '#ffd13b';
+        ctx.font = 'bold 16px monospace';
+        ctx.fillText(`[${idx + 1}] ${card.icon} ${getLang() === 'en' ? (card.nameEn || card.name) : card.name}`, width / 2, cardY + 28);
+
+        ctx.fillStyle = '#d0d7de';
+        let descSizeN = 12;
+        ctx.font = `${descSizeN}px monospace`;
+        while (descSizeN > 8 && ctx.measureText(getLang() === 'en' ? (card.descEn || card.desc) : card.desc).width > cardW - 22) {
+          descSizeN -= 0.5;
+          ctx.font = `${descSizeN}px monospace`;
+        }
+        ctx.fillText(getLang() === 'en' ? (card.descEn || card.desc) : card.desc, width / 2, cardY + 54);
+      }
+
+      ctx.restore();
+    });
+
+    ctx.restore();
+  }
+}
+
+
+===== src/core/input.js =====
+
+/**
+ * Input Manager for Drunk Rocket 2.0
+ * Handles Responsive Tap (Thrust) and Double Tap (Supernova Smash)
+ */
+export class InputManager {
+  constructor(targetElement = window) {
+    this.targetElement = targetElement;
+    this.justPressed = false;
+    this.doubleTapped = false;
+    this.isPressed = false;
+    this.lastTapTime = 0;
+    this.doubleTapThreshold = 280; // ms threshold for double tap
+
+    this._onKeyDown = this._onKeyDown.bind(this);
+    this._onKeyUp = this._onKeyUp.bind(this);
+    this._onPointerDown = this._onPointerDown.bind(this);
+    this._onPointerUp = this._onPointerUp.bind(this);
+
+    this._bindEvents();
+  }
+
+  _bindEvents() {
+    window.addEventListener('keydown', this._onKeyDown, { passive: false });
+    window.addEventListener('keyup', this._onKeyUp, { passive: false });
+
+    this.targetElement.addEventListener('pointerdown', this._onPointerDown, { passive: false });
+    window.addEventListener('pointerup', this._onPointerUp, { passive: false });
+    window.addEventListener('pointercancel', this._onPointerUp, { passive: false });
+  }
+
+  _handleTap() {
+    const now = performance.now();
+    const timeDiff = now - this.lastTapTime;
+
+    // LuÃ´n ghi nháº­n lÃ  1 cÃº tap Ä‘á»ƒ Ä‘áº©y tÃ u bay lÃªn, khÃ´ng bao giá» bá»‹ nuá»‘t phÃ­m
+    this.justPressed = true;
+
+    // Náº¿u khoáº£ng cÃ¡ch giá»¯a 2 láº§n báº¥m tá»« 20ms Ä‘áº¿n 280ms -> ghi nháº­n thÃªm Double Tap
+    if (timeDiff > 20 && timeDiff <= this.doubleTapThreshold) {
+      this.doubleTapped = true;
+    }
+    this.lastTapTime = now;
+  }
+
+  _onKeyDown(e) {
+    if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
+      e.preventDefault();
+      // NgÄƒn keydown auto-repeat cá»§a há»‡ Ä‘iá»u hÃ nh lÃ m spam phÃ­m, nhÆ°ng cho phÃ©p nháº¥p nháº£ nhanh
+      if (!e.repeat) {
+        this._handleTap();
+      }
+      this.isPressed = true;
+    }
+  }
+
+  _onKeyUp(e) {
+    if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
+      this.isPressed = false;
+    }
+  }
+
+  _onPointerDown(e) {
+    e.preventDefault();
+    this._handleTap();
+    this.isPressed = true;
+  }
+
+  _onPointerUp(e) {
+    this.isPressed = false;
+  }
+
+  consumeTap() {
+    if (this.justPressed) {
+      this.justPressed = false;
+      return true;
+    }
+    return false;
+  }
+
+  consumeDoubleTap() {
+    if (this.doubleTapped) {
+      this.doubleTapped = false;
+      return true;
+    }
+    return false;
+  }
+
+  isDown() {
+    return this.isPressed;
+  }
+
+  destroy() {
+    window.removeEventListener('keydown', this._onKeyDown);
+    window.removeEventListener('keyup', this._onKeyUp);
+    this.targetElement.removeEventListener('pointerdown', this._onPointerDown);
+    window.removeEventListener('pointerup', this._onPointerUp);
+    window.removeEventListener('pointercancel', this._onPointerUp);
+  }
+}
+
+
+===== src/entities/laserPillar.js =====
+
+import { PhysicsEngine } from '../core/physics.js';
+import { getThemeForScore, getTierFromScore } from '../core/progression.js';
+
+export class LaserPillar {
+  constructor(x, gapY, gapHeight, width = 52, options = {}) {
+    this.x = x;
+    this.baseGapY = gapY;
+    this.gapY = gapY;
+    this.gapHeight = gapHeight;
+    this.width = width;
+    this.passed = false;
+    this.nearMissChecked = false;
+    this.isDestroyed = false;
+    this.quantumPhased = false;
+    this.emitterHeight = 24;
+    this.pulsePhase = Math.random() * Math.PI * 2;
+
+    // Visual theme
+    this.theme = options.theme || null;
+    this.tier = options.tier || 1;
+
+    // Dynamic difficulty movement (oscillating gapY & tilted/swaying angle)
+    this.oscAmp = options.oscAmp || 0;
+    this.oscFreq = options.oscFreq || 0;
+    this.oscPhase = options.oscPhase !== undefined ? options.oscPhase : Math.random() * Math.PI * 2;
+
+    this.baseAngle = options.baseAngle || 0;
+    this.angleAmp = options.angleAmp || 0;
+    this.angleFreq = options.angleFreq || 0;
+    this.anglePhase = options.anglePhase !== undefined ? options.anglePhase : Math.random() * Math.PI * 2;
+    this.angle = this.baseAngle;
+  }
+
+  get topY() {
+    return this.gapY - this.gapHeight / 2;
+  }
+
+  get bottomY() {
+    return this.gapY + this.gapHeight / 2;
+  }
+
+  update(dt, speed) {
+    this.x -= speed * dt;
+    this.pulsePhase += dt * 8;
+
+    // Vertical bobbing oscillation
+    if (this.oscAmp > 0) {
+      this.oscPhase += dt * this.oscFreq;
+      const targetY = this.baseGapY + Math.sin(this.oscPhase) * this.oscAmp;
+      this.gapY = Math.max(130 + this.gapHeight / 2, Math.min(570 - this.gapHeight / 2, targetY));
+    }
+
+    // Tilted angular oscillation / sway (leaning left <-> right)
+    if (this.angleAmp > 0) {
+      this.anglePhase += dt * this.angleFreq;
+      this.angle = this.baseAngle + Math.sin(this.anglePhase) * this.angleAmp;
+    } else {
+      this.angle = this.baseAngle;
+    }
+  }
+
+  isOffscreen() {
+    return this.x + this.width < -70;
+  }
+
+  /**
+   * Check Near-Miss: Rocket passes very close (<16px margin) to top or bottom hazard
+   * Coordinates are transformed into local unrotated pillar space for exact detection.
+   */
+  checkNearMiss(rocket) {
+    if (this.isDestroyed || this.nearMissChecked) return false;
+
+    const cx = this.x + this.width / 2;
+    const cy = this.gapY;
+    let rx = rocket.x;
+    let ry = rocket.y;
+
+    if (this.angle !== 0) {
+      const cos = Math.cos(-this.angle);
+      const sin = Math.sin(-this.angle);
+      const dx = rocket.x - cx;
+      const dy = rocket.y - cy;
+      rx = cx + (dx * cos - dy * sin);
+      ry = cy + (dx * sin + dy * cos);
+    }
+
+    // Check when rocket is horizontally passing through the pillar
+    const inXRange = rx >= this.x - 10 && rx <= this.x + this.width + 10;
+    if (inXRange) {
+      const distToTop = (ry - rocket.radius) - this.topY;
+      const distToBottom = this.bottomY - (ry + rocket.radius);
+
+      // Within close proximity but without colliding
+      const nearMargin = 16;
+      if ((distToTop > 0 && distToTop <= nearMargin) || (distToBottom > 0 && distToBottom <= nearMargin)) {
+        this.nearMissChecked = true;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Check if rocket has COMPLETELY passed through the pillar including the tail
+   * Rocket nose is at x + radius, tail is at x - radius - 14 (nozzle/flame edge)
+   */
+  hasPassedCompletely(rocket) {
+    const tailX = rocket.x - (rocket.radius + 14);
+    const halfW = this.width / 2;
+    const cx = this.x + halfW;
+    const maxRightX = cx + halfW + Math.abs(Math.sin(this.angle || 0)) * 60;
+    return tailX > maxRightX;
+  }
+
+  /**
+   * Collision check against rocket (Pixel-perfect transformed AABB detection).
+   */
+  collidesWith(rocket) {
+    if (this.isDestroyed || this.quantumPhased) return false;
+
+    const cx = this.x + this.width / 2;
+    const cy = this.gapY;
+    let rx = rocket.x;
+    let ry = rocket.y;
+
+    if (this.angle !== 0) {
+      const cos = Math.cos(-this.angle);
+      const sin = Math.sin(-this.angle);
+      const dx = rocket.x - cx;
+      const dy = rocket.y - cy;
+      rx = cx + (dx * cos - dy * sin);
+      ry = cy + (dx * sin + dy * cos);
+    }
+
+    // 1. Top pillar (from ceiling above y=0 down to this.topY)
+    if (PhysicsEngine.checkCircleAABB(
+      rx, ry, rocket.radius,
+      this.x, -600, this.width, this.topY + 600
+    )) {
+      return true;
+    }
+
+    // 2. Bottom pillar (from y=this.bottomY down past screen bottom)
+    if (PhysicsEngine.checkCircleAABB(
+      rx, ry, rocket.radius,
+      this.x, this.bottomY, this.width, 1600
+    )) {
+      return true;
+    }
+
+    return false;
+  }
+}
+
+export class LaserPillarManager {
+  constructor(gameWidth = 400, gameHeight = 700) {
+    this.gameWidth = gameWidth;
+    this.gameHeight = gameHeight;
+    this.pillars = [];
+    this.baseSpeed = 190;
+    this.speed = 190;           // Horizontal scroll speed (px/s)
+    this.spawnInterval = 1.85;  // Seconds between spawns (game sáº½ cáº­p nháº­t theo vÃ²ng)
+    this.spawnTimer = 0;
+    this.breatherEvery = 10;    // cá»© N cá»•ng thÃ¬ chÃ¨n 1 nhá»‹p nghá»‰
+    this.breatherPause = 0.5;   // giÃ¢y nghá»‰ thÃªm
+    this.spawnedCount = 0;
+    this.minGapY = 160;
+    this.maxGapY = 520;
+    this.gapHeight = 148;       // Generous height of safe corridor
+    this.currentScore = 0;
+    this.lastPillarGapY = 350;  // Anchor to smooth out consecutive height delta
+  }
+
+  reset() {
+    this.pillars = [];
+    this.speed = this.baseSpeed;
+    this.spawnedCount = 0;
+    this.spawnTimer = 0.5; // Quick first obstacle
+    this.currentScore = 0;
+    this.lastPillarGapY = 350;
+  }
+
+  update(dt, rocket, onScore, onNearMiss, score = 0, difficulty = null) {
+    this.currentScore = score;
+    // Graceful slight horizontal speed scaling: +3 px/s every 5 points, capped at +24 px/s
+    this.speed = this.baseSpeed + Math.min(Math.floor(score / 5) * 3, 24);
+
+    // Äá»™ khÃ³ do game truyá»n vÃ o (theo vÃ²ng). KhÃ´ng truyá»n -> giá»¯ máº·c Ä‘á»‹nh.
+    if (difficulty) {
+      if (typeof difficulty.spawnInterval === 'number') this.spawnInterval = difficulty.spawnInterval;
+      if (typeof difficulty.breatherEvery === 'number') this.breatherEvery = difficulty.breatherEvery;
+      if (typeof difficulty.breatherPause === 'number') this.breatherPause = difficulty.breatherPause;
+    }
+
+    this.spawnTimer -= dt;
+    if (this.spawnTimer <= 0) {
+      this.spawn(score);
+      this.spawnedCount++;
+      // Nhá»‹p "thá»Ÿ": cá»© N cá»•ng thÃ¬ nghá»‰ thÃªm 1 nhá»‹p cho máº¯t Ä‘á»¡ má»i
+      const rest = (this.breatherEvery > 0 && this.spawnedCount % this.breatherEvery === 0)
+        ? this.breatherPause
+        : 0;
+      this.spawnTimer = this.spawnInterval + rest;
+    }
+
+    for (let i = this.pillars.length - 1; i >= 0; i--) {
+      const p = this.pillars[i];
+      p.update(dt, this.speed);
+
+      // Near-Miss check
+      if (!p.nearMissChecked && p.checkNearMiss(rocket)) {
+        if (onNearMiss) onNearMiss(p);
+      }
+
+      // STRICT SCORING: Rocket must clear COMPLETELY past the column including its tail
+      if (!p.passed && p.hasPassedCompletely(rocket)) {
+        p.passed = true;
+        if (onScore) onScore(p);
+      }
+
+      // Cleanup offscreen
+      if (p.isOffscreen()) {
+        this.pillars.splice(i, 1);
+      }
+    }
+  }
+
+  /**
+   * Spawns a pillar with:
+   * 1. Fair Smooth Height Progression (Giáº£m Ä‘á»™ lá»‡ch quÃ¡ xa giá»¯a 2 cá»™t liÃªn tiáº¿p):
+   *    - Tier 1-2: maxDeltaY = 90px (dá»… chá»‹u, ngÆ°á»i chÆ¡i lÃ m quen nhá»‹p)
+   *    - Tier 3-4: maxDeltaY = 135px (thá»­ thÃ¡ch nhÆ°ng hoÃ n toÃ n lÃ¡ch Ä‘Æ°á»£c)
+   *    - Tier 5-7: maxDeltaY = 175px (cao Ä‘á»™ vá»«a váº·n vá»›i Ä‘á»™ dá»‘c nháº£y cá»§a tÃ u)
+   * 2. Progressive Movement Tiers
+   */
+  spawn(score = 0) {
+    const tier = getTierFromScore(score);
+    const theme = getThemeForScore(score);
+
+    // Calculate maximum allowable vertical shift from previous column
+    let maxDeltaY = 90;
+    if (tier >= 5) {
+      maxDeltaY = 175;
+    } else if (tier >= 3) {
+      maxDeltaY = 135;
+    }
+
+    const rawDelta = (Math.random() * 2 - 1) * maxDeltaY;
+    let gapY = this.lastPillarGapY + rawDelta;
+    // Keep safely inside screen bounds
+    gapY = Math.max(this.minGapY, Math.min(this.maxGapY, gapY));
+    this.lastPillarGapY = gapY;
+
+    let oscAmp = 0;
+    let oscFreq = 0;
+    let baseAngle = 0;
+    let angleAmp = 0;
+    let angleFreq = 0;
+    let gapH = this.gapHeight;
+
+    if (tier >= 6) {
+      // Tier 6-7: Vá»«a nghiÃªng láº¯c trÃ¡i pháº£i Vá»ªA di chuyá»ƒn dáº­p dá»nh
+      angleAmp = 0.08 + Math.random() * 0.03; // Â±4.5Â° Ä‘áº¿n Â±6.5Â°
+      angleFreq = 1.4 + Math.random() * 0.4;
+      baseAngle = 0;
+      oscAmp = 22 + Math.random() * 12;      // 22px Ä‘áº¿n 34px
+      oscFreq = 1.2 + Math.random() * 0.4;
+      gapH = 152;
+    } else if (tier === 5) {
+      // Tier 5: NghiÃªng láº¯c trÃ¡i rá»“i nghiÃªng pháº£i (Swaying pendulum)
+      angleAmp = 0.09 + Math.random() * 0.03; // Â±5.2Â° Ä‘áº¿n Â±7.0Â°
+      angleFreq = 1.5 + Math.random() * 0.4;
+      baseAngle = 0;
+      gapH = 148;
+    } else if (tier === 4) {
+      // Tier 4: NghiÃªng gÃ³c cá»‘ Ä‘á»‹nh + Dáº­p dá»nh nháº¹
+      baseAngle = (Math.random() < 0.5 ? -1 : 1) * (0.05 + Math.random() * 0.03);
+      oscAmp = 24 + Math.random() * 14;
+      oscFreq = 1.2 + Math.random() * 0.5;
+      gapH = 148;
+    } else if (tier === 3) {
+      // Tier 3: NghiÃªng gÃ³c cá»‘ Ä‘á»‹nh
+      baseAngle = (Math.random() < 0.5 ? -1 : 1) * (0.06 + Math.random() * 0.04);
+    } else if (tier === 2) {
+      // Tier 2: Dáº­p dá»nh lÃªn xuá»‘ng Ãªm dá»‹u
+      oscAmp = 28 + Math.random() * 14;
+      oscFreq = 1.3 + Math.random() * 0.5;
+    }
+
+    const pillar = new LaserPillar(this.gameWidth + 30, gapY, gapH, 52, {
+      oscAmp,
+      oscFreq,
+      baseAngle,
+      angleAmp,
+      angleFreq,
+      theme,
+      tier
+    });
+
+    this.pillars.push(pillar);
+  }
+
+  checkCollision(rocket) {
+    for (const p of this.pillars) {
+      if (p.collidesWith(rocket)) {
+        return p;
+      }
+    }
+    return null;
+  }
+
+  destroyFrontPillar(rocketX) {
+    return this.destroyFrontPillars(rocketX, 1)[0] || null;
+  }
+
+  destroyFrontPillars(rocketX, count = 1) {
+    const destroyed = [];
+    let candidates = this.pillars
+      .filter(p => !p.isDestroyed && p.x + p.width > rocketX - 25)
+      .sort((a, b) => a.x - b.x);
+
+    const theme = getThemeForScore(this.currentScore);
+    const tier = getTierFromScore(this.currentScore);
+
+    while (candidates.length < count) {
+      let nextX;
+      let nextGapY;
+
+      if (candidates.length === 0) {
+        nextX = Math.max(rocketX + 110, 200);
+        nextGapY = this.minGapY + Math.random() * (this.maxGapY - this.minGapY);
+      } else {
+        const prevPillar = candidates[candidates.length - 1];
+        nextX = Math.max(prevPillar.x + 120, prevPillar.x < 220 ? 320 : prevPillar.x + 140);
+        nextGapY = Math.min(this.maxGapY, Math.max(this.minGapY, prevPillar.gapY + (Math.random() - 0.5) * 60));
+      }
+
+      const newPillar = new LaserPillar(nextX, nextGapY, this.gapHeight, 52, { theme, tier });
+      this.pillars.push(newPillar);
+      candidates.push(newPillar);
+      candidates.sort((a, b) => a.x - b.x);
+    }
+
+    for (let i = 0; i < count; i++) {
+      const p = candidates[i];
+      p.isDestroyed = true;
+      p.passed = true;
+      destroyed.push(p);
+    }
+
+    this.spawnTimer = this.spawnInterval + (count >= 2 ? 0.9 : 0.4);
+    return destroyed;
+  }
+}
+
+
+===== src/entities/energyCell.js =====
+
+/**
+ * Floating Energy Cells / Plasma Crystals for Drunk Rocket 2.0
+ * Swarms of 2-4 playful moving orbs floating through space.
+ * Only charges Overdrive energy (+4% each) toward Smash without accelerating level score!
+ */
+export class EnergyCell {
+  constructor(x, y, vx = -60, vy = 0) {
+    this.x = x;
+    this.y = y;
+    this.baseY = y;
+    this.vx = vx;
+    this.vy = vy;
+    this.radius = 7;
+    this.pulsePhase = Math.random() * Math.PI * 2;
+    this.floatSpeed = 2.5 + Math.random() * 3.5;
+    this.floatAmp = 12 + Math.random() * 16;
+    this.isCollected = false;
+    this.isMagnetized = false;
+  }
+
+  update(dt, speed, rocket, hasMagnet = false) {
+    this.pulsePhase += dt * this.floatSpeed;
+
+    if (hasMagnet && !this.isCollected) {
+      const dx = rocket.x - this.x;
+      const dy = rocket.y - this.y;
+      const dist = Math.hypot(dx, dy);
+      const magnetRange = 220; // Broad magnet suction range
+
+      if (dist < magnetRange) {
+        this.isMagnetized = true;
+        const pullForce = 950 * (1 - dist / magnetRange) + 420;
+        this.vx += (dx / dist) * pullForce * dt;
+        this.vy += (dy / dist) * pullForce * dt;
+        this.x += this.vx * dt;
+        this.y += this.vy * dt;
+        return;
+      }
+    }
+
+    this.isMagnetized = false;
+    // Dynamic floating motion (drifts left and bobs up and down)
+    this.x -= speed * dt;
+    this.y = this.baseY + Math.sin(this.pulsePhase) * this.floatAmp;
+  }
+
+  isOffscreen() {
+    return this.x + this.radius < -40;
+  }
+
+  checkCollision(rocket) {
+    if (this.isCollected) return false;
+    const dx = rocket.x - this.x;
+    const dy = rocket.y - this.y;
+    const dist = Math.hypot(dx, dy);
+    return dist < (rocket.radius + this.radius + 6);
+  }
+}
+
+export class EnergyCellManager {
+  constructor(gameWidth = 400, gameHeight = 700) {
+    this.gameWidth = gameWidth;
+    this.gameHeight = gameHeight;
+    this.cells = [];
+  }
+
+  reset() {
+    this.cells = [];
+  }
+
+  /**
+   * Spawns a cluster of 2 to 4 animated floating energy orbs
+   */
+  /**
+   * Spawns a scattered cluster of 2 to 4 animated floating energy orbs
+   * positioned midway in the open corridor between the cleared pillar and upcoming pillar.
+   */
+  spawnCluster(centerX, centerY, count = 3) {
+    const spacing = 34;
+    const startX = centerX - ((count - 1) * spacing) / 2;
+    for (let i = 0; i < count; i++) {
+      const offsetX = i * spacing + (Math.random() - 0.5) * 16;
+      const offsetY = (Math.random() - 0.5) * 70;
+      const cellY = Math.min(Math.max(centerY + offsetY, 130), 570);
+      this.cells.push(new EnergyCell(startX + offsetX, cellY));
+    }
+  }
+
+  update(dt, speed, rocket, hasMagnet, onCollect) {
+    for (let i = this.cells.length - 1; i >= 0; i--) {
+      const cell = this.cells[i];
+      cell.update(dt, speed, rocket, hasMagnet);
+
+      if (!cell.isCollected && cell.checkCollision(rocket)) {
+        cell.isCollected = true;
+        if (onCollect) onCollect(cell);
+        this.cells.splice(i, 1);
+        continue;
+      }
+
+      if (cell.isOffscreen() || cell.isCollected) {
+        this.cells.splice(i, 1);
+      }
+    }
+  }
+
+  draw(ctx) {
+    for (const cell of this.cells) {
+      if (cell.isCollected) continue;
+
+      ctx.save();
+      const pulse = Math.sin(cell.pulsePhase);
+      const r = cell.radius + pulse * 1.5;
+      const magnet = cell.isMagnetized;
+
+      // 1. Quáº§ng giÃ³ sÃ¡ng
+      const grad = ctx.createRadialGradient(cell.x, cell.y, 2, cell.x, cell.y, r + 13);
+      grad.addColorStop(0, magnet ? 'rgba(0, 240, 255, 0.95)' : 'rgba(216, 255, 244, 0.95)');
+      grad.addColorStop(0.45, magnet ? 'rgba(0, 240, 255, 0.35)' : 'rgba(150, 236, 212, 0.34)');
+      grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(cell.x, cell.y, r + 13, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.translate(cell.x, cell.y);
+      ctx.rotate(cell.pulsePhase * 0.6);
+
+      // 2. CÃ¡c sá»£i giÃ³ (bÃ´ng giÃ³) xoÃ¨ ra, hÆ¡i xoáº¯n theo chiá»u giÃ³
+      const filaments = 7;
+      for (let i = 0; i < filaments; i++) {
+        const a = (i / filaments) * Math.PI * 2;
+        const len = r + 3 + Math.sin(cell.pulsePhase * 2 + i) * 1.6;
+        const tipA = a + 0.28;
+        const tx = Math.cos(tipA) * len;
+        const ty = Math.sin(tipA) * len;
+        ctx.strokeStyle = magnet ? 'rgba(0, 240, 255, 0.9)' : 'rgba(226, 255, 246, 0.85)';
+        ctx.lineWidth = 1.1;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * 1.6, Math.sin(a) * 1.6);
+        ctx.quadraticCurveTo(
+          Math.cos(a + 0.5) * len * 0.6, Math.sin(a + 0.5) * len * 0.6,
+          tx, ty
+        );
+        ctx.stroke();
+
+        // Háº¡t giÃ³ á»Ÿ Ä‘áº§u sá»£i
+        ctx.fillStyle = magnet ? '#ffffff' : '#fffdf2';
+        ctx.beginPath();
+        ctx.arc(tx, ty, 1.3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // 3. LÃµi áº¥m (giá»t giÃ³ vÃ ng)
+      const core = ctx.createRadialGradient(0, 0, 0.5, 0, 0, r * 0.85);
+      core.addColorStop(0, magnet ? '#ffffff' : '#fff8dc');
+      core.addColorStop(0.55, magnet ? '#00f0ff' : '#ffd13b');
+      core.addColorStop(1, magnet ? 'rgba(0, 240, 255, 0)' : 'rgba(255, 209, 59, 0)');
+      ctx.fillStyle = core;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.85, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    }
+  }
+}
+

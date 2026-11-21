@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>probe2</title>
+  <style>body{margin:0;background:#000;color:#0f0;font:12px monospace}pre{white-space:pre-wrap}canvas{opacity:.1}</style>
+</head>
+<body>
+  <pre id="out">running...</pre>
+  <canvas id="c" width="400" height="700"></canvas>
+  <script type="module">
+    import { Game } from '../src/core/game.js';
+    import { LaserPillar } from '../src/entities/laserPillar.js';
+    import { getProgression } from '../src/core/progression.js';
+
+    const out = document.getElementById('out');
+    const lines = [];
+    const log = (s) => { lines.push(s); out.textContent = lines.join('\n'); };
+    const fails = [];
+    const check = (name, cond, extra = '') => {
+      log((cond ? 'PASS ' : 'FAIL ') + name + (extra ? ' — ' + extra : ''));
+      if (!cond) fails.push(name);
+    };
+
+    const canvas = document.getElementById('c');
+    const game = new Game(canvas);
+
+    const clean = () => {
+      if (game.leaderboard && game.leaderboard.isOpen) game.leaderboard.hide();
+      game.state = 'PLAYING';
+      game.paused = false;
+      game.hitStopTimer = 0;
+      game.timeSinceDeath = 0;
+      game.invincibleTimer = 0;
+      game.isSmashActive = false;
+      game.drunkMeter = 0;
+      if (game.input) {
+        game.input.smashRequested = false;
+        game.input.consumeTap();
+        game.input.consumeSmash && game.input.consumeSmash();
+      }
+      if (game.perks) { game.perks.isPreDraft = false; game.perks.isDrafting = false; game.perks.isPostDraft = false; }
+    };
+
+    try {
+      // ---------- A) BÀN PHÍM: giữ Space để Lộng Gió ----------
+      clean();
+      game.drunkMeter = 100;
+      window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', key: ' ', bubbles: true }));
+      check('keydown Space -> isPressed + armed', game.input.isPressed === true && game.input._holdArmed === true,
+        `pressed=${game.input.isPressed} armed=${game.input._holdArmed}`);
+      // giả lập đã giữ 260ms
+      game.input.holdStart = performance.now() - 260;
+      game.input.updateHold(1 / 60);
+      check('giữ 260ms -> smashRequested', game.input.smashRequested === true);
+      window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Space', key: ' ', bubbles: true }));
+      check('keyup -> nhả giữ', game.input.isPressed === false && game.input._holdArmed === false);
+
+      // ---------- B) TRẦN MỀM ----------
+      clean();
+      game.pillars.pillars = [];
+      game.rocket.y = 2;
+      game.rocket.vy = -300;
+      game.update(1 / 60);
+      check('chạm trần lần 1: KHÔNG chết', game.state === 'PLAYING', 'state=' + game.state);
+      check('chạm trần: bị đẩy xuống', game.rocket.vy > 0, 'vy=' + game.rocket.vy.toFixed(0));
+
+      // 3 lần trong 2s -> chết
+      for (let i = 0; i < 3; i++) {
+        clean();
+        game.rocket.y = 2;
+        game.update(1 / 60);
+      }
+      check('chạm trần 3 lần liên tiếp -> chết', game.state === 'GAMEOVER', 'state=' + game.state);
+
+      // ---------- C) HẠT GIÓ +5% & COMBO ----------
+      clean();
+      game.drunkMeter = 0;
+      game.score = 0;
+      game.cellCombo = 0;
+      const fakeCell = { x: 200, y: 300 };
+      game._onCollectCell(fakeCell);
+      check('hạt gió +5%', game.drunkMeter === 5, 'meter=' + game.drunkMeter);
+      game._onCollectCell(fakeCell);
+      game._onCollectCell(fakeCell);
+      check('3 hạt liên tiếp -> +1 điểm', game.score === 1, 'score=' + game.score);
+
+      // ---------- C2) SMASH: đúng +1 điểm/cổng, tính là đã qua cổng ----------
+      clean();
+      game.pillars.pillars = [];
+      game.drunkMeter = 100;
+      game.score = 0;
+      game.gatesPassed = 0;
+      game._syncProgression(true);
+      game.pillars.pillars.push(new LaserPillar(300, 350, 148, 52, { theme: game.currentTheme, tier: 1 }));
+      game._triggerSupernovaSmash();
+      for (let i = 0; i < 40 && game.isSmashActive; i++) {
+        // KHÔNG dùng clean() ở đây: clean() tắt isSmashActive
+        game.state = 'PLAYING';
+        game.paused = false;
+        game.hitStopTimer = 0;
+        game.update(1 / 60);
+      }
+      check('smash 1 cổng -> đúng +1 điểm', game.score === 1, 'score=' + game.score);
+      check('smash 1 cổng -> gates +1', game.gatesPassed === 1, 'gates=' + game.gatesPassed);
+
+      // ---------- C3) TÚI BÙA mở đúng mốc cổng ----------
+      clean();
+      game.perks.reset();
+      game.gatesPassed = 5;
+      game._onScore(new LaserPillar(600, 350, 148, 52, { theme: game.currentTheme, tier: 1 }));
+      check('cổng 6 -> mở túi bùa (preDraft)', game.perks.isPreDraft === true,
+        `pre=${game.perks.isPreDraft} gates=${game.gatesPassed}`);
+      game.perks.reset();
+
+      // ---------- D) effectiveTier: vòng 2 có cổng "động" ----------
+      clean();
+      game.pillars.reset();
+      game.pillars.tierBoost = 2;   // vòng 2
+      game.pillars.spawn(0);
+      const t = game.pillars.pillars[game.pillars.pillars.length - 1];
+      check('vòng 2: pillar tier được boost', (t && t.tier) >= 3, 'tier=' + (t && t.tier));
+      game.pillars.tierBoost = 0;
+
+      log('');
+      log(fails.length ? 'FAILED: ' + fails.join(', ') : 'ALL CHECKS PASSED');
+      log('DONE');
+    } catch (e) {
+      log('FATAL: ' + (e && (e.stack || e.message)));
+    }
+  </script>
+</body>
+</html>

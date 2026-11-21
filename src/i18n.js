@@ -17,7 +17,7 @@ const DICT = {
     'brand.name': 'DIỀU SAY GIÓ',
     'brand.tagline': 'CÁNH DIỀU BAY DỌC VIỆT NAM',
 
-    'ready.controls': 'Chạm: Thả diều  |  Chạm đúp: Lộng gió',
+    'ready.controls': 'Chạm: bay  |  GIỮ 0.2s: Lộng gió',
     'ready.tap': 'CHẠM HOẶC SPACE ĐỂ THẢ DIỀU',
     'ready.best': 'KỶ LỤC CỦA BẠN',
     'ready.kite': 'DIỀU',
@@ -27,7 +27,7 @@ const DICT = {
     'hud.overdrive': 'ĐỘ LỘNG GIÓ',
     'hud.need': 'CẦN',
     'hud.points': 'ĐIỂM',
-    'hud.smashReady': '🌪 CHẠM ĐÚP: LỘNG GIÓ SẴN SÀNG! 🌪',
+    'hud.smashReady': '🌪 GIỮ TAY 0.2s: LỘNG GIÓ! 🌪',
     'hud.smashing': '💨 LỘNG GIÓ! PHÁ CỔNG TRE! 💨',
     'hud.nearMiss': 'NEAR-MISS! +{n}',
     'hud.magnet': '🌪 VÓ HÚT GIÓ',
@@ -50,6 +50,22 @@ const DICT = {
     'kite.3': 'DIỀU LỤA',
     'kite.4': 'DIỀU NGỌC',
     'kite.5': 'DIỀU RỒNG',
+
+    'stamp.new': '📮 TEM BƯU THIẾP MỚI!',
+
+    'title.1': 'TẬP BAY',
+    'title.2': 'BẠN CỦA GIÓ',
+    'title.3': 'LÃNG KHÁCH GIÓ',
+    'title.4': 'THỢ SĂN BƯU THIẾP',
+    'title.5': 'NGƯỜI GIỮ KÝ ỨC VIỆT NAM',
+    'title.6': 'ĐẠI SỨ BỐN MÙA',
+    'title.label': 'DANH HIỆU',
+
+    'color.1': 'BẠCH NGUYỆT',
+    'color.2': 'THANH NGỌC',
+    'color.3': 'TỬ VÂN',
+    'color.4': 'HOÀNG KIM',
+    'color.5': 'NGŨ SẮC',
 
     'chapter.label': 'CHƯƠNG',
     'chapter.labelEn': 'CHAPTER',
@@ -114,7 +130,7 @@ const DICT = {
     'brand.name': 'TIPSY KITE',
     'brand.tagline': 'A KITE ACROSS VIETNAM',
 
-    'ready.controls': 'Tap: fly  |  Double tap: Wind Burst',
+    'ready.controls': 'Tap: fly  |  HOLD 0.2s: Wind Burst',
     'ready.tap': 'TAP OR PRESS SPACE TO FLY',
     'ready.best': 'YOUR BEST',
     'ready.kite': 'KITE',
@@ -124,7 +140,7 @@ const DICT = {
     'hud.overdrive': 'WIND POWER',
     'hud.need': 'NEED',
     'hud.points': 'PTS',
-    'hud.smashReady': '🌪 DOUBLE TAP: WIND BURST READY! 🌪',
+    'hud.smashReady': '🌪 HOLD 0.2s: WIND BURST! 🌪',
     'hud.smashing': '💨 WIND BURST! BREAK THE GATES! 💨',
     'hud.nearMiss': 'NEAR-MISS! +{n}',
     'hud.magnet': '🌪 WIND NET',
@@ -147,6 +163,22 @@ const DICT = {
     'kite.3': 'SILK KITE',
     'kite.4': 'JADE KITE',
     'kite.5': 'DRAGON KITE',
+
+    'stamp.new': '📮 NEW POSTCARD STAMP!',
+
+    'title.1': 'FIRST FLIGHT',
+    'title.2': 'FRIEND OF WIND',
+    'title.3': 'WIND WANDERER',
+    'title.4': 'POSTCARD HUNTER',
+    'title.5': 'KEEPER OF VIETNAM',
+    'title.6': 'AMBASSADOR OF SEASONS',
+    'title.label': 'TITLE',
+
+    'color.1': 'MOON WHITE',
+    'color.2': 'JADE GREEN',
+    'color.3': 'VIOLET CLOUD',
+    'color.4': 'GOLDEN',
+    'color.5': 'FESTIVAL RAINBOW',
 
     'chapter.label': 'CH.',
     'chapter.labelEn': 'CH.',
