@@ -769,3 +769,46 @@ html, body {
   justify-content: flex-end;
   margin-top: 12px;
 }
+
+/* ===== Màn hình tải: dựng sẵn 9 địa danh trước khi vào game ===== */
+#loading-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 50% 35%, #173029 0%, #0b1512 70%);
+  transition: opacity 0.35s ease;
+}
+#loading-screen.is-hidden { opacity: 0; pointer-events: none; }
+.loading-inner { text-align: center; font-family: var(--font-ui); }
+.loading-kite { font-size: 46px; animation: kiteBob 1.4s ease-in-out infinite; }
+@keyframes kiteBob {
+  0%, 100% { transform: translateY(-4px) rotate(-6deg); }
+  50% { transform: translateY(6px) rotate(6deg); }
+}
+.loading-title {
+  margin-top: 10px;
+  color: var(--gold, #e8b84b);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+}
+.loading-bar {
+  margin: 14px auto 8px;
+  width: 210px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(243, 234, 214, 0.16);
+  overflow: hidden;
+}
+.loading-bar i {
+  display: block;
+  width: 0%;
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #e8b84b, #2fb894);
+  transition: width 0.18s ease-out;
+}
+.loading-sub { color: rgba(243, 234, 214, 0.6); font-size: 11px; letter-spacing: 0.08em; }

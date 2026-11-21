@@ -109,6 +109,42 @@ export class ScenicLandmarksManager {
     setTimeout(step, 120);
   }
 
+  /**
+   * DỰNG SẴN toàn bộ 9 địa danh (một lần, lúc màn hình loading).
+   * Trả Promise; gọi onProgress(done, total) sau mỗi địa danh.
+   */
+  bakeAll(onProgress) {
+    const tiers = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    const scratch = document.createElement('canvas');
+    scratch.width = this.width;
+    scratch.height = this.height;
+    const sctx = scratch.getContext('2d');
+    const savedTier = this.currentTier;
+    const savedPrev = this.prevTier;
+    let i = 0;
+
+    return new Promise((resolve) => {
+      const step = () => {
+        if (i >= tiers.length) {
+          this.currentTier = savedTier;
+          this.prevTier = savedPrev;
+          this._preWarming = false;
+          resolve();
+          return;
+        }
+        const tier = tiers[i++];
+        try {
+          sctx.setTransform(1, 0, 0, 1, 0, 0);
+          sctx.clearRect(0, 0, this.width, this.height);
+          this._drawLandmarkByTier(sctx, tier);
+        } catch (e) { /* bỏ qua lỗi dựng thử */ }
+        if (onProgress) onProgress(i, tiers.length, tier);
+        setTimeout(step, 0);
+      };
+      step();
+    });
+  }
+
   setTier(tier) {
     if (tier !== this.currentTier) {
       this.prevTier = this.currentTier;

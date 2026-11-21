@@ -18,9 +18,33 @@ window.addEventListener('DOMContentLoaded', () => {
   infoPanels.init();
 
   const game = new Game(canvas);
-  game.start();
-  // Hâm nóng cảnh của 9 địa danh trong lúc người chơi ở màn READY
-  if (game.scenic && game.scenic.preWarmAll) game.scenic.preWarmAll();;
+
+  // ---- TẢI TRƯỚC: dựng sẵn cảnh 9 địa danh + chờ font, rồi mới vào game ----
+  const loadingEl = document.getElementById('loading-screen');
+  const fillEl = document.getElementById('loading-fill');
+  const subEl = document.getElementById('loading-sub');
+  if (subEl) subEl.textContent = t('loading.sub');
+
+  const finishLoading = () => {
+    if (loadingEl) {
+      loadingEl.classList.add('is-hidden');
+      setTimeout(() => loadingEl.remove(), 420);
+    }
+    game.start();
+  };
+
+  (async () => {
+    try {
+      if (game.scenic && game.scenic.bakeAll) {
+        await game.scenic.bakeAll((done, total) => {
+          if (fillEl) fillEl.style.width = Math.round((done / total) * 100) + '%';
+          if (subEl) subEl.textContent = done + '/' + total;
+        });
+      }
+      if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    } catch (e) { /* lỗi dựng thử không chặn game */ }
+    finishLoading();
+  })();
   window.game = game;
 
   // Nhãn nút âm thanh / ngôn ngữ theo i18n

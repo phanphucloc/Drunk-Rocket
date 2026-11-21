@@ -28,7 +28,16 @@
 </head>
 <body>
   <div id="game-container">
-    <canvas id="game-canvas"></canvas>
+      <div id="loading-screen" role="status" aria-live="polite">
+    <div class="loading-inner">
+      <div class="loading-kite">🪁</div>
+      <div class="loading-title" data-i18n="loading.title">ĐANG TẢI…</div>
+      <div class="loading-bar"><i id="loading-fill"></i></div>
+      <div class="loading-sub" id="loading-sub"></div>
+    </div>
+  </div>
+
+<canvas id="game-canvas"></canvas>
 
     <!-- Top Floating Toolbar -->
     <div id="top-toolbar">

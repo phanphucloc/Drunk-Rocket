@@ -51,6 +51,9 @@ const DICT = {
     'kite.4': 'DIỀU NGỌC',
     'kite.5': 'DIỀU RỒNG',
 
+    'loading.title': 'ĐANG TẢI…',
+    'loading.sub': 'Đang dựng cảnh 9 vùng miền',
+
     'stamp.new': '📮 TEM BƯU THIẾP MỚI!',
 
     'title.1': 'TẬP BAY',
@@ -163,6 +166,9 @@ const DICT = {
     'kite.3': 'SILK KITE',
     'kite.4': 'JADE KITE',
     'kite.5': 'DRAGON KITE',
+
+    'loading.title': 'LOADING…',
+    'loading.sub': 'Preparing 9 regions',
 
     'stamp.new': '📮 NEW POSTCARD STAMP!',
 
