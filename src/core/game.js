@@ -1155,7 +1155,21 @@ export class Game {
     }
 
     this.ctx.restore();
-  }
+  
+    // ---- Nền mờ phía sau: phủ kín màn hình (cover) ----
+    if (this.bgCtx && this.bgCanvas) {
+      this._bgFrame = (this._bgFrame + 1) % 2;
+      if (this._bgFrame === 0) {
+        const bw = this.bgCanvas.width;
+        const bh = this.bgCanvas.height;
+        const sc = Math.max(bw / this.width, bh / this.height);
+        const dw = this.width * sc;
+        const dh = this.height * sc;
+        this.bgCtx.clearRect(0, 0, bw, bh);
+        this.bgCtx.drawImage(this.canvas, (bw - dw) / 2, (bh - dh) / 2, dw, dh);
+      }
+    }
+}
 
   _bindToolbarButtons() {
     const btnTop = document.getElementById('btn-open-leaderboard');

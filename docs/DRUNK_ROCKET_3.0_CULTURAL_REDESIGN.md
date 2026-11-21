@@ -974,3 +974,36 @@ Ba tỉ lệ đã chụp: **1400×820** (rộng), **760×1200** (cao), **1200×5
 ### D. Giữ nguyên 2 yêu cầu trước
 - **Không bể cảnh**: scenic vẫn vẽ trong hệ pixel backing + transform cộng dồn (`_viewT`).
 - **Không mờ**: canvas hiển thị = `css × DPR` (DPR ≤ 2, máy yếu ≤ 1.5), vẽ trực tiếp ở độ phân giải đó.
+
+---
+
+## 38. Chốt bố cục: sửa "lệch" tận gốc (thay mục 37)
+
+### A. Vì sao vẫn lệch sau mục 37
+File `game.js` bị **trộn hai kiến trúc**: phần `resize()` đã chuyển sang "vẽ trực tiếp ở backing",
+nhưng `render()` vẫn còn **buffer 400×700** cũ. Kết quả: cảnh được vẽ với `scenic.resize(backing)`
+nhưng lại ghi vào buffer 400×700 ⇒ **cắt và lệch**; HUD thì vẽ ở hệ backing ⇒ thẻ kết thúc lệch khỏi nền.
+Ngoài ra **rung màn hình (shake)** chỉ áp cho HUD/entity, **không áp cho cảnh nền** ⇒ khi va chạm,
+thẻ/nút bị đẩy lệch so với tranh.
+
+### B. Đã dọn dứt điểm
+1. **Bỏ hoàn toàn buffer** — chỉ còn một đường vẽ: canvas hiển thị, backing = `css × DPR`.
+2. **Scenic vẽ ở hệ pixel backing**, `scenic.resize(canvas.width, canvas.height)`; transform cảnh
+   dùng `setTransform` **cộng dồn** với nền (`_viewT/_resetView`, WeakMap).
+3. **Shake gộp vào transform nền** cho **cả cảnh lẫn HUD/entity** ⇒ mọi thứ rung cùng nhau, không lệch.
+4. **Kích thước theo `visualViewport`** + tự chữa mỗi 800ms (`fit()` so khung thực với khung đúng).
+5. **Thanh công cụ responsive**: màn hình < 900px chỉ hiện icon để không đè khung chơi;
+   `layoutOverlay()` luôn bám mép canvas (ngoài nếu đủ chỗ, sát trong nếu không).
+
+### C. Đo thực tế (`?debug=1`)
+```
+DLG vv=1384x669 css=382x669  → 1400×820: css=468x820 scale=1.171
+tall  760×1200: css=599x1049 scale=1.499
+wide  1400×820: css=468x820  scale=1.171
+short 1200×560: css=320x560  scale=0.800
+```
+Canvas luôn đúng tỉ lệ 4:7, căn giữa; phần thừa được **nền mờ** (blur 16px, brightness 1.05) lấp
+bằng chính khung đang chơi.
+
+### D. Ảnh
+`docs/screenshots/layout-wide.png`, `layout-tall.png`, `layout-short.png`.

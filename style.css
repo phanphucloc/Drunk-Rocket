@@ -830,3 +830,9 @@ html, body {
   transition: width 0.18s ease-out;
 }
 .loading-sub { color: rgba(243, 234, 214, 0.6); font-size: 11px; letter-spacing: 0.08em; }
+
+/* Responsive: màn hình hẹp thì thanh công cụ chỉ hiện icon để không đè khung chơi */
+@media (max-width: 900px) {
+  #top-toolbar .btn-label { display: none; }
+  #top-toolbar .arcade-btn { padding: 6px 8px; }
+}
