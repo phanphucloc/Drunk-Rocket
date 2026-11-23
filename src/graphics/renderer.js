@@ -869,6 +869,51 @@ export function drawHUD(ctx, score, bestScore, options = {}) {
 /**
  * Main EntityRenderer class used by src/core/game.js
  */
+/**
+ * DÂY DIỀU — sợi chỉ từ đuôi diều kéo về góc dưới-trái (người thả đứng dưới đất),
+ * võng nhẹ theo trọng lực và rung khi Lộng Gió.
+ */
+export function drawKiteString(ctx, rocket, time = 0, isSmash = false, width = 400, height = 700) {
+  if (!rocket) return;
+  const ax = -26;                 // neo ngoài màn hình dưới-trái
+  const ay = height + 34;
+  const bx = rocket.x - 14;       // đuôi diều
+  const by = rocket.y + 6;
+
+  // điểm võng: trọng lực kéo dây xuống, Lộng Gió làm dây căng + rung
+  const sag = isSmash ? 26 : 74;
+  const wob = Math.sin(time * 2.2) * (isSmash ? 10 : 4);
+  const cx1 = ax + (bx - ax) * 0.34;
+  const cy1 = ay + (by - ay) * 0.34 + sag + wob;
+  const cx2 = ax + (bx - ax) * 0.72;
+  const cy2 = ay + (by - ay) * 0.72 + sag * 0.55 + wob * 0.6;
+
+  ctx.save();
+  ctx.lineCap = 'round';
+  // bóng mờ cho dây dễ thấy trên nền sáng
+  ctx.strokeStyle = 'rgba(20, 26, 22, 0.35)';
+  ctx.lineWidth = 2.1;
+  ctx.beginPath();
+  ctx.moveTo(ax, ay);
+  ctx.bezierCurveTo(cx1, cy1, cx2, cy2, bx, by);
+  ctx.stroke();
+
+  ctx.strokeStyle = isSmash ? 'rgba(255, 226, 160, 0.95)' : 'rgba(243, 234, 214, 0.72)';
+  ctx.lineWidth = isSmash ? 1.6 : 1.2;
+  ctx.beginPath();
+  ctx.moveTo(ax, ay);
+  ctx.bezierCurveTo(cx1, cy1, cx2, cy2, bx, by);
+  ctx.stroke();
+
+  // nút buộc nhỏ ở đuôi diều
+  ctx.fillStyle = 'rgba(232, 184, 75, 0.9)';
+  ctx.beginPath();
+  ctx.arc(bx, by, 1.8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+
 export class EntityRenderer {
   static drawRocket(ctx, rocket, options = {}) {
     drawRocket(ctx, rocket.x, rocket.y, {
