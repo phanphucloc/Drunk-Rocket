@@ -465,9 +465,7 @@ export class Game {
   _onNearMiss(pillar) {
     const bonus = 2 * (this.nearMissMultiplier || 1);   // Near-miss: +2 (bùa Mắt Diều Tinh nhân lên)
     this.score += bonus;
-    this._syncProgression();
-    if (infoPanels) infoPanels.setLandmark(this.currentTheme, this.lapNumber, this.chapterNumber, false,
-      this.gatesPassed % POINTS_PER_CHAPTER, POINTS_PER_CHAPTER);
+    // Không _syncProgression ở đây: onScore chạy ngay sau đó và sẽ đồng bộ 1 lần
     this.justScoredTimer = 0.8;
     this.drunkMeter = Math.min(100, this.drunkMeter + (12 * this.nearMissMultiplier));
     this.audio.playNearMiss();
@@ -478,7 +476,7 @@ export class Game {
     const pY = pillar ? pillar.gapY : this.rocket.y;
     this.particles.emitEnergySiphon(pX, pY, this.width / 2, 126, 14);
 
-    if (this.ghosts && pillar) this.ghosts.spawnForPillar(pillar, this.score);
+    // Không spawn ghost ở đây: _onScore ngay sau đó đã spawn cho cùng cột (tránh đúp)
     if (this.score > this.bestScore) {
       this.bestScore = this.score;
       localStorage.setItem('drunk_rocket_best', this.bestScore.toString());
