@@ -175,8 +175,11 @@ export class PerkDraftManager {
   }
 
   triggerDraft() {
-    // REQUIREMENT: Mỗi thẻ bài xuất hiện nhiều lần và ngẫu nhiên (không bị chặn vĩnh viễn)
-    const shuffled = [...PERK_CATALOG].sort(() => 0.5 - Math.random());
+    // Chỉ rút bùa ĐÃ MỞ KHOÁ; nếu chưa đủ 3 lá thì bù bằng toàn bộ danh mục
+    const meta = loadMeta();
+    let pool = PERK_CATALOG.filter(p => isPerkUnlocked(meta, p.id));
+    if (pool.length < 3) pool = PERK_CATALOG;
+    const shuffled = [...pool].sort(() => 0.5 - Math.random());
     this.draftCards = shuffled.slice(0, 3);
     this.isDrafting = true;
     this.hoveredIndex = -1;
