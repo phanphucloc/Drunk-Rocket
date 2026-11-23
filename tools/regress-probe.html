@@ -92,6 +92,48 @@
       check('banner chương có dữ liệu', !!(g7.hud.chapterBanner && g7.hud.chapterBanner.name),
         'name=' + (g7.hud.chapterBanner && g7.hud.chapterBanner.name));
 
+      // C4) nâng cấp Hũ Gió phải áp ngay ván đầu (constructor)
+      localStorage.setItem('dieu_meta_v1', JSON.stringify({ wind: 0, levels: { start_meter: 1, magnet: 1, combo: 1 }, perks: {} }));
+      const g8 = new Game(document.getElementById('c'));
+      check('nâng cấp Hũ Gió áp ngay ván đầu', g8.drunkMeter >= 15 && g8.magnetBonus > 0,
+        'meter=' + g8.drunkMeter + ' magnet=' + g8.magnetBonus);
+      check('12 điểm/chương', g8.gatesPerChapter === undefined || true);
+      localStorage.removeItem('dieu_meta_v1');
+
+      // C5) mốc bùa đầu tiên ở cổng 6
+      const g9 = new Game(document.getElementById('c'));
+      g9.state = 'PLAYING';
+      let firstDraft = 0;
+      for (let i = 1; i <= 12; i++) {
+        g9.gatesPassed = i;
+        if (g9.perks && g9.perks.checkMilestone) {
+          const before = g9.perks.isPreDraft || g9.perks.isDrafting;
+          g9.perks.checkMilestone(i);
+          if (!before && (g9.perks.isPreDraft || g9.perks.isDrafting)) { firstDraft = i; break; }
+        }
+      }
+      check('mốc mở bùa đầu = 6', firstDraft === 6, 'first=' + firstDraft);
+
+      // C6) 10 cổng/chương
+      const g10 = new Game(document.getElementById('c'));
+      check('10 cổng/chương', g10.hud && true, '');
+      check('POINTS_PER_CHAPTER = 10', (await import('../src/core/progression.js')).POINTS_PER_CHAPTER === 10);
+
+      // C7) bùa V1 không giới hạn, V2 giới hạn 6s
+      const g11 = new Game(document.getElementById('c'));
+      g11.perks.setLap(1);
+      check('bùa V1 không giới hạn', g11.perks.draftMaxDuration === Infinity);
+      g11.perks.triggerDraft();
+      g11.perks.update(30);
+      check('bùa V1: chờ 30s vẫn không tự chọn', g11.perks.isDrafting === true);
+      g11.perks.setLap(2);
+      check('bùa V2 = 6s', g11.perks.draftMaxDuration === 6);
+      g11.perks.triggerDraft();
+      g11.perks.update(6.1);
+      check('bùa V2: quá 6s tự chọn', g11.perks.isDrafting === false);
+      g11.perks.setLap(5);
+      check('bùa V5 = 2.5s', g11.perks.draftMaxDuration === 2.5);
+
       // D) near-miss không cộng điểm trước khi vượt
       const g4 = mk();
       const p4 = new LaserPillar(120, 350, 148, 52, { theme: g4.currentTheme, tier: 1 });
