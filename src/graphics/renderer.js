@@ -890,19 +890,28 @@ export function drawKiteString(ctx, rocket, time = 0, isSmash = false, width = 4
 
   ctx.save();
   ctx.lineCap = 'round';
-  // bóng mờ cho dây dễ thấy trên nền sáng
-  ctx.strokeStyle = 'rgba(20, 26, 22, 0.35)';
-  ctx.lineWidth = 2.1;
+  // bóng tối bên dưới để dây nổi trên nền sáng
+  ctx.strokeStyle = 'rgba(12, 18, 14, 0.55)';
+  ctx.lineWidth = 3;
   ctx.beginPath();
   ctx.moveTo(ax, ay);
   ctx.bezierCurveTo(cx1, cy1, cx2, cy2, bx, by);
   ctx.stroke();
 
-  ctx.strokeStyle = isSmash ? 'rgba(255, 226, 160, 0.95)' : 'rgba(243, 234, 214, 0.72)';
-  ctx.lineWidth = isSmash ? 1.6 : 1.2;
+  // sợi chỉ sáng
+  ctx.strokeStyle = isSmash ? 'rgba(255, 232, 170, 1)' : 'rgba(250, 245, 230, 0.95)';
+  ctx.lineWidth = isSmash ? 2 : 1.7;
   ctx.beginPath();
   ctx.moveTo(ax, ay);
   ctx.bezierCurveTo(cx1, cy1, cx2, cy2, bx, by);
+  ctx.stroke();
+
+  // đoạn gần diều dày hơn (dây nối vào đuôi)
+  ctx.strokeStyle = isSmash ? 'rgba(255, 226, 160, 0.9)' : 'rgba(232, 184, 75, 0.85)';
+  ctx.lineWidth = 2.4;
+  ctx.beginPath();
+  ctx.moveTo(bx, by);
+  ctx.quadraticCurveTo(bx - 22, by + 20, bx - 46, by + 46 + wob * 0.4);
   ctx.stroke();
 
   // nút buộc nhỏ ở đuôi diều
