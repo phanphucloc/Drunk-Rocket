@@ -16,7 +16,7 @@
 
 import { TIER_THEMES } from '../graphics/themes.js';
 
-// Số CỔNG để qua 1 địa danh (chương). 12 cổng ~ 22-25 giây -> mỗi vùng miền đủ thời gian
+// Số CỔNG để qua 1 địa danh (chương). 10 cổng -> mỗi vùng miền đủ thời gian
 // để thời tiết chuyển (nắng -> mưa -> đêm). Đổi 1 số này là đổi nhịp độ cả game.
 // Chương tính theo SỐ CỔNG ĐÃ VƯỢT (không theo điểm) để nhịp thời tiết luôn ổn định,
 // còn điểm (Near-Miss / Smash / hạt gió) chỉ dùng cho bảng xếp hạng.
