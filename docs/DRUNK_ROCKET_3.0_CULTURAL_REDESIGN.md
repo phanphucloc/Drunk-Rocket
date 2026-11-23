@@ -1406,3 +1406,45 @@ PASS mốc mở bùa đầu = 6
 PASS restart sạch · smash +1/hit-stop · chain 2 cột · near-miss sau khi vượt · bùa 0.8s
 ALL REGRESSION CHECKS PASSED
 ```
+
+---
+
+## 50. Chốt: 10 cổng/chương + thời gian chọn bùa giảm dần theo vòng
+
+### A. 10 cổng/chương (quyết định cuối)
+`POINTS_PER_CHAPTER = 10`. Số cổng để mở bùa **độc lập** với chương:
+`milestoneInterval = 12`, `lastMilestoneScore = -7` ⇒ mốc bùa **5, 17, 29, 41, 53…**
+(tất cả ≡ 5 hoặc 7 mod 10 ⇒ **không bao giờ** trùng bội số 10 = đổi chương).
+
+| Cổng | 5 | 10 | 17 | 20 | 29 | 30 | 41 | 50 |
+|---|---|---|---|---|---|---|---|---|
+| Sự kiện | 🎴 bùa | 🏞 đổi tỉnh | 🎴 | 🏞 | 🎴 | 🏞 | 🎴 | 🏞 |
+
+### B. Thời gian chọn bùa theo vòng
+| Vòng | Giới hạn | Lý do |
+|---|---|---|
+| **1** | **không giới hạn** | Người mới đọc 3 thẻ, hiểu Lộng Gió/bùa; không bị ép bấm |
+| **2** | **6.0s** | Bắt đầu có sức ép nhưng vẫn rộng (~2s/thẻ) |
+| **3** | 4.5s | Đã quen, cần quyết nhanh hơn |
+| **4** | 3.5s | Trung bình cho người khá |
+| **5+** | 2.5s | Sàn cho rage-game: ~0.8s/thẻ, không phá nhịp |
+
+**Cân đối:** đọc 3 thẻ cần tối thiểu ~1.6–2s; sàn 2.5s đủ đọc tên + biểu tượng, còn 6s ở V2 là
+"cầu nối" giữa tự do và sức ép. Hai pha chờ (trước 0.45s, sau 0.7s) giữ nguyên.
+Hết giờ tự chọn **lá 1** (đã ghi rõ trên thẻ "1, 2, 3").
+
+### C. UI
+- Vòng 1: dòng chữ **"Bao nhiêu thời gian cũng được"** (xanh), không đếm ngược, không tự chọn.
+- Vòng 2+: đếm ngược; **≤1.2s chuyển đỏ** để báo sắp hết giờ.
+
+### D. Kiểm chứng
+```
+PASS 10 cổng/chương
+PASS POINTS_PER_CHAPTER = 10
+PASS bùa V1 không giới hạn
+PASS bùa V1: chờ 30s vẫn không tự chọn
+PASS bùa V2 = 6s · quá 6s tự chọn
+PASS bùa V5 = 2.5s
+PASS mốc mở bùa đầu = 5
+ALL REGRESSION CHECKS PASSED
+```
