@@ -80,6 +80,18 @@
         `a=${c3a.isDestroyed} b=${c3b.isDestroyed}`);
       check('chain: +2 điểm', g3.score === 2, 'score=' + g3.score);
 
+      // C2) sau 3s mô phỏng, phải có cột trên màn hình
+      const g6 = mk();
+      g6.pillars.reset();
+      for (let i = 0; i < 180; i++) { g6.state = 'PLAYING'; g6.update(1 / 60); }
+      check('cột sinh ra sau 3s', g6.pillars.pillars.length > 0, 'n=' + g6.pillars.pillars.length);
+
+      // C3) banner chương hiện được
+      const g7 = mk();
+      g7.hud.showChapterBanner(g7.currentTheme, 1, 2);
+      check('banner chương có dữ liệu', !!(g7.hud.chapterBanner && g7.hud.chapterBanner.name),
+        'name=' + (g7.hud.chapterBanner && g7.hud.chapterBanner.name));
+
       // D) near-miss không cộng điểm trước khi vượt
       const g4 = mk();
       const p4 = new LaserPillar(120, 350, 148, 52, { theme: g4.currentTheme, tier: 1 });

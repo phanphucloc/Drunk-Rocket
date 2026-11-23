@@ -33,6 +33,11 @@ window.addEventListener('DOMContentLoaded', () => {
     game.resize();
     game.startAutoFit();
     game.start();
+    // ?banner=1 : hiện thử banner chương (kiểm thử)
+    if (/[?&]banner=1/.test(location.search)) {
+      setTimeout(() => { if (game.hud && game.hud.showChapterBanner) game.hud.showChapterBanner(game.currentTheme, game.lapNumber, game.chapterNumber); }, 900);
+    }
+
     // ?auto=1 : tự bắt đầu để kiểm thử tự động
     if (/[?&]auto=1/.test(location.search)) {
       setTimeout(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', key: ' ' })), 1200);

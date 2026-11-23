@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>banner-probe</title>
+  <style>body{margin:0;background:#0b1512}canvas{display:block}</style>
+</head>
+<body>
+  <canvas id="c" width="400" height="700"></canvas>
+  <script type="module">
+    import { Game } from '../src/core/game.js';
+
+    const g = new Game(document.getElementById('c'));
+    g.state = 'PLAYING';
+    g.score = 14;
+    g.gatesPassed = 14;
+    g._syncProgression(true);
+    g.lapNumber = 2;
+    g.currentTheme = g.currentTheme;
+    g.hud.showChapterBanner(g.currentTheme, 2, 2);
+
+    // chạy vài frame để banner hiện (giữ thời gian)
+    let n = 0;
+    const tick = () => {
+      n++;
+      if (n < 8) {
+        g.state = 'PLAYING';
+        g.update(1 / 60);
+        g.render();
+        requestAnimationFrame(tick);
+      } else {
+        g.paused = true;
+        g.render();
+        document.title = 'ready';
+      }
+    };
+    tick();
+  </script>
+</body>
+</html>
