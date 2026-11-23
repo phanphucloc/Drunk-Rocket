@@ -57,7 +57,7 @@ function render(game) {
       if (buy && !maxed) {
         buy.addEventListener('click', () => {
           const res = buyUpgrade(def.id);
-          if (res.ok) { render(game); if (game && game.audio) game.audio.playMedal && game.audio.playMedal(); }
+          if (res.ok) { render(game); if (game && game._applyMetaUpgrades) game._applyMetaUpgrades(); if (game && game.audio) game.audio.playMedal && game.audio.playMedal(); }
           else buy.classList.add('shake');
         });
       }

@@ -49,8 +49,8 @@ export const PERK_CATALOG = [
     name: 'Xuyên Gió',
     nameEn: 'Wind Walker',
     icon: '👻',
-    desc: 'Tàng hình xuyên cổng 1.8s sau mỗi cú chạm (qua 4 cổng)',
-    descEn: 'Phase through gates 1.8s after each tap (4 gates)',
+    desc: 'Tàng hình xuyên cổng 1.2s sau mỗi cú chạm (qua 4 cổng)',
+    descEn: 'Phase through gates 1.2s after each tap (4 gates)',
     group: 'defense',
     durationPillars: 4,
     apply: (game) => {
@@ -138,7 +138,7 @@ export class PerkDraftManager {
     this.draftTimer = 0;
     this.draftMaxDuration = 2.4;
     this.lastMilestoneScore = -5; // mốc đầu ở 5 cổng (lệch pha với đổi chương 10,20,30), sau đó 18, 30... (lệch pha với chương)
-    this.milestoneInterval = 10;
+    this.milestoneInterval = 12;
   }
 
   reset() {

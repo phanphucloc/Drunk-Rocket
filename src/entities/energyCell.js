@@ -21,6 +21,22 @@ export class EnergyCell {
   update(dt, speed, rocket, hasMagnet = false, magnetBonus = 0) {
     this.pulsePhase += dt * this.floatSpeed;
 
+    // Hút thụ động từ nâng cấp Hũ Gió (không cần bùa), yếu hơn nhiều
+    if (!hasMagnet && !this.isCollected && magnetBonus > 0) {
+      const dxp = rocket.x - this.x;
+      const dyp = rocket.y - this.y;
+      const dp = Math.hypot(dxp, dyp);
+      if (dp > 0.001 && dp < magnetBonus) {
+        this.isMagnetized = true;
+        const pull = 260 * (1 - dp / magnetBonus) + 90;
+        this.vx += (dxp / dp) * pull * dt;
+        this.vy += (dyp / dp) * pull * dt;
+        this.x += this.vx * dt;
+        this.y += this.vy * dt;
+        return;
+      }
+    }
+
     if (hasMagnet && !this.isCollected) {
       const dx = rocket.x - this.x;
       const dy = rocket.y - this.y;

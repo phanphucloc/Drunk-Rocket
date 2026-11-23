@@ -192,6 +192,11 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   initWindJar(game);
+  // ?windjar=1 : mở sẵn Hũ Gió (kiểm thử)
+  if (/[?&]windjar=1/.test(location.search)) {
+    setTimeout(() => { const b = document.getElementById('btn-open-windjar'); if (b) b.click(); }, 600);
+  }
+
   initStampBook();
   // ---- Canh UI theo MÉP CANVAS (không theo mép cửa sổ) ----
   const layoutOverlay = () => {

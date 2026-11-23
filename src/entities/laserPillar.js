@@ -316,47 +316,5 @@ export class LaserPillarManager {
     return null;
   }
 
-  destroyFrontPillar(rocketX) {
-    return this.destroyFrontPillars(rocketX, 1)[0] || null;
-  }
 
-  destroyFrontPillars(rocketX, count = 1) {
-    const destroyed = [];
-    let candidates = this.pillars
-      .filter(p => !p.isDestroyed && p.x + p.width > rocketX - 25)
-      .sort((a, b) => a.x - b.x);
-
-    const theme = getThemeForScore(this.currentScore);
-    const tier = getTierFromScore(this.currentScore);
-
-    while (candidates.length < count) {
-      let nextX;
-      let nextGapY;
-
-      if (candidates.length === 0) {
-        nextX = Math.max(rocketX + 110, 200);
-        nextGapY = this.minGapY + Math.random() * (this.maxGapY - this.minGapY);
-      } else {
-        const prevPillar = candidates[candidates.length - 1];
-        nextX = Math.max(prevPillar.x + 120, prevPillar.x < 220 ? 320 : prevPillar.x + 140);
-        nextGapY = Math.min(this.maxGapY, Math.max(this.minGapY, prevPillar.gapY + (Math.random() - 0.5) * 60));
-      }
-
-      const effectiveTier = Math.min(9, (tier || 1) + (this.tierBoost || 0));
-      const newPillar = new LaserPillar(nextX, nextGapY, this.gapHeight, 52, { theme, tier });
-      this.pillars.push(newPillar);
-      candidates.push(newPillar);
-      candidates.sort((a, b) => a.x - b.x);
-    }
-
-    for (let i = 0; i < count; i++) {
-      const p = candidates[i];
-      p.isDestroyed = true;
-      p.passed = true;
-      destroyed.push(p);
-    }
-
-    this.spawnTimer = this.spawnInterval + (count >= 2 ? 0.9 : 0.4);
-    return destroyed;
-  }
 }

@@ -40,6 +40,7 @@ export class Game {
     // Chất lượng tự điều chỉnh: 0 = cao, 1 = vừa, 2 = thấp (máy yếu)
     this.streamCam = false;
     this.perfLevel = 0;
+    this._applyMetaUpgrades();
     this.perfEma = 16.7;
     this.perfFrames = 0;
     this.width = 400;
@@ -296,11 +297,19 @@ export class Game {
     requestAnimationFrame(this.loop);
   }
 
-  _restart() {
-    // Meta-progression: áp nâng cấp vĩnh viễn
+  /** Áp nâng cấp vĩnh viễn (Hũ Gió) — gọi ở constructor, _restart và sau khi mua. */
+  _applyMetaUpgrades() {
     this.startMeterBonus = upgradeValue('start_meter');
     this.magnetBonus = upgradeValue('magnet');
     this.comboBonus = upgradeValue('combo');
+    if (this.state === 'READY') {
+      this.drunkMeter = Math.max(this.drunkMeter, Math.min(100, this.startMeterBonus));
+    }
+  }
+
+  _restart() {
+    // Meta-progression: áp nâng cấp vĩnh viễn
+    this._applyMetaUpgrades();
     this.score = 0;
     this.drunkMeter = Math.min(100, this.startMeterBonus);
     this.isSmashActive = false;
@@ -368,7 +377,7 @@ export class Game {
     this.timeSinceDeath = 0;
     this.dragonCelebrated = false;
     this.invincibleTimer = 0;
-    if (infoPanels) infoPanels.setLandmark(this.currentTheme, 1, 1);
+    if (infoPanels) infoPanels.setLandmark(this.currentTheme, 1, 1, false, 0, POINTS_PER_CHAPTER);
     if (this.audio && this.audio.setMusicTheme) this.audio.setMusicTheme(this.currentTheme.music, true);
     if (this.story) this.story.phase = 'idle';
   }
