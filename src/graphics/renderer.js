@@ -16,12 +16,21 @@ const LAP_GATE_ACCENTS = [
   { accent: '#c9902a', light: '#ffe8a8', lantern: '#c9852a', glow: 'rgba(201, 144, 42, 0.45)', pennant: 6, band: true,
     pole: ['#f0d08a', '#c9a24a', '#8a6a2a'], leaf: '#d4b45a' },                                    // V4 trúc kim
   { accent: '#b3172a', light: '#ffb347', lantern: '#a8101f', glow: 'rgba(200, 40, 50, 0.50)', pennant: 7, band: true,
-    pole: ['#d97a5a', '#a8352a', '#6e1c18'], leaf: '#c24a30' }                                     // V5 trúc rồng
+    pole: ['#d97a5a', '#a8352a', '#6e1c18'], leaf: '#c24a30' }                                      // V5 trúc rồng
+];
+
+// Gió giữa cột: mỗi vòng một tông + mật độ vệt khác hẳn
+const LAP_WINDS = [
+  { wind: '#d6fff6', windAlpha: 0.055, windStreaks: 3 },  // V1 gió trắng ngọc
+  { wind: '#ffe6b0', windAlpha: 0.085, windStreaks: 4 },  // V2 gió mật ong
+  { wind: '#e2c6ff', windAlpha: 0.105, windStreaks: 5 },  // V3 gió tím
+  { wind: '#ffeeb0', windAlpha: 0.125, windStreaks: 6 },  // V4 gió kim quang
+  { wind: '#ffb49a', windAlpha: 0.150, windStreaks: 8 }   // V5 gió lửa
 ];
 
 export function lapGateStyle(lap = 1) {
   const i = (Math.max(1, lap) - 1) % LAP_GATE_ACCENTS.length;
-  return Object.assign({ lap: i + 1 }, LAP_GATE_ACCENTS[i]);
+  return Object.assign({ lap: i + 1 }, LAP_GATE_ACCENTS[i], LAP_WINDS[i]);
 }
 
 export const PALETTE = {
@@ -842,10 +851,11 @@ export function drawLaserHazard(ctx, pillar, gameHeight = 700, totalTime = 0, cu
     const midY = (topY + bottomY) / 2;
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    const windAlphaBase = 0.055 + pulse * 0.012;
+    const windColor = (lapStyle && lapStyle.wind) || '#d6fff6';
+    const windAlphaBase = ((lapStyle && lapStyle.windAlpha) || 0.055) + pulse * 0.012;
     for (let wi = 0; wi < 3; wi++) {
       ctx.globalAlpha = windAlphaBase * (1 - wi * 0.22);
-      ctx.fillStyle = 'rgb(214, 255, 246)';
+      ctx.fillStyle = windColor;
       ctx.beginPath();
       ctx.ellipse(x + w / 2, midY, rx * (1 - wi * 0.22), ry * (1 - wi * 0.22), 0, 0, Math.PI * 2);
       ctx.fill();
@@ -854,10 +864,12 @@ export function drawLaserHazard(ctx, pillar, gameHeight = 700, totalTime = 0, cu
     ctx.restore();
 
     // Vệt gió chảy dọc
-    ctx.strokeStyle = 'rgba(240, 255, 252, 0.8)';
+    ctx.strokeStyle = windColor;
+    ctx.globalAlpha = 0.62;
     ctx.lineCap = 'round';
-    for (let i = 0; i < 4; i++) {
-      const off = x + 9 + i * ((w - 18) / 3);
+    const streaks = (lapStyle && lapStyle.windStreaks) || 4;
+    for (let i = 0; i < streaks; i++) {
+      const off = x + 9 + i * ((w - 18) / Math.max(1, streaks - 1));
       const speed = 30 + i * 9;
       const y = topY + ((t * speed + i * 53) % (gapH + 60)) - 30;
       const len = 20 + (i % 3) * 8;
@@ -874,7 +886,8 @@ export function drawLaserHazard(ctx, pillar, gameHeight = 700, totalTime = 0, cu
     for (let i = 0; i < 4; i++) {
       const gy = topY + ((t * (18 + i * 5) + i * 71) % (gapH + 30)) - 15;
       const gx = x + 12 + ((i * 37) % (w - 24)) + Math.sin(t * 2 + i) * 3;
-      ctx.fillStyle = 'rgba(236, 255, 250, 0.55)';
+      ctx.fillStyle = windColor;
+      ctx.globalAlpha = 0.5;
       ctx.beginPath();
       ctx.arc(gx, Math.max(topY + 4, Math.min(bottomY - 4, gy)), 1.6, 0, Math.PI * 2);
       ctx.fill();
