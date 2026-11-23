@@ -7,7 +7,7 @@ import { WeatherSystem } from '../graphics/weather.js';
 import { ScenicLandmarksManager } from '../graphics/scenicLandmarks.js';
 import { drawNightLights } from '../graphics/nightLights.js';
 import { ParticleSystem } from '../graphics/particles.js';
-import { EntityRenderer } from '../graphics/renderer.js';
+import { EntityRenderer, drawKiteString } from '../graphics/renderer.js';
 import { AudioSynthesizer } from '../audio/audioSynth.js';
 import { HUD } from '../ui/hud.js';
 import { StoryOverlay } from '../ui/storyOverlay.js';
@@ -1105,6 +1105,12 @@ export class Game {
 
     // Vệt nón sáng Lộng Gió (phải vẽ ở render, không phải update)
     if (this.isSmashActive && this.state === 'PLAYING') this._drawSmashLance();
+
+    // Dây diều: từ đuôi diều kéo về người thả ở góc dưới-trái
+    if (this.state === 'PLAYING' || this.state === 'READY') {
+      drawKiteString(this.ctx, this.rocket, this.totalTime || 0, this.isSmashActive,
+        this.width, this.height);
+    }
 
     EntityRenderer.drawRocket(this.ctx, this.rocket, {
       isDead: this.state === 'GAMEOVER',
