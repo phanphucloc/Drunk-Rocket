@@ -1448,3 +1448,33 @@ PASS bùa V5 = 2.5s
 PASS mốc mở bùa đầu = 5
 ALL REGRESSION CHECKS PASSED
 ```
+
+---
+
+## 51. Phẩm sắc cuối: ĐỎ RỒNG (hết nhấp nháy)
+
+### A. Nguyên nhân nhấp nháy
+Phẩm sắc thứ 5 trước đây là "Ngũ Sắc" với cờ `rainbow: true`. Trong `renderer.js`:
+```js
+const hue = (dizzyTime * 55) % 360;
+trim = `hsl(${hue}...)`; jade = `hsl(${hue + 150}...)`;
+```
+⇒ viền + hoạ tiết **đổi màu mỗi frame** (55°/giây) ở chương cuối mỗi vòng → đúng hiện tượng "nhấp nháy".
+
+### B. Sửa: Đỏ Rồng cố định + quầng sáng mềm
+| Thành phần | Giá trị |
+|---|---|
+| Thân (paper) | `#e33b4a` |
+| Sáng (light) | `#ff9382` |
+| Tối (dark) | `#96182a` |
+| Viền (trim) | `#ffd76a` (vàng thếp) |
+| Hoạ tiết (motif) | `#ffe9a8` |
+
+- **Bỏ hẳn** vòng lặp hue theo thời gian → không còn nhấp nháy.
+- Thêm **quầng radial gradient** phía sau (đỏ son → vàng thếp → trong suốt) với nhịp `sin(1.8t)`
+  rất chậm (chỉ đổi độ sáng, không đổi màu) ⇒ diều "phát sáng" mà mắt không thấy chớp.
+- Tên phẩm sắc: **ĐỎ RỒNG** / **DRAGON RED** (thay "Ngũ Sắc"/"Festival Rainbow").
+
+### C. Kiểm chứng
+`tools/kite-colors.html` — hàng "Đỏ Rồng" đỏ + viền vàng, quầng sáng mềm, không đổi màu giữa các frame.
+`ALL REGRESSION CHECKS PASSED`.
