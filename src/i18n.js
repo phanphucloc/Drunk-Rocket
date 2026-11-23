@@ -112,6 +112,7 @@ const DICT = {
     'perk.opening': 'Đang mở túi bùa...',
     'perk.picked': 'ĐÃ CHỌN',
     'perk.ready': 'CHUẨN BỊ THẢ DIỀU',
+    'perk.noTimer': 'Bao nhiêu thời gian cũng được',
     'perk.timer': 'Thời gian',
 
     'settings.title': '⚙ CÀI ĐẶT',
@@ -244,6 +245,7 @@ const DICT = {
     'perk.opening': 'Opening charm bag...',
     'perk.picked': 'PICKED',
     'perk.ready': 'GET READY',
+    'perk.noTimer': 'Take your time',
     'perk.timer': 'Time',
 
     'settings.title': '⚙ SETTINGS',
