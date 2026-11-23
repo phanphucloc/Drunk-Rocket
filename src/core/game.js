@@ -394,11 +394,6 @@ export class Game {
       if (this.weather) this.weather.setTheme(this.currentTheme);
       if (this.scenic) this.scenic.setTier(this.currentTheme.tier);
       if (this.audio && this.audio.setMusicTheme) this.audio.setMusicTheme(this.currentTheme.music);
-      // Banner chương kiểu phim (2s, góc trên-trái, không che đường bay)
-      if (this.state === 'PLAYING' && this.hud && this.hud.showChapterBanner) {
-        this.hud.showChapterBanner(this.currentTheme, prog.lapNumber, prog.chapterNumber);
-      }
-
       // Chuyển chương: hiệu ứng ĐIỆN ẢNH nhẹ (không rung như va chạm)
       if (this.hud.triggerChapterTransition) this.hud.triggerChapterTransition();
       else this.hud.triggerSmashEffects();
@@ -1224,6 +1219,8 @@ export class Game {
         lapNumber: this.lapNumber,
         chapterNumber: this.chapterNumber,
         kiteStage: this.kiteStage,
+        gatesInChapter: this.gatesPassed % POINTS_PER_CHAPTER,
+        gatesPerChapter: POINTS_PER_CHAPTER,
         colorStage: this.colorStage,
         theme: this.currentTheme
       }

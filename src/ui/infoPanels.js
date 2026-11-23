@@ -125,16 +125,17 @@ export class InfoPanels {
     if (!chip) return;
 
     const gIn = Math.max(0, Math.min(gatesPerChapter, Math.floor(gatesInChapter)));
-    if (chapEl) {
-      chapEl.textContent = `${t('hud.lap')} ${lap} · ${t('hud.chapter')} ${String(chapter).padStart(2, '0')} · ${gIn}/${gatesPerChapter}`;
+    // Banner: tên tỉnh (to) · phụ danh · câu thơ ngắn
+    if (chapEl) chapEl.textContent = theme.name || '';
+    if (nameEl) nameEl.textContent = theme.subName || '';
+    if (windEl) {
+      const raw = lang === 'en' ? (theme.descEn || theme.storyEn || '') : (theme.editorialDesc || '');
+      const poem = String(raw).replace(/^[^—]*—\s*/, '').trim();
+      windEl.textContent = poem.length > 44 ? poem.slice(0, 43) + '…' : poem;
     }
     const bar = document.getElementById('chip-progress-fill');
     if (bar) bar.style.width = Math.round((gIn / gatesPerChapter) * 100) + '%';
-    if (nameEl) nameEl.textContent = theme.name;
-    if (windEl) {
-      const wind = lang === 'en' ? (theme.windEn || '') : (theme.editorialIssue || '');
-      windEl.textContent = wind.replace(/^.*·\s*/, '');
-    }
+    chip.title = `${theme.name} · ${lap}/${chapter}`;
 
     if (animate) {
       chip.classList.remove('is-new');
