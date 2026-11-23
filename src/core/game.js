@@ -594,6 +594,12 @@ export class Game {
     if (this.perks) this.perks.checkMilestone(this.gatesPassed);
   }
 
+  /** P0-c: tắt tutorial lần đầu và ghi nhớ — chỉ gọi từ nhánh READY khi đã có tap. */
+    _dismissTutorial() {
+          this.showTutorial = false;
+          try { localStorage.setItem('drunk_rocket_tutorial_seen', '1'); } catch (e) { /* bỏ qua */ }
+    }
+  
   /** Tạm dừng toàn bộ gameplay (dùng khi mở popup/bảng điểm/cài đặt). */
   setPaused(paused) {
     const next = !!paused;
@@ -1245,7 +1251,8 @@ export class Game {
         gatesInChapter: this.gatesPassed % POINTS_PER_CHAPTER,
         gatesPerChapter: POINTS_PER_CHAPTER,
         colorStage: this.colorStage,
-        theme: this.currentTheme
+        theme: this.currentTheme,
+                showTutorial: this.showTutorial
       }
     );
 
