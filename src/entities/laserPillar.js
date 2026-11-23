@@ -301,7 +301,7 @@ export class LaserPillarManager {
       angleAmp,
       angleFreq,
       theme,
-      tier: effectiveTier
+      tier
     });
 
     this.pillars.push(pillar);
