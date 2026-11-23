@@ -93,8 +93,6 @@ export class Game {
     this.weather.setTheme(this.currentTheme);
     if (this.audio && this.audio.setAmbientTheme) this.audio.setAmbientTheme(this.weather.ambient, true);
     if (this.audio && this.audio.setMusicTheme) this.audio.setMusicTheme(this.currentTheme.music, true);
-    this.dragonCelebrated = false;
-    this.introShown = false;
     this.paused = false;
     // Bất tử ngắn mỗi lần đổi chương (tránh chết oan khi cảnh vừa đổi, người chơi đang nhìn)
     this.invincibleTimer = 0;
@@ -377,7 +375,6 @@ export class Game {
     if (gameoverActions) gameoverActions.classList.add('hidden');
     this.state = 'READY';
     this.timeSinceDeath = 0;
-    this.dragonCelebrated = false;
     this.invincibleTimer = 0;
     if (infoPanels) infoPanels.setLandmark(this.currentTheme, 1, 1, false, 0, POINTS_PER_CHAPTER);
     if (this.audio && this.audio.setMusicTheme) this.audio.setMusicTheme(this.currentTheme.music, true);
