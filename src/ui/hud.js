@@ -267,7 +267,7 @@ export class HUD {
 
       // Số cổng đã vượt trong chương (nhỏ, cạnh điểm)
       const gatesIn = (options && options.gatesInChapter) || 0;
-      const gatesMax = (options && options.gatesPerChapter) || 12;
+      const gatesMax = (options && options.gatesPerChapter) || 10;
       ctx.font = '800 11px "Be Vietnam Pro", ui-monospace, monospace';
       ctx.fillStyle = 'rgba(232, 184, 75, 0.95)';
       ctx.textAlign = 'left';
