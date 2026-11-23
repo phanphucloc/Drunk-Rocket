@@ -397,6 +397,7 @@ export class Game {
 
   _onScore(pillar) {
     this.score += 1;
+    this.gatesPassed += 1;
     this.justScoredTimer = 0.6;
 
     // CONG da vuot la nguon tien trinh (chuong/vong/mau dieu);

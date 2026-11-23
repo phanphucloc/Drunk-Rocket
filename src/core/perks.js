@@ -285,6 +285,11 @@ export class PerkDraftManager {
         this.isPostDraft = false;
         this.selectedCard = null;
         this.draftCards = [];
+        // Mọi lá bùa: 0.8s bất tử + reset giữ tay khi thả bay lại
+        if (this.game) {
+          this.game.invincibleTimer = Math.max(this.game.invincibleTimer, 0.8);
+          if (this.game.input && this.game.input.resetHold) this.game.input.resetHold();
+        }
       }
     }
   }
