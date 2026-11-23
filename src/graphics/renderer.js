@@ -6,11 +6,17 @@ import { getKiteStyle } from '../core/progression.js';
 
 /** Bảng màu cổng tre theo VÒNG — mỗi vòng một sắc thái riêng để không bị lặp. */
 const LAP_GATE_ACCENTS = [
-  { accent: '#e63946', light: '#ffd13b', lantern: '#d62828', glow: 'rgba(230, 57, 70, 0.45)', pennant: 4, band: false }, // V1 đỏ son
-  { accent: '#e8802a', light: '#ffe08a', lantern: '#e07b1f', glow: 'rgba(232, 128, 42, 0.45)', pennant: 5, band: false }, // V2 cam nghệ
-  { accent: '#7b3fd4', light: '#c9a2ff', lantern: '#6d34c9', glow: 'rgba(123, 63, 212, 0.45)', pennant: 5, band: true },  // V3 tím
-  { accent: '#c9902a', light: '#ffe8a8', lantern: '#c9852a', glow: 'rgba(201, 144, 42, 0.45)', pennant: 6, band: true },  // V4 vàng kim
-  { accent: '#b3172a', light: '#ffb347', lantern: '#a8101f', glow: 'rgba(200, 40, 50, 0.50)', pennant: 7, band: true }    // V5 đỏ rồng
+  // pole: [sáng, giữa, tối] — đổi hẳn chất liệu cột mỗi vòng thay vì chỉ đổi đèn
+  { accent: '#e63946', light: '#ffd13b', lantern: '#d62828', glow: 'rgba(230, 57, 70, 0.45)', pennant: 4, band: false,
+    pole: ['#96c46a', '#6fa44c', '#4f7a38'], leaf: '#5f9a3e' },                                    // V1 tre xanh
+  { accent: '#e8802a', light: '#ffe08a', lantern: '#e07b1f', glow: 'rgba(232, 128, 42, 0.45)', pennant: 5, band: false,
+    pole: ['#e8c06a', '#c99a3e', '#96702a'], leaf: '#d8a94a' },                                    // V2 tre mật
+  { accent: '#7b3fd4', light: '#c9a2ff', lantern: '#6d34c9', glow: 'rgba(123, 63, 212, 0.45)', pennant: 5, band: true,
+    pole: ['#9a86c9', '#6f5aa0', '#4a3a70'], leaf: '#7f6ab8' },                                    // V3 trúc tím
+  { accent: '#c9902a', light: '#ffe8a8', lantern: '#c9852a', glow: 'rgba(201, 144, 42, 0.45)', pennant: 6, band: true,
+    pole: ['#f0d08a', '#c9a24a', '#8a6a2a'], leaf: '#d4b45a' },                                    // V4 trúc kim
+  { accent: '#b3172a', light: '#ffb347', lantern: '#a8101f', glow: 'rgba(200, 40, 50, 0.50)', pennant: 7, band: true,
+    pole: ['#d97a5a', '#a8352a', '#6e1c18'], leaf: '#c24a30' }                                     // V5 trúc rồng
 ];
 
 export function lapGateStyle(lap = 1) {
@@ -153,15 +159,18 @@ export function drawRocket(ctx, x, y, options = {}) {
     isDead ? '#4f6b66' : style.motif,
     isDead ? '#b3b8bf' : style.light
   ];
-  const ribbonCount = isDead ? 3 : Math.max(2, Math.min(4, style.tails || 3));
+  const ribbonCount = isDead ? 3 : Math.max(2, Math.min(6, style.tails || 3));
+  const stageNo = Math.max(1, Math.min(5, Math.round(style.stage || 1)));
+  // Đuôi dài dần theo vòng: 30 → 46 → 62 → 78 → 96
+  const tailBase = 30 + (stageNo - 1) * 16.5;
   ctx.lineCap = 'round';
   for (let i = 0; i < ribbonCount; i++) {
-    const len = 30 - i * 4;
-    const off = (i - (ribbonCount - 1) / 2) * 2.8;
-    const w1 = Math.sin(dizzyTime * 7 + off) * 7;
-    const w2 = Math.sin(dizzyTime * 7 + off + 1.4) * 9;
+    const len = tailBase - i * (3 + stageNo);
+    const off = (i - (ribbonCount - 1) / 2) * (2.8 + stageNo * 0.5);
+    const w1 = Math.sin(dizzyTime * 7 + off) * (7 + stageNo * 2);
+    const w2 = Math.sin(dizzyTime * 7 + off + 1.4) * (9 + stageNo * 2.5);
     ctx.strokeStyle = ribbonColors[i % ribbonColors.length];
-    ctx.lineWidth = 2.6 - i * 0.25;
+    ctx.lineWidth = (2.6 - i * 0.18) + stageNo * 0.22;
     ctx.beginPath();
     ctx.moveTo(-11, off * 0.5);
     ctx.bezierCurveTo(
@@ -170,6 +179,38 @@ export function drawRocket(ctx, x, y, options = {}) {
       -11 - len, off + w2 * 0.55
     );
     ctx.stroke();
+
+    // Nơ / hạt cườm trên đuôi: càng về vòng sau càng nhiều
+    if (!isDead && stageNo >= 2) {
+      const beads = Math.min(4, stageNo - 1);
+      for (let b = 1; b <= beads; b++) {
+        const t = b / (beads + 1);
+        const px = -11 - len * t;
+        const py = off + (w2 * 0.55) * t + Math.sin(dizzyTime * 7 + i + t) * 2;
+        ctx.fillStyle = ribbonColors[(i + b) % ribbonColors.length];
+        ctx.beginPath();
+        ctx.arc(px, py, 1.5 + stageNo * 0.16, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  // Ruy băng dài phía sau (chỉ từ vòng 3) — tạo dáng bay mềm hơn
+  if (!isDead && stageNo >= 3) {
+    const streamers = stageNo >= 4 ? 2 : 1;
+    for (let si = 0; si < streamers; si++) {
+      const len = tailBase + 34 + si * 26;
+      const yy = 2 + si * 5;
+      const wob = Math.sin(dizzyTime * 5 + si * 1.7) * (10 + stageNo * 2);
+      ctx.strokeStyle = ribbonColors[(si + 1) % ribbonColors.length];
+      ctx.globalAlpha = 0.75;
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(-11, yy);
+      ctx.bezierCurveTo(-11 - len * 0.3, yy + wob, -11 - len * 0.66, yy - wob * 0.8, -11 - len, yy + wob * 0.4);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
   }
 
   // ---------------------------------------------------------------- vệt gió
@@ -634,13 +675,14 @@ export function drawLaserHazard(ctx, pillar, gameHeight = 700, totalTime = 0, cu
   // 1. ỐNG TRE
   // ---------------------------------------------------------------------
   // Thân tre vẽ bằng dải màu phẳng (rẻ hơn gradient tạo mỗi frame rất nhiều)
+  const poleCols = (lapStyle && lapStyle.pole) || ['#96c46a', '#6fa44c', '#4f7a38'];
   const pole = (fromY, toY) => {
     if (toY <= fromY) return;
-    ctx.fillStyle = '#6fa44c';
+    ctx.fillStyle = poleCols[1];
     ctx.fillRect(x, fromY, w, toY - fromY);
-    ctx.fillStyle = '#96c46a';
+    ctx.fillStyle = poleCols[0];
     ctx.fillRect(x + 2, fromY, w * 0.38, toY - fromY);
-    ctx.fillStyle = '#4f7a38';
+    ctx.fillStyle = poleCols[2];
     ctx.fillRect(x + w * 0.72, fromY, w * 0.28, toY - fromY);
 
     // Đốt tre
@@ -674,7 +716,7 @@ export function drawLaserHazard(ctx, pillar, gameHeight = 700, totalTime = 0, cu
     ctx.save();
     ctx.translate(lx, ly);
     ctx.rotate(ang);
-    ctx.fillStyle = '#5f9a3e';
+    ctx.fillStyle = (lapStyle && lapStyle.leaf) || '#5f9a3e';
     ctx.beginPath();
     ctx.ellipse(0, 0, len, len * 0.34, 0, 0, Math.PI * 2);
     ctx.fill();
