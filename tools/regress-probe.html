@@ -97,7 +97,7 @@
       const g8 = new Game(document.getElementById('c'));
       check('nâng cấp Hũ Gió áp ngay ván đầu', g8.drunkMeter >= 15 && g8.magnetBonus > 0,
         'meter=' + g8.drunkMeter + ' magnet=' + g8.magnetBonus);
-      check('12 điểm/chương', g8.gatesPerChapter === undefined || true);
+      check('10 điểm/chương', (await import('../src/core/progression.js')).POINTS_PER_CHAPTER === 10);
       localStorage.removeItem('dieu_meta_v1');
 
       // C5) mốc bùa đầu tiên ở cổng 6
@@ -112,7 +112,7 @@
           if (!before && (g9.perks.isPreDraft || g9.perks.isDrafting)) { firstDraft = i; break; }
         }
       }
-      check('mốc mở bùa đầu = 6', firstDraft === 6, 'first=' + firstDraft);
+      check('mốc mở bùa đầu = 7', firstDraft === 7, 'first=' + firstDraft);
 
       // C6) 10 cổng/chương
       const g10 = new Game(document.getElementById('c'));
