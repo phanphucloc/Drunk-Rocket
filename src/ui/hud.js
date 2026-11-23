@@ -69,8 +69,9 @@ export class HUD {
     this.stampToast = { t: 2.4, landmarkTier, weatherId };
   }
 
-  showNearMiss(pointsBonus = 2) {
+  showNearMiss(pointsBonus = 2, color = null) {
     this.nearMissText = t('hud.nearMiss', { n: pointsBonus });
+    this.nearMissColor = color || '#2fb894';
     this.nearMissTimer = 0.7; // Display for 0.7s
   }
 
@@ -426,7 +427,7 @@ export class HUD {
 
       // 6. Near-Miss Floating Notification
       if (this.nearMissText) {
-        ctx.fillStyle = '#2fb894';
+        ctx.fillStyle = this.nearMissColor || '#2fb894';
         ctx.font = '900 20px "Be Vietnam Pro", ui-monospace, monospace';
         ctx.fillText(this.nearMissText, cx, 185);
       }

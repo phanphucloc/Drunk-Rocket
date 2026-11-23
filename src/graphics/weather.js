@@ -751,14 +751,17 @@ export class WeatherSystem {
        (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4));
     this._lowEnd = lowEnd;
 
+    // Chỉ chụp lại khung mỗi 2 frame nhưng VẪN composite mọi frame bằng bản đã lưu
+    // (trước đây bỏ cả composite ở frame lẻ -> quầng sáng nhấp nháy, rõ nhất ban đêm).
     if (bloom > 0.02 && ctx.canvas && !lowEnd && this._bloomTick === 0) {
       this._ensureScratch();
       this._scratchCtx.setTransform(1, 0, 0, 1, 0, 0);
       this._scratchCtx.globalCompositeOperation = 'source-over';
       this._scratchCtx.clearRect(0, 0, this._scratch.width, this._scratch.height);
       this._scratchCtx.drawImage(ctx.canvas, 0, 0, this._scratch.width, this._scratch.height);
-      hasGlow = true;
+      this._glowReady = true;
     }
+    hasGlow = !!(bloom > 0.02 && ctx.canvas && !lowEnd && this._glowReady);
 
     ctx.save();
     this._relightSky(ctx, preset, this.alpha);

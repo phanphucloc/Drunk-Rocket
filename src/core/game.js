@@ -466,7 +466,7 @@ export class Game {
     this.justScoredTimer = 0.8;
     this.drunkMeter = Math.min(100, this.drunkMeter + (12 * this.nearMissMultiplier));
     this.audio.playNearMiss();
-    this.hud.showNearMiss(bonus);
+    this.hud.showNearMiss(bonus, (this.currentTheme && (this.currentTheme.nearMissColor || this.currentTheme.laserColor)) || null);
     this.particles.emitNearMiss(this.rocket.x, this.rocket.y);
 
     const pX = pillar ? pillar.x + (pillar.width || 52) / 2 : this.rocket.x + 20;
