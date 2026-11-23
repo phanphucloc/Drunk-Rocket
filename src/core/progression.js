@@ -20,7 +20,7 @@ import { TIER_THEMES } from '../graphics/themes.js';
 // để thời tiết chuyển (nắng -> mưa -> đêm). Đổi 1 số này là đổi nhịp độ cả game.
 // Chương tính theo SỐ CỔNG ĐÃ VƯỢT (không theo điểm) để nhịp thời tiết luôn ổn định,
 // còn điểm (Near-Miss / Smash / hạt gió) chỉ dùng cho bảng xếp hạng.
-export const POINTS_PER_CHAPTER = 10;
+export const POINTS_PER_CHAPTER = 12;
 export const GATES_PER_CHAPTER = POINTS_PER_CHAPTER; // tương thích tên cũ
 
 // Chia 5 phẩm sắc cho 9 tỉnh trong 1 vòng: 2 - 2 - 2 - 2 - 1

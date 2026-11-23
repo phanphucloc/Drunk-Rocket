@@ -219,8 +219,9 @@ export class LaserPillarManager {
       // STRICT SCORING: phải vượt hẳn đuôi cột
       if (!p.passed && !p.isDestroyed && p.hasPassedCompletely(rocket)) {
         p.passed = true;
-        if (onScore) onScore(p);
+        // Near-miss TRƯỚC onScore: để bùa Mắt Diều Tinh kịp nhân điểm ở cổng hiệu lực cuối
         if (p.hadNearMiss && onNearMiss) onNearMiss(p);
+        if (onScore) onScore(p);
       }
 
       // Cleanup offscreen
@@ -293,8 +294,6 @@ export class LaserPillarManager {
       oscAmp = 28 + Math.random() * 14;
       oscFreq = 1.3 + Math.random() * 0.5;
     }
-
-    const effectiveTier = Math.min(9, (tier || 1) + (this.tierBoost || 0));
     const pillar = new LaserPillar(this.gameWidth + 30, gapY, gapH, 52, {
       oscAmp,
       oscFreq,
@@ -344,7 +343,7 @@ export class LaserPillarManager {
       }
 
       const effectiveTier = Math.min(9, (tier || 1) + (this.tierBoost || 0));
-      const newPillar = new LaserPillar(nextX, nextGapY, this.gapHeight, 52, { theme, tier: effectiveTier });
+      const newPillar = new LaserPillar(nextX, nextGapY, this.gapHeight, 52, { theme, tier });
       this.pillars.push(newPillar);
       candidates.push(newPillar);
       candidates.sort((a, b) => a.x - b.x);

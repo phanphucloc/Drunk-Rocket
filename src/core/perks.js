@@ -225,6 +225,7 @@ export class PerkDraftManager {
     if (this.game && this.game.input) {
       this.game.input.consumeTap();
       this.game.input.consumeDoubleTap();
+      if (this.game.input.resetHold) this.game.input.resetHold();
       this.game.perkDraftCooldown = 0.5;
     }
     if (this.game && this.game.audio) {
