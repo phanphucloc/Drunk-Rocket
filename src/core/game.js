@@ -93,6 +93,9 @@ export class Game {
     this.weather.setTheme(this.currentTheme);
     if (this.audio && this.audio.setAmbientTheme) this.audio.setAmbientTheme(this.weather.ambient, true);
     if (this.audio && this.audio.setMusicTheme) this.audio.setMusicTheme(this.currentTheme.music, true);
+        // P0-c: tutorial lần đầu — chỉ hiện 1 lần, tap đầu tiên vừa tắt vừa bắt đầu ván.
+        this.showTutorial = false;
+        try { this.showTutorial = localStorage.getItem('drunk_rocket_tutorial_seen') !== '1'; } catch (e) { /* localStorage có thể bị chặn: hiện tutorial cho an toàn */ }
     this.paused = false;
     // Bất tử ngắn mỗi lần đổi chương (tránh chết oan khi cảnh vừa đổi, người chơi đang nhìn)
     this.invincibleTimer = 0;
@@ -777,6 +780,8 @@ export class Game {
       this.rocket.rotation = Math.sin(this.totalTime * 3) * 0.1;
 
       if (hasTap) {
+                // P0-c: tap đầu tiên vừa tắt tutorial vừa bắt đầu ván — không bắt tap 2 lần.
+                if (this.showTutorial) this._dismissTutorial();
         this.state = 'PLAYING';
         this.runStartTime = performance.now();
         this.invincibleTimer = Math.max(this.invincibleTimer, 1.0);
