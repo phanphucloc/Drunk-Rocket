@@ -33,7 +33,7 @@ export const KITE_COLORS = [
   { key: 'thanh', nameKey: 'color.2', paper: '#d9f6e3', light: '#f4fffa', dark: '#8ed2af', trim: '#2f9e6a', motif: '#7fe3c4' },
   { key: 'tu', nameKey: 'color.3', paper: '#eee1ff', light: '#fbf4ff', dark: '#b48ce0', trim: '#7b3fd4', motif: '#c9a2ff' },
   { key: 'hoang', nameKey: 'color.4', paper: '#ffe8a8', light: '#fff9de', dark: '#d9a83a', trim: '#c9902a', motif: '#ffd76a' },
-  { key: 'ngusac', nameKey: 'color.5', paper: '#ffd76a', light: '#fff3c4', dark: '#e0a020', trim: '#e63946', motif: '#2fb894', rainbow: true }
+  { key: 'dorong', nameKey: 'color.5', paper: '#d92b3a', light: '#ff7d6b', dark: '#8c1522', trim: '#ffd76a', motif: '#ffe9a8', premium: true }
 ];
 
 // Danh sách địa danh mặc định (số hiệu tier trong themes.js)

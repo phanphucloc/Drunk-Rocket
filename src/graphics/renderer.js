@@ -82,12 +82,9 @@ export function drawRocket(ctx, x, y, options = {}) {
   let trim = isDead ? '#8a4a4f' : style.trim;
   let jade = isDead ? '#5f7f7a' : style.motif;
 
-  // Phẩm sắc "Ngũ Sắc" (tỉnh cuối mỗi vòng): viền & hoạ tiết chuyển màu cầu vồng
-  if (style.rainbow && !isDead) {
-    const hue = (dizzyTime * 55) % 360;
-    trim = `hsl(${hue.toFixed(0)}, 88%, 56%)`;
-    jade = `hsl(${((hue + 150) % 360).toFixed(0)}, 82%, 62%)`;
-  }
+  // Phẩm sắc "Đỏ Rồng" (tỉnh cuối mỗi vòng): viền vàng thếp CỐ ĐỊNH.
+  // (Trước đây đổi hue theo thời gian nên diều nhấp nháy — đã bỏ hẳn.)
+  const premium = !!style.premium && !isDead;
   const bamboo = '#8a6a3a';
   const bambooDark = '#5a4425';
 
@@ -95,6 +92,22 @@ export function drawRocket(ctx, x, y, options = {}) {
   ctx.translate(Math.floor(x), Math.floor(y));
   ctx.rotate(angle);
   ctx.scale(scale * (style.scale || 1), scale * (style.scale || 1));
+
+  // Đỏ Rồng: quầng ấm phía sau, nhịp chậm (không nhấp nháy)
+  if (premium) {
+    const pulse = 0.5 + 0.5 * Math.sin(dizzyTime * 1.8);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = 'rgba(255, 96, 64, ' + (0.10 + pulse * 0.07).toFixed(3) + ')';
+    ctx.beginPath();
+    ctx.ellipse(-2, 0, 27, 21, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255, 214, 120, ' + (0.07 + pulse * 0.05).toFixed(3) + ')';
+    ctx.beginPath();
+    ctx.ellipse(-2, 0, 19, 14.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
 
   // Bất tử ngắn sau khi đổi chương: nhấp nháy nhẹ + vòng ngọc quanh diều
   const invincible = !!options.isInvincible && !isDead;

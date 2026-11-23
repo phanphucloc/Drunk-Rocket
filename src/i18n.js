@@ -68,7 +68,7 @@ const DICT = {
     'color.2': 'THANH NGỌC',
     'color.3': 'TỬ VÂN',
     'color.4': 'HOÀNG KIM',
-    'color.5': 'NGŨ SẮC',
+    'color.5': 'ĐỎ RỒNG',
 
     'chapter.label': 'CHƯƠNG',
     'chapter.labelEn': 'CHAPTER',
@@ -201,7 +201,7 @@ const DICT = {
     'color.2': 'JADE GREEN',
     'color.3': 'VIOLET CLOUD',
     'color.4': 'GOLDEN',
-    'color.5': 'FESTIVAL RAINBOW',
+    'color.5': 'DRAGON RED',
 
     'chapter.label': 'CH.',
     'chapter.labelEn': 'CH.',
