@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>regress-probe</title>
+  <style>body{margin:0;background:#000;color:#0f0;font:12px monospace}pre{white-space:pre-wrap}canvas{opacity:.06}</style>
+</head>
+<body>
+  <pre id="out">running...</pre>
+  <canvas id="c" width="400" height="700"></canvas>
+  <script type="module">
+    import { Game } from '../src/core/game.js';
+    import { LaserPillar } from '../src/entities/laserPillar.js';
+    import { PERK_CATALOG } from '../src/core/perks.js';
+
+    const out = document.getElementById('out');
+    const lines = [];
+    const log = (s) => { lines.push(s); out.textContent = lines.join('\n'); };
+    const fails = [];
+    const check = (n, c, e = '') => { log((c ? 'PASS ' : 'FAIL ') + n + (e ? ' — ' + e : '')); if (!c) fails.push(n); };
+
+    const mk = (list = [], chain = false) => {
+      const g = new Game(document.getElementById('c'));
+      g.state = 'PLAYING';
+      g.drunkMeter = 100;
+      g.score = 0;
+      g.nextSmashChain = chain ? 2 : 0;
+      g.smashChainCount = chain ? 2 : 1;
+      g.pillars.pillars = list.map(([x, y]) => new LaserPillar(x, y, 148, 52, { theme: g.currentTheme, tier: 1 }));
+      g.pillars.spawnTimer = 999;
+      return g;
+    };
+
+    const dash = (g, frames = 220) => {
+      g._triggerSupernovaSmash();
+      let f = 0;
+      while (f < frames) {
+        g.state = 'PLAYING';
+        const was = g.isSmashActive;
+        g.update(1 / 60);
+        if (!was || !g.isSmashActive) break;
+        f++;
+      }
+      return f;
+    };
+
+    try {
+      // A) chạm trần 3 lần -> chết -> restart -> KHÔNG chết ngay
+      const g1 = mk();
+      for (let i = 0; i < 3; i++) { g1.rocket.y = 2; g1.ray = 0; g1.update(1 / 60); }
+      check('chạm trần 3 lần -> chết', g1.state === 'GAMEOVER', 'state=' + g1.state);
+      g1._restart();
+      check('restart: ceilingHits = 0', g1.ceilingHits === 0, 'hits=' + g1.ceilingHits);
+      g1.state = 'PLAYING';
+      g1.rocket.y = 340; g1.rocket.vy = -100;
+      g1.update(1 / 60);
+      check('restart: bay bình thường, không chết', g1.state === 'PLAYING', 'state=' + g1.state);
+
+      // B) smash 1 cột: +1 điểm, có hit-stop, dừng sau cột
+      const g2 = mk([[300, 350]]);
+      const p2 = g2.pillars.pillars[0];
+      let sawHitStop = false;
+      g2._triggerSupernovaSmash();
+      for (let i = 0; i < 200 && g2.isSmashActive; i++) {
+        g2.state = 'PLAYING';
+        g2.update(1 / 60);
+        if (g2.hitStopTimer > 0) sawHitStop = true;
+      }
+      check('smash: cột vỡ', p2.isDestroyed === true);
+      check('smash: +1 điểm', g2.score === 1, 'score=' + g2.score);
+      check('smash: có hit-stop 45ms', sawHitStop === true);
+      check('smash: đứng sau cột vừa phá', g2.rocket.x > p2.x, `rocket=${g2.rocket.x.toFixed(0)} pillar=${p2.x.toFixed(0)}`);
+
+      // C) chain: 2 cột (cột thứ 2 sinh sau cũng phải bị húc)
+      const g3 = mk([[280, 340], [520, 420]], true);
+      const c3a = g3.pillars.pillars[0];
+      const c3b = g3.pillars.pillars[1];
+      dash(g3, 220);
+      check('chain: cả 2 cột bị phá', c3a.isDestroyed && c3b.isDestroyed,
+        `a=${c3a.isDestroyed} b=${c3b.isDestroyed}`);
+      check('chain: +2 điểm', g3.score === 2, 'score=' + g3.score);
+
+      // D) near-miss không cộng điểm trước khi vượt
+      const g4 = mk();
+      const p4 = new LaserPillar(120, 350, 148, 52, { theme: g4.currentTheme, tier: 1 });
+      g4.pillars.pillars = [p4];
+      g4.rocket.x = 120; g4.rocket.y = 350 - 74 - 12 - 6; // sát mép trên
+      let bonusBeforePass = 0;
+      const before = g4.score;
+      g4.pillars.update(1 / 60, g4.rocket, g4._onScore, g4._onNearMiss, 0, null, false);
+      bonusBeforePass = g4.score - before;
+      check('near-miss: chưa vượt -> chưa cộng điểm', bonusBeforePass === 0, 'delta=' + bonusBeforePass);
+
+      // E) bùa: hết post-draft -> có bất tử
+      const g5 = mk();
+      g5.perks.reset();
+      const perk = PERK_CATALOG.find(x => x.id === 'drunk_magnet');
+      g5.perks.isPostDraft = true;
+      g5.perks.postDraftTimer = 0.01;
+      g5.perks.selectedCard = perk;
+      g5.invincibleTimer = 0;
+      g5.perks.update(0.02);
+      check('bùa: hết post-draft -> bất tử 0.8s', g5.invincibleTimer >= 0.8, 'inv=' + g5.invincibleTimer.toFixed(2));
+
+      log('');
+      log(fails.length ? 'FAILED: ' + fails.join(', ') : 'ALL REGRESSION CHECKS PASSED');
+      log('DONE');
+    } catch (e) {
+      log('FATAL: ' + (e && (e.stack || e.message)));
+    }
+  </script>
+</body>
+</html>

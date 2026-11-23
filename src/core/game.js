@@ -478,8 +478,9 @@ export class Game {
     this.cellCombo = (this.cellCombo || 0) + 1;
     this.cellComboTimer = 1.6;
     if (this.cellCombo >= 3) {
-      // Combo hạt gió chỉ để đã mắt — KHÔNG cộng điểm
+      // Combo 3 hạt gió: thưởng thêm năng lượng (không cộng điểm)
       this.cellCombo = 0;
+      this.drunkMeter = Math.min(100, this.drunkMeter + 8);
       this.particles.emitScoreSparkles(cell.x, cell.y);
     }
     if (this.audio.playCellCollect) {
