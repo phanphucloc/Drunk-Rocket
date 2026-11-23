@@ -40,7 +40,6 @@ export class Game {
     // Chất lượng tự điều chỉnh: 0 = cao, 1 = vừa, 2 = thấp (máy yếu)
     this.streamCam = false;
     this.perfLevel = 0;
-    this._applyMetaUpgrades();
     this.perfEma = 16.7;
     this.perfFrames = 0;
     this.width = 400;
@@ -221,6 +220,9 @@ export class Game {
     });
   }
 
+
+    // Áp nâng cấp Hũ Gió ngay ván đầu (sau khi mọi field đã khởi tạo)
+    this._applyMetaUpgrades();
   resize() {
     // Đo VISUAL VIEWPORT: đúng cả khi thanh địa chỉ mobile co giãn / desktop zoom.
     const vv = window.visualViewport;
@@ -302,8 +304,8 @@ export class Game {
     this.startMeterBonus = upgradeValue('start_meter');
     this.magnetBonus = upgradeValue('magnet');
     this.comboBonus = upgradeValue('combo');
-    if (this.state === 'READY') {
-      this.drunkMeter = Math.max(this.drunkMeter, Math.min(100, this.startMeterBonus));
+    if (this.state !== 'PLAYING' && this.state !== 'GAMEOVER') {
+      this.drunkMeter = Math.max(this.drunkMeter || 0, Math.min(100, this.startMeterBonus));
     }
   }
 
