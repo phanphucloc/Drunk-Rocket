@@ -94,7 +94,7 @@ export class Game {
     this.hasQuantumDrift = false;
     this.quantumTimer = 0;
     this.quantumCooldownTimer = 0;
-    this.quantumMaxCooldown = 4.0;
+    this.quantumMaxCooldown = 2.2;
     this.hasDrunkMagnet = false;
     this.magnetParticleTimer = 0;
     this.perkDraftCooldown = 0;
@@ -164,7 +164,8 @@ export class Game {
       const clickX = (e.clientX - rect.left) * (this.width / rect.width);
       const clickY = (e.clientY - rect.top) * (this.height / rect.height);
       const distToOrb = Math.hypot(clickX - this.width / 2, clickY - 126);
-      if (this.state === 'PLAYING' && this.drunkMeter >= 100 && this.score >= 10 && distToOrb <= 36) {
+      if (this.state === 'PLAYING' && this.drunkMeter >= 100 && (this.smashCooldown || 0) <= 0 && distToOrb <= 36) {
+        if (this.input && this.input.resetHold) this.input.resetHold();
         e.preventDefault();
         e.stopPropagation();
         this._triggerSupernovaSmash();
@@ -274,7 +275,6 @@ export class Game {
     window.addEventListener('orientationchange', () => setTimeout(fit, 180));
     if (window.visualViewport) window.visualViewport.addEventListener('resize', fit);
     window.addEventListener('resize', fit);
-    setInterval(fit, 800);
     setTimeout(fit, 60);
     setTimeout(fit, 400);
   }
@@ -327,7 +327,20 @@ export class Game {
     this.smashSpeedMul = 1;
     this.smashReturnTimer = 0;
     this.hitStopTimer = 0;
-    if (this.pillars) this.pillars.speedMul = 1;
+    this.smashCooldown = 0;
+    this.smashTargets = [];
+    this.lastSmashedPillar = null;
+    this.ceilingHits = 0;
+    this.ceilingTimer = 0;
+    this.cellCombo = 0;
+    this.cellComboTimer = 0;
+    this.holdProgress = 0;
+    this._lastStampKey = null;
+    this._stampTick = 0;
+    this.invincibleTimer = 0;
+    if (this.input && this.input.resetHold) this.input.resetHold();
+    if (this.pillars) { this.pillars.speedMul = 1; this.pillars.tierBoost = 0; }
+    if (this._pendingPerfResize) { this._pendingPerfResize = false; this.resize(); }
     if (this.starfield) this.starfield.setTheme(this.currentTheme);
     if (this.weather) this.weather.setTheme(this.currentTheme);
     if (this.audio) {
@@ -432,7 +445,7 @@ export class Game {
   }
 
   _onNearMiss(pillar) {
-    const bonus = 2;                 // Near-miss: +2 điểm cố định
+    const bonus = 2 * (this.nearMissMultiplier || 1);   // Near-miss: +2 (bùa Mắt Diều Tinh nhân lên)
     this.score += bonus;
     this._syncProgression();
     if (infoPanels) infoPanels.setLandmark(this.currentTheme, this.lapNumber, this.chapterNumber, false,
@@ -508,37 +521,37 @@ export class Game {
     this.drunkMeter = 0;
     this.originalRocketX = this.rocket.x;
     this.smashStartX = this.rocket.x;
+    this.smashTargetX = Math.min(220, this.smashStartX + 110);
     this.smashPillarsLeft = isChain ? 2 : 1;
     this.smashSpeedMul = 3.4;
     this.smashReturnTimer = 0;
     this.smashChainCount = isChain ? 2 : 1;
     if (isChain) this.nextSmashChain = 0;
-    this.smashLunge = 110;
 
-    // CHỈ cột phía trước mũi diều mới là mục tiêu (chốt theo đối tượng)
-    const ahead = this.pillars.pillars
-      .filter(p => !p.isDestroyed && p.x > this.rocket.x + this.rocket.radius)
-      .sort((a, b) => a.x - b.x);
-    this.smashTargets = ahead.slice(0, this.smashPillarsLeft);
-
-    // Điều kiện kết thúc KHÔNG dùng quãng đường cứng:
-    // dừng khi diều đã ở GIỮA cột vừa phá và cột kế tiếp (xem update).
-    this.smashBehindRight = this.rocket.x;      // mép phải cột đã phá (cập nhật mỗi frame)
+    // Đánh dấu cột đã ở SAU lưng; mọi cột phía trước (kể cả cột mới sinh) đều có thể bị húc
+    for (const p of this.pillars.pillars) {
+      p.ignoredBySmash = (p.x + (p.width || 52) <= this.rocket.x + this.rocket.radius);
+    }
+    this.lastSmashedPillar = null;
+    this.smashBehindRight = this.rocket.x;
     this.smashTime = 0;
-    this.smashMaxDuration = 1.6;                // chỉ là chốt an toàn
-    this.smashDurationTotal = this.smashMaxDuration;
+    this.smashMaxDuration = isChain ? 2.2 : 1.4;
 
-    const first = ahead[0] || null;
-    this.smashAlignY = first ? first.gapY : this.rocket.y;
+    const ahead = this.pillars.pillars
+      .filter(p => !p.isDestroyed && !p.ignoredBySmash)
+      .sort((a, b) => a.x - b.x);
+    this.smashAlignY = ahead[0] ? ahead[0].gapY : this.rocket.y;
 
     this.audio.playSmash(isChain);
-    this.hud.triggerSmashEffects();
-    this.invincibleTimer = Math.max(this.invincibleTimer, 1.2);
+    this.hud.triggerRamImpact();
+    this.invincibleTimer = Math.max(this.invincibleTimer, this.smashMaxDuration + 0.2);
   }
 
   /** Kết thúc cú Lộng Gió: hạ tốc, trôi về làn bay, bất tử ngắn + cooldown chống smash liên tiếp. */
   _endSmash() {
     this.isSmashActive = false;
+    this.lastSmashedPillar = null;
+    for (const p of this.pillars.pillars) p.ignoredBySmash = false;
     this.smashTargets = [];
     // QoL: người chơi hay quên bấm lại sau cú lướt -> tặng 1 nhịp đẩy để không rơi ngay
     if (this.state === 'PLAYING' && this.rocket && !this.rocket.isDead) {
@@ -744,79 +757,81 @@ export class Game {
         this._triggerSupernovaSmash();
       }
 
-      // ===== LỘNG GIÓ: LƯỚT LIỀN MẠCH — thế giới cuộn đều, diều tiến một đoạn rồi giữ =====
+      // ===== LỘNG GIÓ: LƯỚT LIỀN MẠCH — thế giới cuộn đều, húc đủ số cột =====
       if (this.isSmashActive) {
-        this.smashTimeout -= dt;
         this.smashTime += dt;
 
-        // 1) Cú tiến ngắn (ease-out ~0.22s) — không giật, không dừng giữa chừng
+        // 1) Cú tiến ngắn, chặn trần 220 để còn thấy cột kế
         const lungeT = Math.min(1, this.smashTime / 0.22);
-        this.rocket.x = this.smashStartX + (this.smashLunge || 96) * (1 - Math.pow(1 - lungeT, 2.2));
+        this.rocket.x = this.smashStartX + (this.smashTargetX - this.smashStartX) * (1 - Math.pow(1 - lungeT, 2.2));
 
-        // 2) Thế giới cuộn ĐỀU suốt cú lướt (không đổi tốc độ => không ngắt quãng)
+        // 2) Thế giới cuộn đều
         if (this.pillars) this.pillars.speedMul = this.smashSpeedMul;
 
         this.rocket.vy = 0;
         this.rocket.isThrusting = true;
         this.rocket.angle = -0.20;
 
-        // 3) Căn khe cổng phía trước (mượt)
-        const frontier = this.pillars.pillars.find(p2 => !p2.isDestroyed && p2.x + p2.width > this.rocket.x - 10);
+        // 3) Căn khe cổng gần nhất phía trước
+        const frontier = this.pillars.pillars
+          .filter(p2 => !p2.isDestroyed && !p2.ignoredBySmash && p2.x + p2.width > this.rocket.x - 10)
+          .sort((a, b) => a.x - b.x)[0];
         if (frontier) this.smashAlignY = frontier.gapY;
         this.rocket.y += (this.smashAlignY - this.rocket.y) * Math.min(1, dt * 12);
 
-        // 4) Húc vỡ — CHỈ các cột đã chốt là "phía trước" lúc kích hoạt.
-        //    Nhờ chốt theo đối tượng, cột vừa bay qua / cột tự sinh không bao giờ bị nổ.
-        for (const pillar of (this.smashTargets || [])) {
+        // 4) Húc các cột THẬT phía trước (kể cả cột mới sinh trong lúc lướt)
+        const candidates = this.pillars.pillars
+          .filter(p2 => !p2.isDestroyed && !p2.ignoredBySmash && !p2.smashedByDash)
+          .sort((a, b) => a.x - b.x);
+
+        for (const pillar of candidates) {
           if (this.smashPillarsLeft <= 0) break;
-          if (!pillar || pillar.isDestroyed || pillar.smashedByDash) continue;
-          if (pillar.x > this.rocket.x + this.rocket.radius + 12) continue;   // chưa tới nơi
-          {
-            pillar.smashedByDash = true;
-            pillar.isDestroyed = true;
-            pillar.passed = true;
+          if (pillar.x > this.rocket.x + this.rocket.radius + 14) break;
 
-            const pcx = pillar.x + (pillar.width || 52) / 2;
-            const halfGap = (pillar.gapHeight || 148) / 2;
-            const topColY = Math.max(24, (pillar.gapY || 350) - halfGap);
-            const botColY = Math.min(this.height - 24, (pillar.gapY || 350) + halfGap);
-            this.particles.emitPillarSmash(pcx, topColY);
-            this.particles.emitPillarSmash(pcx, botColY);
-            this.particles.emitExplosion(pcx, (pillar.gapY || 350), 16);
+          pillar.smashedByDash = true;
+          pillar.isDestroyed = true;
+          pillar.passed = true;
+          this.lastSmashedPillar = pillar;
+          this.hitStopTimer = 0.045;      // khựng 45ms tạo lực đâm
 
-            this.audio.playSmash(true);
-            this.hud.triggerRamImpact();
-            if (this.ghosts) this.ghosts.spawnForPillar(pillar, this.score);
+          const pcx = pillar.x + (pillar.width || 52) / 2;
+          const halfGap = (pillar.gapHeight || 148) / 2;
+          const topColY = Math.max(24, (pillar.gapY || 350) - halfGap);
+          const botColY = Math.min(this.height - 24, (pillar.gapY || 350) + halfGap);
+          this.particles.emitPillarSmash(pcx, topColY);
+          this.particles.emitPillarSmash(pcx, botColY);
+          this.particles.emitExplosion(pcx, (pillar.gapY || 350), 16);
 
-            this.score += 1;               // +1 điểm mỗi cổng (chain 2 cổng = +2)
-            this._syncProgression();
-            if (infoPanels) infoPanels.setLandmark(this.currentTheme, this.lapNumber, this.chapterNumber, false,
-              this.score % POINTS_PER_CHAPTER, POINTS_PER_CHAPTER);
-            this.smashPillarsLeft -= 1;
-          }
+          this.audio.playSmash(true);
+          this.hud.triggerRamImpact();
+          if (this.ghosts) this.ghosts.spawnForPillar(pillar, this.score);
+
+          // +1 điểm mỗi cổng + tính là đã qua cổng
+          this.score += 1;
+          this.gatesPassed += 1;
+          this._syncProgression();
+          if (infoPanels) infoPanels.setLandmark(this.currentTheme, this.lapNumber, this.chapterNumber, false,
+            this.score % POINTS_PER_CHAPTER, POINTS_PER_CHAPTER);
+          if (this.perks) this.perks.onPassPillar();
+
+          this.smashPillarsLeft -= 1;
         }
 
-        this._drawSmashLance();
         this.particles.emitSmashFireTrail(this.rocket.x, this.rocket.y, this.rocket.angle || 0);
 
-        // ===== KẾT THÚC: dừng ở GIỮA cột vừa phá và cột kế tiếp =====
-        // mép phải cột đã phá: lấy từ chính cột vừa húc (nếu còn trong mảng)
-        const destroyed = (this.smashTargets || []).find(t => t && t.isDestroyed);
-        if (destroyed) this.smashBehindRight = destroyed.x + (destroyed.width || 52);
-
-        // cột còn sống gần nhất phía trước
+        // 5) Kết thúc: dừng giữa cột VỪA PHÁ (lastSmashedPillar) và cột kế
+        if (this.lastSmashedPillar) {
+          this.smashBehindRight = this.lastSmashedPillar.x + (this.lastSmashedPillar.width || 52);
+        }
         const aheadNow = this.pillars.pillars
           .filter(p2 => !p2.isDestroyed && p2.x > this.rocket.x + 4)
           .sort((a, b) => a.x - b.x)[0];
-
         const behindRight = this.smashBehindRight || this.rocket.x;
         const aheadLeft = aheadNow ? aheadNow.x : behindRight + 320;
         const midX = (behindRight + aheadLeft) / 2;
 
         const clearedAll = this.smashPillarsLeft <= 0;
-        if (clearedAll && this.rocket.x >= midX) {
-          this._endSmash();
-        } else if (this.smashTime >= this.smashMaxDuration) {
+        if ((clearedAll && this.rocket.x >= midX) || this.smashTime >= this.smashMaxDuration) {
           this._endSmash();
         }
       } else {
@@ -851,9 +866,10 @@ export class Game {
       } else {
         this.rocket.update(dt, false, this.totalTime);
       }
-      this.pillars.update(dt, this.rocket, this._onScore, this._onNearMiss, this.score, this.difficulty);
-      this.energyCells.update(dt, this.pillars.speed, this.rocket, this.hasDrunkMagnet, this._onCollectCell);
-      if (this.ghosts) this.ghosts.update(dt, this.pillars.speed);
+      this.pillars.update(dt, this.rocket, this._onScore, this._onNearMiss, this.score, this.difficulty, this.isSmashActive);
+      const worldSpeed = this.pillars.speed * (this.pillars.speedMul || 1);
+      this.energyCells.update(dt, worldSpeed, this.rocket, this.hasDrunkMagnet, this._onCollectCell);
+      if (this.ghosts) this.ghosts.update(dt, worldSpeed);
 
       // Proximity Laser Hum & Electric Crackle ("xẹt xẹt" gets louder as rocket approaches beam)
       if (!this.isSmashActive && this.quantumTimer <= 0) {
@@ -1017,14 +1033,15 @@ export class Game {
 
     // Draw Rocket with funny comical styling
     // Vòng nạp khi người chơi GIỮ để Lộng Gió (phản hồi trực quan)
-    if (this.state === 'PLAYING' && this.holdProgress > 0 && this.drunkMeter >= 100) {
+    if (this.state === 'PLAYING' && this.holdProgress > 0.45 && this.drunkMeter >= 100) {
+      const visualP = (this.holdProgress - 0.45) / 0.55;
       const ctx = this.ctx;
       ctx.save();
       ctx.strokeStyle = 'rgba(255, 215, 106, 0.9)';
       ctx.lineWidth = 3;
       ctx.lineCap = 'round';
       ctx.beginPath();
-      ctx.arc(this.rocket.x, this.rocket.y, 22, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * this.holdProgress);
+      ctx.arc(this.rocket.x, this.rocket.y, 22, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * visualP);
       ctx.stroke();
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
       ctx.lineWidth = 1;
@@ -1033,6 +1050,9 @@ export class Game {
       ctx.stroke();
       ctx.restore();
     }
+
+    // Vệt nón sáng Lộng Gió (phải vẽ ở render, không phải update)
+    if (this.isSmashActive && this.state === 'PLAYING') this._drawSmashLance();
 
     EntityRenderer.drawRocket(this.ctx, this.rocket, {
       isDead: this.state === 'GAMEOVER',
@@ -1267,13 +1287,20 @@ export class Game {
       this.perfFrames++;
       if (this.perfFrames >= 90) {
         this.perfFrames = 0;
+        let changed = false;
         if (this.perfEma > 19 && this.perfLevel < 2) {
           this.perfLevel++;
-          this.resize();
+          changed = true;
         } else if (this.perfEma < 15 && this.perfLevel > 0) {
-          // máy đã đủ nhanh: nâng lại từng bước (tránh nhấp nháy)
           this.perfLevel--;
-          this.resize();
+          changed = true;
+        }
+        if (changed) {
+          // Chỉ đổi cờ nhẹ ngay; resize() (dựng lại cảnh) để lúc về READY/GAMEOVER
+          if (this.weather) this.weather.forceLowEnd = this.perfLevel >= 1;
+          if (this.hud) this.hud.noShadow = this.perfLevel >= 2;
+          if (this.particles) this.particles.throttle = this.perfLevel >= 2;
+          this._pendingPerfResize = true;
         }
       }
     }
