@@ -1330,3 +1330,47 @@ Sửa: vẫn chụp khung mỗi 2 frame nhưng **giữ bản đã chụp và com
 
 ### F. Kiểm chứng
 `ALL REGRESSION CHECKS PASSED`. Ảnh: `docs/screenshots/lap1-gate.png`, `docs/screenshots/lap4-gate.png`.
+
+---
+
+## 48. Meta-progression (Hũ Gió) + màu vòng 2 + chốt 4 điểm của chuyên gia
+
+### A. Meta-progression: đã có những gì
+| Hạng mục | Trạng thái |
+|---|---|
+| Sổ tay bưu thiếp (📮, 9×6 tem) | **đã có từ trước** |
+| Hũ Gió (tiền tệ tích luỹ) | **mới** — `src/core/meta.js` |
+| Nâng cấp vĩnh viễn | **mới** — 3 mục trong 🏺 |
+| Mở khoá bùa | **mới** — 3 bùa khoá sau Hũ Gió |
+
+**Kiếm gió**: cuối mỗi ván `⌊cổng/4⌋` gió (chết là cộng), cộng thêm theo tem mới.
+**Nâng cấp** (`localStorage['dieu_meta_v1']`):
+| Nâng cấp | Tác dụng | Giá | Cấp |
+|---|---|---|---|
+| Khởi đầu đầy gió | +15% năng lượng đầu ván / cấp | 8 → +60% | 4 |
+| Vó gió rộng | +70px tầm hút hạt / cấp | 12 | 2 |
+| Combo hạt gió | combo 3 hạt +4% / cấp | 10 | 2 |
+
+**Mở khoá bùa**: Lá Sen / Bọt Rượu Cần / Mắt Diều Tinh mở sẵn; **Xuyên Gió 14**, **Vó Hút Gió 12**,
+**Pháo Dây Chuyền 16**. Bảng rút bùa chỉ ra bùa đã mở (`perks.js` lọc bằng `isPerkUnlocked`).
+
+### B. Vòng 2 đổi màu (hết trùng vàng với vòng 4)
+V2 từ "tre mật" (vàng nâu) → **trúc ngọc lam** `#8fe0c8 / #4fa891 / #2f6f5e`, lá `#6fc9ae`.
+Bảng chất liệu: V1 tre xanh · **V2 ngọc lam** · V3 trúc tím · V4 trúc kim · V5 trúc rồng.
+
+### C. 4 điểm chuyên gia (đã áp)
+1. Bỏ `invincibleTimer = smashMaxDuration + 0.2` khi kích Lộng Gió ⇒ hết dư ~1.6s bất tử, `_endSmash()` cấp đúng 0.7s.
+2. `_onNearMiss()` bỏ `ghosts.spawnForPillar()` + `_syncProgression()` (onScore ngay sau đã làm) ⇒ không đúp xác diều.
+3. `quantumTimer 1.8 → 1.2s` (trên hồi 2.2s) ⇒ Xuyên Gió cần canh nhịp, không còn 82% bất tử.
+4. `LAP_MOODS` phủ **overscan −30/+60** ⇒ không hở viền khi rung màn hình.
+
+**Giữ nguyên 10 điểm/chương** (yêu cầu trực tiếp của bạn). Để tránh trùng nhịp Bùa ↔ đổi tỉnh:
+`milestoneInterval 12 → 10`, mốc đầu **5** (5, 15, 25, …) ⇒ không bao giờ trùng 10, 20, 30.
+
+### D. Tinh chỉnh khác
+- `streamCam` zoom **1.05** + dịch ±3px (trước 1.08/4.8px) ⇒ không cắt lẹm HUD.
+- `_restart()` gọi `setLandmark(..., false, 0, POINTS_PER_CHAPTER)` đủ tham số.
+- Gió giữa cột + chất liệu cột vẫn đổi mạnh theo vòng (mục 47).
+
+### E. Kiểm chứng
+`ALL REGRESSION CHECKS PASSED`; ảnh `docs/screenshots/windjar.png`, `docs/screenshots/lap2-teal.png`.
