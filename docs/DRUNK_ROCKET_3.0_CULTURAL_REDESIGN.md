@@ -1113,3 +1113,46 @@ Chạy thật với `?auto=1` (tự bấm Space sau 1.2s): diều bay, HUD cập
 
 ### D. Ghi chú
 Thêm cờ `?auto=1` (chỉ để test) và `?debug=1` (in số đo `DLG …`) — không ảnh hưởng người chơi thường.
+
+---
+
+## 42. Áp bản vá gameplay (theo audit) — đã sửa gì, giữ gì
+
+### A. Đã sửa (đúng như audit)
+| Nhóm | Nội dung |
+|---|---|
+| **P0 restart** | `_restart()` reset `ceilingHits/ceilingTimer`, `cellCombo(+Timer)`, `smashCooldown`, `smashTargets`, `lastSmashedPillar`, `holdProgress`, `_lastStampKey`, `invincibleTimer`, `pillars.tierBoost`; resize hoãn chạy ở đây |
+| **P0 vệt nón** | `_drawSmashLance()` chuyển từ `update()` sang `render()` (ngay trước `drawRocket`) |
+| **Smash** | Bỏ `smashTargets` tĩnh → đánh dấu `ignoredBySmash` cho cột sau lưng; húc **đủ số cột thật** kể cả cột mới sinh trong lúc lướt; `lastSmashedPillar` để tính `midX` (hết lỗi `.find()` lấy cột 1); `hitStopTimer = 0.045`; trần lao `targetX = min(220, start+110)`; bỏ `smashTimeout` NaN; `smashMaxDuration` 1.4/2.2s |
+| **Tốc độ khi lướt** | `energyCells.update` và `ghosts.update` nhận `speed × speedMul`; `spawnTimer` cũng nhân `speedMul` |
+| **Cột vòng 2+** | `effectiveTier` tính **trước** các nhánh độ khó; `reset()` xoá `tierBoost` |
+| **Near-Miss** | Chỉ **gắn cờ** khi lướt sát, **thưởng sau khi vượt hẳn** cột; `bonus = 2 × nearMissMultiplier` (bùa Mắt Diều Tinh có tác dụng) |
+| **Bùa** | Mọi lá bùa: 0.8s bất tử khi hết post-draft + `resetHold()`; Xuyên Gió `quantumMaxCooldown = 2.2s` |
+| **Vó Hút Gió** | `magnetRange = 260` + chặn `dist > 0.001` (hết NaN) |
+| **Điều khiển** | `HOLD_MS = 235`; phím `Shift`/`E` trên PC; bấm Quả Cầu **không còn** yêu cầu `score >= 10`; vòng nạp chỉ hiện sau 45% (hết nháy) |
+| **Hiệu năng** | Bậc chất lượng chỉ đổi cờ nhẹ; `resize()` hoãn tới lúc READY/GAMEOVER (`_pendingPerfResize`); bỏ `setInterval` trong `startAutoFit` |
+| **Combo hạt gió** | 3 hạt liên tiếp: **+8% năng lượng** (vẫn không cộng điểm) |
+
+### B. Giữ nguyên (có lý do)
+- **Chương tính theo ĐIỂM, 10 điểm/địa danh**: đây là lựa chọn trực tiếp của bạn ở các lượt trước
+  (15 → 10 điểm), không phải sơ suất. Audit đề nghị quay lại "12 CỔNG" — mình **không tự đảo** quyết định đó.
+  `gatesPassed` vẫn được đếm song song (dùng cho mốc bùa/thống kê), nên nếu muốn đổi sang gates-only
+  thì chỉ cần sửa `_syncProgression()` gọi `getProgression(this.gatesPassed)` và đặt `POINTS_PER_CHAPTER = 12`.
+- **Không bật lại nền mờ cinematic** (bạn đã yêu cầu bỏ).
+
+### C. Kiểm chứng (`tools/regress-probe.html`)
+```
+PASS chạm trần 3 lần -> chết
+PASS restart: ceilingHits = 0
+PASS restart: bay bình thường, không chết
+PASS smash: cột vỡ · +1 điểm · có hit-stop 45ms · đứng sau cột vừa phá
+PASS chain: cả 2 cột bị phá · +2 điểm
+PASS near-miss: chưa vượt -> chưa cộng điểm
+PASS bùa: hết post-draft -> bất tử 0.8s
+ALL REGRESSION CHECKS PASSED
+```
+`tools/start-probe.html` → START OK · Ánh gameplay: cảnh đúng, HUD nét.
+
+### D. Ghi chú còn lại
+- `POINTS_PER_CHAPTER` hiện 10 (theo lựa chọn của bạn). Nếu muốn nhịp thời tiết dài hơn (~22–25s/tỉnh),
+  nâng lên 12 và chuyển sang đếm cổng như mục B.
