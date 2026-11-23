@@ -85,7 +85,7 @@ const DICT = {
 
     'skills.title': 'KĨ NĂNG · BÙA HỘ MỆNH',
     'skills.close': 'ĐÓNG',
-    'skills.note': 'Cứ 7 điểm, bạn chọn 1 bùa trong 3 bùa ngẫu nhiên.',
+    'skills.note': 'Cứ 5 cổng đầu, rồi 17, 29… bạn chọn 1 bùa trong 3 bùa ngẫu nhiên.',
 
     'toolbar.top': 'TOP',
     'toolbar.story': 'CỐT TRUYỆN',
@@ -222,7 +222,7 @@ const DICT = {
 
     'skills.title': 'SKILLS · FESTIVAL CHARMS',
     'skills.close': 'CLOSE',
-    'skills.note': 'Every 7 points you pick 1 of 3 random charms.',
+    'skills.note': 'At gates 5, 17, 29… you pick 1 of 3 random charms.',
 
     'toolbar.top': 'TOP',
     'toolbar.story': 'STORY',
