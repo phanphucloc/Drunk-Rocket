@@ -1374,3 +1374,35 @@ Bảng chất liệu: V1 tre xanh · **V2 ngọc lam** · V3 trúc tím · V4 tr
 
 ### E. Kiểm chứng
 `ALL REGRESSION CHECKS PASSED`; ảnh `docs/screenshots/windjar.png`, `docs/screenshots/lap2-teal.png`.
+
+---
+
+## 49. Vá 3 lỗi P1 sau khi tích hợp Hũ Gió
+
+### A. P1 — nâng cấp không áp ở ván đầu
+`_applyMetaUpgrades()` được tách riêng và gọi ở **cuối `constructor()`** (sau khi mọi field đã khởi tạo),
+`_restart()`, và **ngay sau khi mua** trong Hũ Gió. Trước đây gọi sớm ở đầu constructor nên
+`this.drunkMeter = 0` (dòng sau) ghi đè mất phần năng lượng khởi đầu.
+
+### B. P1 — perks.js lệch mốc + mô tả + chưa lọc
+- `lastMilestoneScore`: constructor và `reset()` đều **−6** (mốc 6, 18, 30…), `milestoneInterval = 12`.
+- Mô tả Xuyên Gió: `1.8s` → **`1.2s`** (cả VI và EN) khớp code.
+- `triggerDraft()` giờ lọc `isPerkUnlocked(meta, p.id)`; nếu chưa đủ 3 lá thì fallback toàn bộ danh mục.
+
+### C. P1 — nhịp chương & bùa
+`POINTS_PER_CHAPTER = 12`, `milestoneInterval = 12`, mốc đầu 6 ⇒ **lệch pha vĩnh viễn**
+(chương 12, 24, 36… · bùa 6, 18, 30…), mỗi tỉnh ~22–24 giây, không còn dừng chọn bùa dày.
+
+### D. P2 — hút gió thụ động + dọn code
+- `energyCell.update`: khi **không** có bùa Vó Hút Gió mà có nâng cấp, vẫn hút trong bán kính
+  `magnetBonus` (70/140px) với lực yếu (260·(1−d/r)+90); có bùa thì cộng dồn `260 + magnetBonus`.
+- `_restart()` truyền đủ 6 tham số cho `infoPanels.setLandmark()`.
+- Xoá code chết `destroyFrontPillar()` / `destroyFrontPillars()` trong `laserPillar.js`.
+
+### E. Kiểm chứng (`tools/regress-probe.html`)
+```
+PASS nâng cấp Hũ Gió áp ngay ván đầu — meter=15 magnet=70
+PASS mốc mở bùa đầu = 6
+PASS restart sạch · smash +1/hit-stop · chain 2 cột · near-miss sau khi vượt · bùa 0.8s
+ALL REGRESSION CHECKS PASSED
+```
