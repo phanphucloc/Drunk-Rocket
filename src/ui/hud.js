@@ -483,9 +483,9 @@ export class HUD {
       ctx.save();
       ctx.globalAlpha = Math.max(0, Math.min(1, a));
       const x = 12;
-      const y = 86;
+      const y = 10;
       ctx.fillStyle = 'rgba(11, 21, 18, 0.72)';
-      const w = Math.min(240, this.width - 24);
+      const w = Math.min(198, this.width - 24);
       ctx.fillRect(x, y, w, 52);
       ctx.fillStyle = 'rgba(232, 184, 75, 0.9)';
       ctx.fillRect(x, y, 3, 52);
@@ -504,7 +504,7 @@ export class HUD {
         ctx.fillStyle = 'rgba(243, 234, 214, 0.78)';
         ctx.font = 'italic 9px "Be Vietnam Pro", serif';
         // cắt gọn cho vừa khung, không tràn chữ
-        let poem = b.poem;
+        let poem = b.poem.length > 34 ? b.poem.slice(0, 33) + '\u2026' : b.poem;
         const maxW = w - 18;
         while (poem.length > 6 && ctx.measureText(poem).width > maxW) {
           poem = poem.slice(0, -2);
