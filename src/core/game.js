@@ -363,7 +363,7 @@ export class Game {
    * Diem (near-miss / smash / hat gio) KHONG lam nhay chuong -> nhip thoi tiet on dinh.
    */
   _syncProgression(force = false) {
-    const prog = getProgression(this.score);
+    const prog = getProgression(this.gatesPassed);
     const prev = this._progState;
     this._progState = prog;
 
@@ -384,10 +384,12 @@ export class Game {
       if (this.weather) this.weather.setTheme(this.currentTheme);
       if (this.scenic) this.scenic.setTier(this.currentTheme.tier);
       if (this.audio && this.audio.setMusicTheme) this.audio.setMusicTheme(this.currentTheme.music);
-      this.hud.triggerSmashEffects();
+      // Chuyển chương: hiệu ứng ĐIỆN ẢNH nhẹ (không rung như va chạm)
+      if (this.hud.triggerChapterTransition) this.hud.triggerChapterTransition();
+      else this.hud.triggerSmashEffects();
       this.invincibleTimer = Math.max(this.invincibleTimer, 1.2);
       if (infoPanels) infoPanels.setLandmark(this.currentTheme, prog.lapNumber, prog.chapterNumber, true,
-        this.score % POINTS_PER_CHAPTER, POINTS_PER_CHAPTER);
+        this.gatesPassed % POINTS_PER_CHAPTER, POINTS_PER_CHAPTER);
     }
     if (lapChanged && this.audio && this.audio.playKiteUpgrade) {
       this.audio.playKiteUpgrade(prog.kiteStage);
@@ -404,7 +406,7 @@ export class Game {
     // diem chi dung cho bang xep hang.
     this._syncProgression();
     if (infoPanels) infoPanels.setLandmark(this.currentTheme, this.lapNumber, this.chapterNumber, false,
-      this.score % POINTS_PER_CHAPTER, POINTS_PER_CHAPTER);
+      this.gatesPassed % POINTS_PER_CHAPTER, POINTS_PER_CHAPTER);
 
     // Mốc mở TÚI BÙA tính theo ĐIỂM
     if (this.perks) this.perks.checkMilestone(this.score);
@@ -450,7 +452,7 @@ export class Game {
     this.score += bonus;
     this._syncProgression();
     if (infoPanels) infoPanels.setLandmark(this.currentTheme, this.lapNumber, this.chapterNumber, false,
-      this.score % POINTS_PER_CHAPTER, POINTS_PER_CHAPTER);
+      this.gatesPassed % POINTS_PER_CHAPTER, POINTS_PER_CHAPTER);
     this.justScoredTimer = 0.8;
     this.drunkMeter = Math.min(100, this.drunkMeter + (12 * this.nearMissMultiplier));
     this.audio.playNearMiss();
@@ -461,7 +463,6 @@ export class Game {
     const pY = pillar ? pillar.gapY : this.rocket.y;
     this.particles.emitEnergySiphon(pX, pY, this.width / 2, 126, 14);
 
-    if (this.perks) this.perks.checkMilestone(this.score);
     if (this.ghosts && pillar) this.ghosts.spawnForPillar(pillar, this.score);
     if (this.score > this.bestScore) {
       this.bestScore = this.score;
@@ -813,10 +814,14 @@ export class Game {
           this.gatesPassed += 1;
           this._syncProgression();
           if (infoPanels) infoPanels.setLandmark(this.currentTheme, this.lapNumber, this.chapterNumber, false,
-            this.score % POINTS_PER_CHAPTER, POINTS_PER_CHAPTER);
+            this.gatesPassed % POINTS_PER_CHAPTER, POINTS_PER_CHAPTER);
           if (this.perks) this.perks.onPassPillar();
 
           this.smashPillarsLeft -= 1;
+          if (this.score > this.bestScore) {
+            this.bestScore = this.score;
+            localStorage.setItem('drunk_rocket_best', this.bestScore.toString());
+          }
         }
 
         this.particles.emitSmashFireTrail(this.rocket.x, this.rocket.y, this.rocket.angle || 0);
@@ -868,7 +873,7 @@ export class Game {
       } else {
         this.rocket.update(dt, false, this.totalTime);
       }
-      this.pillars.update(dt, this.rocket, this._onScore, this._onNearMiss, this.score, this.difficulty, this.isSmashActive);
+      this.pillars.update(dt, this.rocket, this._onScore, this._onNearMiss, this.gatesPassed, this.difficulty, this.isSmashActive);
       const worldSpeed = this.pillars.speed * (this.pillars.speedMul || 1);
       this.energyCells.update(dt, worldSpeed, this.rocket, this.hasDrunkMagnet, this._onCollectCell);
       if (this.ghosts) this.ghosts.update(dt, worldSpeed);

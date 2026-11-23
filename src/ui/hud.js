@@ -36,6 +36,13 @@ export class HUD {
     this.flashColor = 'rgba(255, 244, 214, 0.42)';
   }
 
+  /** Chuyển chương: mờ dần + đường vàng quét nhẹ, KHÔNG rung (khác hẳn va chạm). */
+  triggerChapterTransition() {
+    this.chapterFade = 0.9;          // giây
+    this.chapterBand = 1;            // 1 -> 0, dải sáng quét qua
+    // không đụng shakeIntensity/shakeDuration
+  }
+
   triggerSmashEffects() {
     this.shakeDuration = 0.25;
     this.shakeIntensity = 12;
