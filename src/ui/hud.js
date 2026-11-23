@@ -503,7 +503,14 @@ export class HUD {
       if (b.poem) {
         ctx.fillStyle = 'rgba(243, 234, 214, 0.78)';
         ctx.font = 'italic 9px "Be Vietnam Pro", serif';
-        ctx.fillText(b.poem, x + 10, y + 37);
+        // cắt gọn cho vừa khung, không tràn chữ
+        let poem = b.poem;
+        const maxW = w - 18;
+        while (poem.length > 6 && ctx.measureText(poem).width > maxW) {
+          poem = poem.slice(0, -2);
+        }
+        if (poem !== b.poem) poem = poem.trim() + '…';
+        ctx.fillText(poem, x + 10, y + 37);
       }
       ctx.restore();
     }
