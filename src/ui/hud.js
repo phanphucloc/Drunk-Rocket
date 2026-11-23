@@ -215,28 +215,28 @@ export class HUD {
           sy += 13;
         }
       }
-            // P0-c: hộp hướng dẫn lần đầu — chỉ vẽ khi state READY và options.showTutorial.
-            // Vị trí y 342-446: dưới panel READY (kết thúc y 330), trên dòng "CHẠM..." (y 460).
-            if (options && options.showTutorial) {
-                      const tutW = 332;
-                      const tutH = 104;
-                      const tutX = cx - tutW / 2;
-                      const tutY = 342;
-                      ctx.fillStyle = 'rgba(10, 20, 17, 0.66)';
-                      ctx.fillRect(tutX, tutY, tutW, tutH);
-                      ctx.strokeStyle = 'rgba(232, 184, 75, 0.55)';
-                      ctx.lineWidth = 1;
-                      ctx.strokeRect(tutX + 0.5, tutY + 0.5, tutW - 1, tutH - 1);
-                      ctx.fillStyle = '#e8b84b';
-                      ctx.font = '800 13px "Be Vietnam Pro", ui-monospace, monospace';
-                      ctx.fillText(t('tutorial.title'), cx, 368);
-                      ctx.fillStyle = '#f3ead6';
-                      ctx.font = '13px "Be Vietnam Pro", ui-monospace, monospace';
-                      ctx.fillText(t('tutorial.line1'), cx, 390);
-                      ctx.fillText(t('tutorial.line2'), cx, 410);
-                      ctx.fillText(t('tutorial.line3'), cx, 430);
-            }
-      
+      // P0-c: hộp hướng dẫn lần đầu — chỉ vẽ khi state READY và options.showTutorial.
+      // Vị trí y 342-446: dưới panel READY (kết thúc y 330), trên dòng "CHẠM..." (y 460).
+      if (options && options.showTutorial) {
+        const tutW = 332;
+        const tutH = 104;
+        const tutX = cx - tutW / 2;
+        const tutY = 342;
+        ctx.fillStyle = 'rgba(10, 20, 17, 0.66)';
+        ctx.fillRect(tutX, tutY, tutW, tutH);
+        ctx.strokeStyle = 'rgba(232, 184, 75, 0.55)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(tutX + 0.5, tutY + 0.5, tutW - 1, tutH - 1);
+        ctx.fillStyle = '#e8b84b';
+        ctx.font = '800 13px "Be Vietnam Pro", ui-monospace, monospace';
+        ctx.fillText(t('tutorial.title'), cx, 368);
+        ctx.fillStyle = '#f3ead6';
+        ctx.font = '13px "Be Vietnam Pro", ui-monospace, monospace';
+        ctx.fillText(t('tutorial.line1'), cx, 390);
+        ctx.fillText(t('tutorial.line2'), cx, 410);
+        ctx.fillText(t('tutorial.line3'), cx, 430);
+      }
+
       // Blinking prompt
       if (Math.sin(time * 6) > -0.2) {
         ctx.fillStyle = '#f3ead6';
