@@ -44,6 +44,9 @@
       <button id="btn-open-leaderboard" class="arcade-btn" data-i18n-title="toolbar.top">
         <span class="btn-icon">🏆</span><span class="btn-label" data-i18n="toolbar.top">TOP</span>
       </button>
+      <button id="btn-open-windjar" class="arcade-btn btn-square" title="Hũ Gió">
+        <span class="btn-icon">🏺</span>
+      </button>
       <button id="btn-open-story" class="arcade-btn" data-i18n-title="toolbar.story">
         <span class="btn-icon">📖</span><span class="btn-label" data-i18n="toolbar.story">CỐT TRUYỆN</span>
       </button>
@@ -150,6 +153,24 @@
     </div>
 
     <!-- Settings Modal -->
+    <!-- Hũ Gió: nâng cấp vĩnh viễn + mở khoá bùa -->
+    <div id="windjar-modal" class="modal-overlay hidden">
+      <div class="modal-card modal-card--wide">
+        <div class="modal-header">
+          <h2>🏺 <span data-i18n="meta.title">HŨ GIÓ</span></h2>
+          <button id="btn-close-windjar" class="close-btn">&times;</button>
+        </div>
+        <p class="modal-intro">
+          <span data-i18n="meta.wind">Gió tích luỹ</span>:
+          <strong id="windjar-count" class="windjar-count">0</strong> 🌬
+        </p>
+        <h3 class="windjar-sub" data-i18n="meta.upgrades">Nâng cấp vĩnh viễn</h3>
+        <div id="windjar-upgrades" class="windjar-list"></div>
+        <h3 class="windjar-sub" data-i18n="meta.perks">Mở khoá bùa</h3>
+        <div id="windjar-perks" class="windjar-list"></div>
+      </div>
+    </div>
+
     <div id="settings-modal" class="modal-overlay hidden">
       <div class="modal-card">
         <div class="modal-header">

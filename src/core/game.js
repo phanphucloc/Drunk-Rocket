@@ -8,6 +8,7 @@ import { ScenicLandmarksManager } from '../graphics/scenicLandmarks.js';
 import { drawNightLights } from '../graphics/nightLights.js';
 import { ParticleSystem } from '../graphics/particles.js';
 import { EntityRenderer, drawKiteString } from '../graphics/renderer.js';
+import { upgradeValue, addWind, windRewardFor } from './meta.js';
 import { AudioSynthesizer } from '../audio/audioSynth.js';
 import { HUD } from '../ui/hud.js';
 import { StoryOverlay } from '../ui/storyOverlay.js';
@@ -296,8 +297,12 @@ export class Game {
   }
 
   _restart() {
+    // Meta-progression: áp nâng cấp vĩnh viễn
+    this.startMeterBonus = upgradeValue('start_meter');
+    this.magnetBonus = upgradeValue('magnet');
+    this.comboBonus = upgradeValue('combo');
     this.score = 0;
-    this.drunkMeter = 0;
+    this.drunkMeter = Math.min(100, this.startMeterBonus);
     this.isSmashActive = false;
     this.smashDuration = 0;
     this.smashedCountInSupernova = 0;
@@ -491,7 +496,7 @@ export class Game {
     if (this.cellCombo >= 3) {
       // Combo 3 hạt gió: thưởng thêm năng lượng (không cộng điểm)
       this.cellCombo = 0;
-      this.drunkMeter = Math.min(100, this.drunkMeter + 8);
+      this.drunkMeter = Math.min(100, this.drunkMeter + 8 + (this.comboBonus || 0));
       this.particles.emitScoreSparkles(cell.x, cell.y);
     }
     if (this.audio.playCellCollect) {
@@ -604,6 +609,11 @@ export class Game {
 
   _die() {
     if (this.state === 'GAMEOVER') return;
+    // Thưởng Hũ Gió cuối ván
+    try {
+      const reward = windRewardFor(this.gatesPassed, 0);
+      if (reward > 0) this.lastWindReward = addWind(reward);
+    } catch (e) { /* bỏ qua */ }
     this.state = 'GAMEOVER';
     if (this.audio && this.audio.stopLaserProximity) this.audio.stopLaserProximity();
     this.timeSinceDeath = 0;
@@ -885,7 +895,7 @@ export class Game {
       }
       this.pillars.update(dt, this.rocket, this._onScore, this._onNearMiss, this.gatesPassed, this.difficulty, this.isSmashActive);
       const worldSpeed = this.pillars.speed * (this.pillars.speedMul || 1);
-      this.energyCells.update(dt, worldSpeed, this.rocket, this.hasDrunkMagnet, this._onCollectCell);
+      this.energyCells.update(dt, worldSpeed, this.rocket, this.hasDrunkMagnet, this._onCollectCell, this.magnetBonus || 0);
       if (this.ghosts) this.ghosts.update(dt, worldSpeed);
 
       // Proximity Laser Hum & Electric Crackle ("xẹt xẹt" gets louder as rocket approaches beam)

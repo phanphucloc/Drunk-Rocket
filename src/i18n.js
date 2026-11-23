@@ -116,6 +116,20 @@ const DICT = {
 
     'settings.title': '⚙ CÀI ĐẶT',
     'settings.streamCam': 'Stream camera (zoom nhẹ theo diều)',
+    'meta.title': 'HŨ GIÓ',
+    'meta.wind': 'Gió tích luỹ',
+    'meta.upgrades': 'Nâng cấp vĩnh viễn',
+    'meta.perks': 'Mở khoá bùa',
+    'meta.maxed': 'TỐI ĐA',
+    'meta.unlock': 'MỞ',
+    'meta.unlocked': 'Đã mở',
+    'meta.up.start': 'Khởi đầu đầy gió',
+    'meta.up.startDesc': 'Bắt đầu ván với +15% năng lượng mỗi cấp',
+    'meta.up.magnet': 'Vó gió rộng',
+    'meta.up.magnetDesc': 'Tăng tầm hút hạt gió',
+    'meta.up.combo': 'Combo hạt gió',
+    'meta.up.comboDesc': 'Combo 3 hạt thưởng thêm năng lượng',
+
 
     'settings.music': 'Nhạc nền',
     'settings.sfx': 'Hiệu ứng',
@@ -234,6 +248,20 @@ const DICT = {
 
     'settings.title': '⚙ SETTINGS',
     'settings.streamCam': 'Stream camera (slight zoom)',
+    'meta.title': 'WIND JAR',
+    'meta.wind': 'Stored wind',
+    'meta.upgrades': 'Permanent upgrades',
+    'meta.perks': 'Perk unlocks',
+    'meta.maxed': 'MAX',
+    'meta.unlock': 'UNLOCK',
+    'meta.unlocked': 'Unlocked',
+    'meta.up.start': 'Windful start',
+    'meta.up.startDesc': 'Start each run with +15% energy per level',
+    'meta.up.magnet': 'Wide net',
+    'meta.up.magnetDesc': 'Increase wind-cell magnet range',
+    'meta.up.combo': 'Cell combo',
+    'meta.up.comboDesc': 'Better reward for a 3-cell combo',
+
 
     'settings.music': 'Music',
     'settings.sfx': 'Effects',

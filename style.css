@@ -908,3 +908,23 @@ html, body {
   accent-color: var(--gold, #e8b84b);
   cursor: pointer;
 }
+
+/* Hũ Gió */
+.windjar-count { color: var(--gold, #e8b84b); font-size: 18px; }
+.windjar-sub { font-size: 12px; letter-spacing: 0.08em; color: var(--gold, #e8b84b); margin: 12px 0 6px; }
+.windjar-list { display: flex; flex-direction: column; gap: 6px; max-height: 240px; overflow-y: auto; }
+.windjar-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 7px 9px; border: 1px solid rgba(232, 184, 75, 0.25); border-radius: 8px;
+  background: rgba(10, 20, 17, 0.5);
+}
+.windjar-row.is-owned { opacity: 0.6; }
+.windjar-info strong { display: block; font-size: 12px; color: #f3ead6; }
+.windjar-info small { font-size: 10px; color: rgba(243, 234, 214, 0.65); }
+.windjar-buy { min-width: 74px; font-size: 11px; padding: 6px 8px; }
+.windjar-buy.shake { animation: windjar-shake 0.28s; }
+@keyframes windjar-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}

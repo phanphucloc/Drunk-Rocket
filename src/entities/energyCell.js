@@ -18,14 +18,14 @@ export class EnergyCell {
     this.isMagnetized = false;
   }
 
-  update(dt, speed, rocket, hasMagnet = false) {
+  update(dt, speed, rocket, hasMagnet = false, magnetBonus = 0) {
     this.pulsePhase += dt * this.floatSpeed;
 
     if (hasMagnet && !this.isCollected) {
       const dx = rocket.x - this.x;
       const dy = rocket.y - this.y;
       const dist = Math.hypot(dx, dy);
-      const magnetRange = 260; // khớp mô tả Vó Hút Gió
+      const magnetRange = 260 + (magnetBonus || 0); // khớp Vó Hút Gió + nâng cấp Hũ Gió
 
       if (dist > 0.001 && dist < magnetRange) {
         this.isMagnetized = true;
@@ -86,10 +86,10 @@ export class EnergyCellManager {
     }
   }
 
-  update(dt, speed, rocket, hasMagnet, onCollect) {
+  update(dt, speed, rocket, hasMagnet, onCollect, magnetBonus = 0) {
     for (let i = this.cells.length - 1; i >= 0; i--) {
       const cell = this.cells[i];
-      cell.update(dt, speed, rocket, hasMagnet);
+      cell.update(dt, speed, rocket, hasMagnet, magnetBonus);
 
       if (!cell.isCollected && cell.checkCollision(rocket)) {
         cell.isCollected = true;
