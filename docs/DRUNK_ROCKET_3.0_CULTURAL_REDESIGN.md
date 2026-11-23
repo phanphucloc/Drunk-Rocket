@@ -1200,3 +1200,34 @@ ALL REGRESSION CHECKS PASSED
 - Mỗi vòng gán **weather preset ưu tiên** (V2 mưa, V3 sao, V5 giông) để cảnh đổi mạnh hơn nữa.
 - Thêm **banner chương kiểu phim** (tên tỉnh + câu thơ) chỉ hiện 2s ở góc, không che đường bay.
 - Chế độ "stream camera": zoom nhẹ theo diều + viền mờ (tùy chọn trong ⚙).
+
+---
+
+## 44. Banner chương kiểu phim + Stream camera
+
+### A. Banner chương (2 giây, góc trên-trái)
+- `hud.showChapterBanner(theme, lap, chapter)`: ghi tên tỉnh + phụ danh + **câu thơ** (lấy từ
+  `editorialDesc`, cắt "TÊN — " ở đầu, giới hạn 33 ký tự + `…`, có đo bề rộng để không tràn khung).
+- Vẽ ở **góc trên-trái** (y = 10), khung 198px, nền ink mờ + vạch vàng dọc.
+- Fade in 0.25s / fade out 0.35s, tổng 2s; **không che đường bay** (kite bay giữa màn hình).
+- Kích hoạt tự động khi đổi chương trong `_syncProgression()` (chỉ lúc `PLAYING`).
+
+### B. Stream camera (tuỳ chọn trong ⚙)
+- Công tắc **"Stream camera (zoom nhẹ theo diều)"** — lưu `localStorage['dieu_stream_cam']`.
+- Khi bật: canvas được **CSS transform** `scale(1.08)` + dịch nhẹ theo vị trí diều
+  (không vẽ lại, gần như miễn phí); tắt là trả `transform = ''`.
+- Chỉ áp khi `state === 'PLAYING'`, nên READY/menu vẫn khung chuẩn.
+- Tham số test: `?cam=1` (bật nhanh), `?banner=1` (hiện thử banner).
+
+### C. Lỗi nghiêm trọng phát hiện kèm (đã sửa)
+Khi bỏ `effectiveTier` trùng ở `spawn()`, còn sót `tier: effectiveTier` trong lúc tạo pillar ⇒
+`ReferenceError` mỗi lần sinh cột ⇒ **cột không bao giờ xuất hiện** mà không báo gì rõ ràng.
+Đã sửa thành `tier` và thêm kiểm thử "cột sinh ra sau 3s" vào `tools/regress-probe.html`.
+
+### D. Kiểm chứng
+```
+PASS cột sinh ra sau 3s — n=2
+PASS banner chương có dữ liệu — name=SA PA
+ALL REGRESSION CHECKS PASSED
+```
+Ảnh: `docs/screenshots/chapter-banner.png`, `docs/screenshots/stream-camera.png`.
