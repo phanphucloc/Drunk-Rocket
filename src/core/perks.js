@@ -138,7 +138,7 @@ export class PerkDraftManager {
     this.draftTimer = 0;
     this.draftMaxDuration = Infinity;   // V1: không giới hạn (setLap sẽ đổi)
     this.lapNumber = 1;
-    this.lastMilestoneScore = -6; // mốc đầu ở 6 cổng, rồi 18, 30...
+    this.lastMilestoneScore = -7; // moc 7, 19, 31... (khong trung boi 10)
     this.milestoneInterval = 12;
   }
 
@@ -152,7 +152,7 @@ export class PerkDraftManager {
     this.hoveredIndex = -1;
     this.draftCards = [];
     this.draftTimer = 0;
-    this.lastMilestoneScore = -6;
+    this.lastMilestoneScore = -7; // moc 7, 19, 31... (khong trung boi 10)
   }
 
   checkMilestone(currentScore) {
@@ -368,7 +368,16 @@ export class PerkDraftManager {
 
     ctx.fillStyle = '#00f0ff';
     ctx.font = 'bold 13px monospace';
-    ctx.fillText(`${t('perk.timer')}: ${Math.max(0, this.draftTimer).toFixed(1)}s (1, 2, 3)`, width / 2, 200);
+    if (this.hasDraftTimer) {
+      const left = Math.max(0, this.draftTimer);
+      const warn = left <= 1.2;
+      ctx.fillStyle = warn ? '#ff6b6b' : '#00f0ff';
+      ctx.fillText(`${t('perk.timer')}: ${left.toFixed(1)}s (1, 2, 3)`, width / 2, 200);
+    } else {
+      // Vòng 1: không giới hạn thời gian — người mới đọc thoải mái
+      ctx.fillStyle = '#05ffa1';
+      ctx.fillText(`${t('perk.noTimer')} (1, 2, 3)`, width / 2, 200);
+    }
 
     const cardW = 320;
     const cardH = 75;
