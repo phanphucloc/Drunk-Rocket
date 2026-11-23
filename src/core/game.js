@@ -93,9 +93,9 @@ export class Game {
     this.weather.setTheme(this.currentTheme);
     if (this.audio && this.audio.setAmbientTheme) this.audio.setAmbientTheme(this.weather.ambient, true);
     if (this.audio && this.audio.setMusicTheme) this.audio.setMusicTheme(this.currentTheme.music, true);
-        // P0-c: tutorial lần đầu — chỉ hiện 1 lần, tap đầu tiên vừa tắt vừa bắt đầu ván.
-        this.showTutorial = false;
-        try { this.showTutorial = localStorage.getItem('drunk_rocket_tutorial_seen') !== '1'; } catch (e) { /* localStorage có thể bị chặn: hiện tutorial cho an toàn */ }
+    // P0-c: tutorial lần đầu — chỉ hiện 1 lần, tap đầu tiên vừa tắt vừa bắt đầu ván.
+    this.showTutorial = false;
+    try { this.showTutorial = localStorage.getItem('drunk_rocket_tutorial_seen') !== '1'; } catch (e) { /* localStorage có thể bị chặn: hiện tutorial cho an toàn */ }
     this.paused = false;
     // Bất tử ngắn mỗi lần đổi chương (tránh chết oan khi cảnh vừa đổi, người chơi đang nhìn)
     this.invincibleTimer = 0;
@@ -598,11 +598,11 @@ export class Game {
   }
 
   /** P0-c: tắt tutorial lần đầu và ghi nhớ — chỉ gọi từ nhánh READY khi đã có tap. */
-    _dismissTutorial() {
-          this.showTutorial = false;
-          try { localStorage.setItem('drunk_rocket_tutorial_seen', '1'); } catch (e) { /* bỏ qua */ }
-    }
-  
+  _dismissTutorial() {
+    this.showTutorial = false;
+    try { localStorage.setItem('drunk_rocket_tutorial_seen', '1'); } catch (e) { /* bỏ qua */ }
+  }
+
   /** Tạm dừng toàn bộ gameplay (dùng khi mở popup/bảng điểm/cài đặt). */
   setPaused(paused) {
     const next = !!paused;
@@ -780,8 +780,8 @@ export class Game {
       this.rocket.rotation = Math.sin(this.totalTime * 3) * 0.1;
 
       if (hasTap) {
-                // P0-c: tap đầu tiên vừa tắt tutorial vừa bắt đầu ván — không bắt tap 2 lần.
-                if (this.showTutorial) this._dismissTutorial();
+        // P0-c: tap đầu tiên vừa tắt tutorial vừa bắt đầu ván — không bắt tap 2 lần.
+        if (this.showTutorial) this._dismissTutorial();
         this.state = 'PLAYING';
         this.runStartTime = performance.now();
         this.invincibleTimer = Math.max(this.invincibleTimer, 1.0);
@@ -1257,7 +1257,7 @@ export class Game {
         gatesPerChapter: POINTS_PER_CHAPTER,
         colorStage: this.colorStage,
         theme: this.currentTheme,
-                showTutorial: this.showTutorial
+        showTutorial: this.showTutorial
       }
     );
 
