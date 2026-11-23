@@ -10,7 +10,8 @@ import { WeatherSystem } from '../graphics/weather.js';
 import { ScenicLandmarksManager } from '../graphics/scenicLandmarks.js';
 import { drawNightLights } from '../graphics/nightLights.js';
 import { ParticleSystem } from '../graphics/particles.js';
-import { EntityRenderer } from '../graphics/renderer.js';
+import { EntityRenderer, drawKiteString } from '../graphics/renderer.js';
+import { upgradeValue, addWind, windRewardFor } from './meta.js';
 import { AudioSynthesizer } from '../audio/audioSynth.js';
 import { HUD } from '../ui/hud.js';
 import { StoryOverlay } from '../ui/storyOverlay.js';
@@ -24,11 +25,26 @@ import { toggleLang, t } from '../i18n.js';
 import { recordStamp } from './stamps.js';
 import { CONFIG } from '../config.js';
 
+/** Sáº¯c thÃ¡i tá»«ng vÃ²ng: cÃ¹ng Ä‘á»‹a danh nhÆ°ng khÃ¡c Ã¡nh sÃ¡ng -> livestream khÃ´ng bá»‹ láº·p. */
+const LAP_MOODS = [
+  null,                                                        // V1: nguyÃªn báº£n
+  { mode: 'multiply', color: '#ffb45c', alpha: 0.34 },         // V2: hoÃ ng hÃ´n áº¥m
+  { mode: 'multiply', color: '#3b4f9e', alpha: 0.55 },         // V3: Ä‘Ãªm xanh
+  { mode: 'screen',   color: '#7fd8c4', alpha: 0.16 },         // V4: sÆ°Æ¡ng ngá»c
+  { mode: 'multiply', color: '#a83226', alpha: 0.46 }          // V5: giÃ´ng rá»“ng
+];
+
 export class Game {
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
 
+    this._dbg = !!(window.__DR_DEBUG || /[?&]debug=1/.test(location.search));
+    // Cháº¥t lÆ°á»£ng tá»± Ä‘iá»u chá»‰nh: 0 = cao, 1 = vá»«a, 2 = tháº¥p (mÃ¡y yáº¿u)
+    this.streamCam = false;
+    this.perfLevel = 0;
+    this.perfEma = 16.7;
+    this.perfFrames = 0;
     this.width = 400;
     this.height = 700;
     this.scale = 1;
@@ -85,14 +101,14 @@ export class Game {
     this.paused = false;
     // Báº¥t tá»­ ngáº¯n má»—i láº§n Ä‘á»•i chÆ°Æ¡ng (trÃ¡nh cháº¿t oan khi cáº£nh vá»«a Ä‘á»•i, ngÆ°á»i chÆ¡i Ä‘ang nhÃ¬n)
     this.invincibleTimer = 0;
-    if (infoPanels) infoPanels.setLandmark(this.currentTheme, 1, 1);
+    if (infoPanels) infoPanels.setLandmark(this.currentTheme, 1, 1, false, 0, POINTS_PER_CHAPTER);
 
     // Active Perk Modifiers
     this.shieldActive = false;
     this.hasQuantumDrift = false;
     this.quantumTimer = 0;
     this.quantumCooldownTimer = 0;
-    this.quantumMaxCooldown = 4.0;
+    this.quantumMaxCooldown = 2.2;
     this.hasDrunkMagnet = false;
     this.magnetParticleTimer = 0;
     this.perkDraftCooldown = 0;
@@ -162,7 +178,8 @@ export class Game {
       const clickX = (e.clientX - rect.left) * (this.width / rect.width);
       const clickY = (e.clientY - rect.top) * (this.height / rect.height);
       const distToOrb = Math.hypot(clickX - this.width / 2, clickY - 126);
-      if (this.state === 'PLAYING' && this.drunkMeter >= 100 && this.score >= 10 && distToOrb <= 36) {
+      if (this.state === 'PLAYING' && this.drunkMeter >= 100 && (this.smashCooldown || 0) <= 0 && distToOrb <= 36) {
+        if (this.input && this.input.resetHold) this.input.resetHold();
         e.preventDefault();
         e.stopPropagation();
         this._triggerSupernovaSmash();
@@ -207,33 +224,73 @@ export class Game {
   }
 
   resize() {
-    const windowWidth = window.innerWidth;
-    const windowHeight = window.innerHeight;
+    // Äo VISUAL VIEWPORT: Ä‘Ãºng cáº£ khi thanh Ä‘á»‹a chá»‰ mobile co giÃ£n / desktop zoom.
+    const vv = window.visualViewport;
+    const vw = Math.max(1, Math.round((vv && vv.width) || window.innerWidth || 400));
+    const vh = Math.max(1, Math.round((vv && vv.height) || window.innerHeight || 700));
 
-    const scaleX = windowWidth / this.width;
-    const scaleY = windowHeight / this.height;
-    this.scale = Math.min(scaleX, scaleY);
+    const sc = Math.min(vw / this.width, vh / this.height);
+    const cssW = Math.max(1, Math.floor(this.width * sc));
+    const cssH = Math.max(1, Math.floor(this.height * sc));
+    this.scale = sc;
 
-    // Backing store nhÃ¢n theo DPR Ä‘á»ƒ nÃ©t trÃªn mÃ n hÃ¬nh retina/mobile.
-    // Há»‡ toáº¡ Ä‘á»™ logic váº«n lÃ  400x700 nhá» scale transform.
-    const dpr = Math.min(3, Math.max(1, window.devicePixelRatio || 1));
+    const lowEnd = (navigator.deviceMemory && navigator.deviceMemory <= 4) ||
+                   (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4);
+    this.lowEnd = !!lowEnd;
+    const levelCap = this.perfLevel >= 2 ? 1.25 : (this.perfLevel >= 1 ? 1.5 : 2);
+    let dpr = Math.min(Math.min(lowEnd ? 1.5 : 2, levelCap), Math.max(1, window.devicePixelRatio || 1));
+    // Cháº·n backing â‰¤ 2Ã— kÃ­ch thÆ°á»›c logic: mÃ n hÃ¬nh ráº¥t to váº«n nháº¹, khÃ´ng váº½ 3-4Ã—
+    const capDpr = (this.width * 2) / Math.max(1, cssW);
+    if (dpr > capDpr) dpr = Math.max(1, capDpr);
     this.dpr = dpr;
-    this.canvas.width = Math.round(this.width * dpr);
-    this.canvas.height = Math.round(this.height * dpr);
-    if (this.ctx && this.ctx.setTransform) {
-      this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    }
 
-    // NHÆ¯NG pháº£i thu khung hiá»ƒn thá»‹ (CSS) theo mÃ n hÃ¬nh â€” trÆ°á»›c Ä‘Ã¢y thiáº¿u bÆ°á»›c nÃ y
-    // nÃªn trÃªn Ä‘iá»‡n thoáº¡i háº¹p (<400px) canvas trÃ n ra ngoÃ i, cáº¯t máº¥t 2 bÃªn.
-    const cssW = Math.max(1, Math.floor(this.width * this.scale));
-    const cssH = Math.max(1, Math.floor(this.height * this.scale));
     this.canvas.style.width = cssW + 'px';
     this.canvas.style.height = cssH + 'px';
+    this.canvas.width = Math.round(cssW * dpr);
+    this.canvas.height = Math.round(cssH * dpr);
 
-    if (this.scenic) this.scenic.resize(this.width, this.height);
-    if (this.weather) this.weather.resize(this.width, this.height);
+    this.baseSX = this.canvas.width / this.width;
+    this.baseSY = this.canvas.height / this.height;
+    if (this.ctx && this.ctx.setTransform) {
+      this.ctx.setTransform(this.baseSX, 0, 0, this.baseSY, 0, 0);
+    }
+
+
+    if (this._dbg) console.log('DLG vv=' + (window.visualViewport ? window.visualViewport.width + 'x' + window.visualViewport.height : '-') + ' inner=' + window.innerWidth + 'x' + window.innerHeight + ' css=' + cssW + 'x' + cssH + ' scale=' + sc.toFixed(3) + ' rect=' + Math.round(this.canvas.getBoundingClientRect().width) + 'x' + Math.round(this.canvas.getBoundingClientRect().height));
+    if (this.scenic) this.scenic.resize(this.canvas.width, this.canvas.height);
+    if (this.weather) {
+      this.weather.resize(this.width, this.height);
+      this.weather.forceLowEnd = this.perfLevel >= 1;
+    }
+    if (this.hud) this.hud.noShadow = this.perfLevel >= 2;
+    if (this.particles) this.particles.throttle = this.perfLevel >= 2;
+
     if (this.story) this.story.resize(this.width, this.height);
+  }
+
+  /** Tá»± canh láº¡i canvas khi khung hiá»ƒn thá»‹ Ä‘á»•i (xoay mÃ¡y, thanh Ä‘á»‹a chá»‰, zoom...). */
+  startAutoFit() {
+    if (this._autoFit) return;
+    this._autoFit = true;
+    const fit = () => {
+      const vv = window.visualViewport;
+      const vw = Math.max(1, Math.round((vv && vv.width) || window.innerWidth || 1));
+      const vh = Math.max(1, Math.round((vv && vv.height) || window.innerHeight || 1));
+      const sc = Math.min(vw / this.width, vh / this.height);
+      const expW = Math.max(1, Math.floor(this.width * sc)) + 'px';
+      const expH = Math.max(1, Math.floor(this.height * sc)) + 'px';
+      if (this.canvas.style.width !== expW || this.canvas.style.height !== expH) {
+        this.resize();
+      }
+    };
+    if (typeof ResizeObserver !== 'undefined') {
+      try { this._ro = new ResizeObserver(fit); this._ro.observe(this.canvas.parentElement); } catch (e) {}
+    }
+    window.addEventListener('orientationchange', () => setTimeout(fit, 180));
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', fit);
+    window.addEventListener('resize', fit);
+    setTimeout(fit, 60);
+    setTimeout(fit, 400);
   }
 
   start() {
@@ -243,8 +300,12 @@ export class Game {
   }
 
   _restart() {
+    // Meta-progression: Ã¡p nÃ¢ng cáº¥p vÄ©nh viá»…n
+    this.startMeterBonus = upgradeValue('start_meter');
+    this.magnetBonus = upgradeValue('magnet');
+    this.comboBonus = upgradeValue('combo');
     this.score = 0;
-    this.drunkMeter = 0;
+    this.drunkMeter = Math.min(100, this.startMeterBonus);
     this.isSmashActive = false;
     this.smashDuration = 0;
     this.smashedCountInSupernova = 0;
@@ -284,7 +345,20 @@ export class Game {
     this.smashSpeedMul = 1;
     this.smashReturnTimer = 0;
     this.hitStopTimer = 0;
-    if (this.pillars) this.pillars.speedMul = 1;
+    this.smashCooldown = 0;
+    this.smashTargets = [];
+    this.lastSmashedPillar = null;
+    this.ceilingHits = 0;
+    this.ceilingTimer = 0;
+    this.cellCombo = 0;
+    this.cellComboTimer = 0;
+    this.holdProgress = 0;
+    this._lastStampKey = null;
+    this._stampTick = 0;
+    this.invincibleTimer = 0;
+    if (this.input && this.input.resetHold) this.input.resetHold();
+    if (this.pillars) { this.pillars.speedMul = 1; this.pillars.tierBoost = 0; }
+    if (this._pendingPerfResize) { this._pendingPerfResize = false; this.resize(); }
     if (this.starfield) this.starfield.setTheme(this.currentTheme);
     if (this.weather) this.weather.setTheme(this.currentTheme);
     if (this.audio) {
@@ -307,7 +381,7 @@ export class Game {
    * Diem (near-miss / smash / hat gio) KHONG lam nhay chuong -> nhip thoi tiet on dinh.
    */
   _syncProgression(force = false) {
-    const prog = getProgression(this.score);
+    const prog = getProgression(this.gatesPassed);
     const prev = this._progState;
     this._progState = prog;
 
@@ -328,10 +402,12 @@ export class Game {
       if (this.weather) this.weather.setTheme(this.currentTheme);
       if (this.scenic) this.scenic.setTier(this.currentTheme.tier);
       if (this.audio && this.audio.setMusicTheme) this.audio.setMusicTheme(this.currentTheme.music);
-      this.hud.triggerSmashEffects();
+      // Chuyá»ƒn chÆ°Æ¡ng: hiá»‡u á»©ng ÄIá»†N áº¢NH nháº¹ (khÃ´ng rung nhÆ° va cháº¡m)
+      if (this.hud.triggerChapterTransition) this.hud.triggerChapterTransition();
+      else this.hud.triggerSmashEffects();
       this.invincibleTimer = Math.max(this.invincibleTimer, 1.2);
       if (infoPanels) infoPanels.setLandmark(this.currentTheme, prog.lapNumber, prog.chapterNumber, true,
-        this.score % POINTS_PER_CHAPTER, POINTS_PER_CHAPTER);
+        this.gatesPassed % POINTS_PER_CHAPTER, POINTS_PER_CHAPTER);
     }
     if (lapChanged && this.audio && this.audio.playKiteUpgrade) {
       this.audio.playKiteUpgrade(prog.kiteStage);
@@ -341,16 +417,17 @@ export class Game {
 
   _onScore(pillar) {
     this.score += 1;
+    this.gatesPassed += 1;
     this.justScoredTimer = 0.6;
 
     // CONG da vuot la nguon tien trinh (chuong/vong/mau dieu);
     // diem chi dung cho bang xep hang.
     this._syncProgression();
     if (infoPanels) infoPanels.setLandmark(this.currentTheme, this.lapNumber, this.chapterNumber, false,
-      this.score % POINTS_PER_CHAPTER, POINTS_PER_CHAPTER);
+      this.gatesPassed % POINTS_PER_CHAPTER, POINTS_PER_CHAPTER);
 
     // Má»‘c má»Ÿ TÃšI BÃ™A tÃ­nh theo ÄIá»‚M
-    if (this.perks) this.perks.checkMilestone(this.score);
+    if (this.perks) this.perks.checkMilestone(this.gatesPassed);
 
     // Regular pillar gives +10% Overdrive (10 pillars cleared = 100% Smash ready)
     this.drunkMeter = Math.min(100, this.drunkMeter + 10);
@@ -389,23 +466,20 @@ export class Game {
   }
 
   _onNearMiss(pillar) {
-    const bonus = 2;                 // Near-miss: +2 Ä‘iá»ƒm cá»‘ Ä‘á»‹nh
+    const bonus = 2 * (this.nearMissMultiplier || 1);   // Near-miss: +2 (bÃ¹a Máº¯t Diá»u Tinh nhÃ¢n lÃªn)
     this.score += bonus;
-    this._syncProgression();
-    if (infoPanels) infoPanels.setLandmark(this.currentTheme, this.lapNumber, this.chapterNumber, false,
-      this.score % POINTS_PER_CHAPTER, POINTS_PER_CHAPTER);
+    // KhÃ´ng _syncProgression á»Ÿ Ä‘Ã¢y: onScore cháº¡y ngay sau Ä‘Ã³ vÃ  sáº½ Ä‘á»“ng bá»™ 1 láº§n
     this.justScoredTimer = 0.8;
     this.drunkMeter = Math.min(100, this.drunkMeter + (12 * this.nearMissMultiplier));
     this.audio.playNearMiss();
-    this.hud.showNearMiss(bonus);
+    this.hud.showNearMiss(bonus, (this.currentTheme && (this.currentTheme.nearMissColor || this.currentTheme.laserColor)) || null);
     this.particles.emitNearMiss(this.rocket.x, this.rocket.y);
 
     const pX = pillar ? pillar.x + (pillar.width || 52) / 2 : this.rocket.x + 20;
     const pY = pillar ? pillar.gapY : this.rocket.y;
     this.particles.emitEnergySiphon(pX, pY, this.width / 2, 126, 14);
 
-    if (this.perks) this.perks.checkMilestone(this.score);
-    if (this.ghosts && pillar) this.ghosts.spawnForPillar(pillar, this.score);
+    // KhÃ´ng spawn ghost á»Ÿ Ä‘Ã¢y: _onScore ngay sau Ä‘Ã³ Ä‘Ã£ spawn cho cÃ¹ng cá»™t (trÃ¡nh Ä‘Ãºp)
     if (this.score > this.bestScore) {
       this.bestScore = this.score;
       localStorage.setItem('drunk_rocket_best', this.bestScore.toString());
@@ -421,8 +495,9 @@ export class Game {
     this.cellCombo = (this.cellCombo || 0) + 1;
     this.cellComboTimer = 1.6;
     if (this.cellCombo >= 3) {
-      // Combo háº¡t giÃ³ chá»‰ Ä‘á»ƒ Ä‘Ã£ máº¯t â€” KHÃ”NG cá»™ng Ä‘iá»ƒm
+      // Combo 3 háº¡t giÃ³: thÆ°á»Ÿng thÃªm nÄƒng lÆ°á»£ng (khÃ´ng cá»™ng Ä‘iá»ƒm)
       this.cellCombo = 0;
+      this.drunkMeter = Math.min(100, this.drunkMeter + 8 + (this.comboBonus || 0));
       this.particles.emitScoreSparkles(cell.x, cell.y);
     }
     if (this.audio.playCellCollect) {
@@ -465,49 +540,37 @@ export class Game {
     this.drunkMeter = 0;
     this.originalRocketX = this.rocket.x;
     this.smashStartX = this.rocket.x;
+    this.smashTargetX = Math.min(220, this.smashStartX + 110);
     this.smashPillarsLeft = isChain ? 2 : 1;
     this.smashSpeedMul = 3.4;
     this.smashReturnTimer = 0;
     this.smashChainCount = isChain ? 2 : 1;
     if (isChain) this.nextSmashChain = 0;
-    this.smashLunge = 96;
 
-    // CHá»ˆ cá»™t PHÃA TRÆ¯á»šC má»›i lÃ  má»¥c tiÃªu (bug cÅ©: cá»™t vá»«a Ä‘i qua váº«n bá»‹ tÃ­nh -> ná»• sau lÆ°ng)
-    const ahead = this.pillars.pillars
-      .filter(p => !p.isDestroyed && p.x > this.rocket.x + this.rocket.radius)
-      .sort((a, b) => a.x - b.x);
-
-    const targets = ahead.slice(0, this.smashPillarsLeft);
-    this.smashTargets = targets;           // chá»‰ nhá»¯ng cá»™t nÃ y má»›i Ä‘Æ°á»£c hÃºc (khÃ´ng cá»™t nÃ o khÃ¡c)
-    const afterTarget = ahead[this.smashPillarsLeft] || null;
-
-    // Thá»i lÆ°á»£ng = Ä‘iá»ƒm GIá»®A cá»™t vá»«a phÃ¡ vÃ  cá»™t káº¿ tiáº¿p (Ä‘Ãºng yÃªu cáº§u "dá»«ng á»Ÿ giá»¯a 2 cá»™t")
-    const worldSpeed = Math.max(140, (this.pillars.speed || 200) * this.smashSpeedMul);
-    const noseX = this.rocket.x + (this.smashLunge || 96) + this.rocket.radius;
-    const tReach = (px) => Math.max(0.05, (px - noseX) / worldSpeed);
-
-    let duration;
-    if (targets.length === 0) {
-      duration = 0.5;                       // khÃ´ng cÃ³ cá»™t phÃ­a trÆ°á»›c: chá»‰ lÆ°á»›t má»™t nhá»‹p
-    } else {
-      const tLast = tReach(targets[targets.length - 1].x);
-      const tAfter = afterTarget ? tReach(afterTarget.x) : tLast + 0.45;
-      duration = Math.max(0.4, Math.min(1.6, (tLast + tAfter) / 2));
+    // ÄÃ¡nh dáº¥u cá»™t Ä‘Ã£ á»Ÿ SAU lÆ°ng; má»i cá»™t phÃ­a trÆ°á»›c (ká»ƒ cáº£ cá»™t má»›i sinh) Ä‘á»u cÃ³ thá»ƒ bá»‹ hÃºc
+    for (const p of this.pillars.pillars) {
+      p.ignoredBySmash = (p.x + (p.width || 52) <= this.rocket.x + this.rocket.radius);
     }
-
+    this.lastSmashedPillar = null;
+    this.smashBehindRight = this.rocket.x;
     this.smashTime = 0;
-    this.smashDurationTotal = duration;
-    this.smashTimeout = duration + 0.35;
-    this.smashAlignY = targets[0] ? targets[0].gapY : this.rocket.y;
+    this.smashMaxDuration = isChain ? 2.2 : 1.4;
+
+    const ahead = this.pillars.pillars
+      .filter(p => !p.isDestroyed && !p.ignoredBySmash)
+      .sort((a, b) => a.x - b.x);
+    this.smashAlignY = ahead[0] ? ahead[0].gapY : this.rocket.y;
 
     this.audio.playSmash(isChain);
-    this.hud.triggerSmashEffects();
-    this.invincibleTimer = Math.max(this.invincibleTimer, duration + 0.2);
+    this.hud.triggerRamImpact();
+    // KhÃ´ng cá»™ng trÆ°á»›c báº¥t tá»­: isSmashActive Ä‘Ã£ cháº·n va cháº¡m; _endSmash() cáº¥p 0.7s chuáº©n
   }
 
   /** Káº¿t thÃºc cÃº Lá»™ng GiÃ³: háº¡ tá»‘c, trÃ´i vá» lÃ n bay, báº¥t tá»­ ngáº¯n + cooldown chá»‘ng smash liÃªn tiáº¿p. */
   _endSmash() {
     this.isSmashActive = false;
+    this.lastSmashedPillar = null;
+    for (const p of this.pillars.pillars) p.ignoredBySmash = false;
     this.smashTargets = [];
     // QoL: ngÆ°á»i chÆ¡i hay quÃªn báº¥m láº¡i sau cÃº lÆ°á»›t -> táº·ng 1 nhá»‹p Ä‘áº©y Ä‘á»ƒ khÃ´ng rÆ¡i ngay
     if (this.state === 'PLAYING' && this.rocket && !this.rocket.isDead) {
@@ -522,7 +585,7 @@ export class Game {
     this.smashChainCount = 1;
     this.smashCooldown = 0.35;          // khÃ´ng cho kÃ­ch hoáº¡t láº¡i ngay
     if (this.input) this.input.smashRequested = false;
-    if (this.perks) this.perks.checkMilestone(this.score);
+    if (this.perks) this.perks.checkMilestone(this.gatesPassed);
   }
 
   /** Táº¡m dá»«ng toÃ n bá»™ gameplay (dÃ¹ng khi má»Ÿ popup/báº£ng Ä‘iá»ƒm/cÃ i Ä‘áº·t). */
@@ -547,6 +610,11 @@ export class Game {
 
   _die() {
     if (this.state === 'GAMEOVER') return;
+    // ThÆ°á»Ÿng HÅ© GiÃ³ cuá»‘i vÃ¡n
+    try {
+      const reward = windRewardFor(this.gatesPassed, 0);
+      if (reward > 0) this.lastWindReward = addWind(reward);
+    } catch (e) { /* bá» qua */ }
     this.state = 'GAMEOVER';
     if (this.audio && this.audio.stopLaserProximity) this.audio.stopLaserProximity();
     this.timeSinceDeath = 0;
@@ -713,62 +781,85 @@ export class Game {
         this._triggerSupernovaSmash();
       }
 
-      // ===== Lá»˜NG GIÃ“: LÆ¯á»šT LIá»€N Máº CH â€” tháº¿ giá»›i cuá»™n Ä‘á»u, diá»u tiáº¿n má»™t Ä‘oáº¡n rá»“i giá»¯ =====
+      // ===== Lá»˜NG GIÃ“: LÆ¯á»šT LIá»€N Máº CH â€” tháº¿ giá»›i cuá»™n Ä‘á»u, hÃºc Ä‘á»§ sá»‘ cá»™t =====
       if (this.isSmashActive) {
-        this.smashTimeout -= dt;
         this.smashTime += dt;
 
-        // 1) CÃº tiáº¿n ngáº¯n (ease-out ~0.22s) â€” khÃ´ng giáº­t, khÃ´ng dá»«ng giá»¯a chá»«ng
+        // 1) CÃº tiáº¿n ngáº¯n, cháº·n tráº§n 220 Ä‘á»ƒ cÃ²n tháº¥y cá»™t káº¿
         const lungeT = Math.min(1, this.smashTime / 0.22);
-        this.rocket.x = this.smashStartX + (this.smashLunge || 96) * (1 - Math.pow(1 - lungeT, 2.2));
+        this.rocket.x = this.smashStartX + (this.smashTargetX - this.smashStartX) * (1 - Math.pow(1 - lungeT, 2.2));
 
-        // 2) Tháº¿ giá»›i cuá»™n Äá»€U suá»‘t cÃº lÆ°á»›t (khÃ´ng Ä‘á»•i tá»‘c Ä‘á»™ => khÃ´ng ngáº¯t quÃ£ng)
+        // 2) Tháº¿ giá»›i cuá»™n Ä‘á»u
         if (this.pillars) this.pillars.speedMul = this.smashSpeedMul;
 
         this.rocket.vy = 0;
         this.rocket.isThrusting = true;
         this.rocket.angle = -0.20;
 
-        // 3) CÄƒn khe cá»•ng phÃ­a trÆ°á»›c (mÆ°á»£t)
-        const frontier = this.pillars.pillars.find(p2 => !p2.isDestroyed && p2.x + p2.width > this.rocket.x - 10);
+        // 3) CÄƒn khe cá»•ng gáº§n nháº¥t phÃ­a trÆ°á»›c
+        const frontier = this.pillars.pillars
+          .filter(p2 => !p2.isDestroyed && !p2.ignoredBySmash && p2.x + p2.width > this.rocket.x - 10)
+          .sort((a, b) => a.x - b.x)[0];
         if (frontier) this.smashAlignY = frontier.gapY;
         this.rocket.y += (this.smashAlignY - this.rocket.y) * Math.min(1, dt * 12);
 
-        // 4) HÃºc vá»¡ â€” CHá»ˆ cÃ¡c cá»™t Ä‘Ã£ chá»‘t lÃ  "phÃ­a trÆ°á»›c" lÃºc kÃ­ch hoáº¡t.
-        //    Nhá» chá»‘t theo Ä‘á»‘i tÆ°á»£ng, cá»™t vá»«a bay qua / cá»™t tá»± sinh khÃ´ng bao giá» bá»‹ ná»•.
-        for (const pillar of (this.smashTargets || [])) {
+        // 4) HÃºc cÃ¡c cá»™t THáº¬T phÃ­a trÆ°á»›c (ká»ƒ cáº£ cá»™t má»›i sinh trong lÃºc lÆ°á»›t)
+        const candidates = this.pillars.pillars
+          .filter(p2 => !p2.isDestroyed && !p2.ignoredBySmash && !p2.smashedByDash)
+          .sort((a, b) => a.x - b.x);
+
+        for (const pillar of candidates) {
           if (this.smashPillarsLeft <= 0) break;
-          if (!pillar || pillar.isDestroyed || pillar.smashedByDash) continue;
-          if (pillar.x > this.rocket.x + this.rocket.radius + 12) continue;   // chÆ°a tá»›i nÆ¡i
-          {
-            pillar.smashedByDash = true;
-            pillar.isDestroyed = true;
-            pillar.passed = true;
+          if (pillar.x > this.rocket.x + this.rocket.radius + 14) break;
 
-            const pcx = pillar.x + (pillar.width || 52) / 2;
-            const halfGap = (pillar.gapHeight || 148) / 2;
-            const topColY = Math.max(24, (pillar.gapY || 350) - halfGap);
-            const botColY = Math.min(this.height - 24, (pillar.gapY || 350) + halfGap);
-            this.particles.emitPillarSmash(pcx, topColY);
-            this.particles.emitPillarSmash(pcx, botColY);
-            this.particles.emitExplosion(pcx, (pillar.gapY || 350), 16);
+          pillar.smashedByDash = true;
+          pillar.isDestroyed = true;
+          pillar.passed = true;
+          this.lastSmashedPillar = pillar;
+          this.hitStopTimer = 0.045;      // khá»±ng 45ms táº¡o lá»±c Ä‘Ã¢m
 
-            this.audio.playSmash(true);
-            this.hud.triggerRamImpact();
-            if (this.ghosts) this.ghosts.spawnForPillar(pillar, this.score);
+          const pcx = pillar.x + (pillar.width || 52) / 2;
+          const halfGap = (pillar.gapHeight || 148) / 2;
+          const topColY = Math.max(24, (pillar.gapY || 350) - halfGap);
+          const botColY = Math.min(this.height - 24, (pillar.gapY || 350) + halfGap);
+          this.particles.emitPillarSmash(pcx, topColY);
+          this.particles.emitPillarSmash(pcx, botColY);
+          this.particles.emitExplosion(pcx, (pillar.gapY || 350), 16);
 
-            this.score += 1;               // +1 Ä‘iá»ƒm má»—i cá»•ng (chain 2 cá»•ng = +2)
-            this._syncProgression();
-            if (infoPanels) infoPanels.setLandmark(this.currentTheme, this.lapNumber, this.chapterNumber, false,
-              this.score % POINTS_PER_CHAPTER, POINTS_PER_CHAPTER);
-            this.smashPillarsLeft -= 1;
+          this.audio.playSmash(true);
+          this.hud.triggerRamImpact();
+          if (this.ghosts) this.ghosts.spawnForPillar(pillar, this.score);
+
+          // +1 Ä‘iá»ƒm má»—i cá»•ng + tÃ­nh lÃ  Ä‘Ã£ qua cá»•ng
+          this.score += 1;
+          this.gatesPassed += 1;
+          this._syncProgression();
+          if (infoPanels) infoPanels.setLandmark(this.currentTheme, this.lapNumber, this.chapterNumber, false,
+            this.gatesPassed % POINTS_PER_CHAPTER, POINTS_PER_CHAPTER);
+          if (this.perks) this.perks.onPassPillar();
+
+          this.smashPillarsLeft -= 1;
+          if (this.score > this.bestScore) {
+            this.bestScore = this.score;
+            localStorage.setItem('drunk_rocket_best', this.bestScore.toString());
           }
         }
 
-        this._drawSmashLance();
         this.particles.emitSmashFireTrail(this.rocket.x, this.rocket.y, this.rocket.angle || 0);
 
-        if (this.smashTime >= this.smashDurationTotal || this.smashTimeout <= 0) {
+        // 5) Káº¿t thÃºc: dá»«ng giá»¯a cá»™t Vá»ªA PHÃ (lastSmashedPillar) vÃ  cá»™t káº¿
+        if (this.lastSmashedPillar) {
+          this.smashBehindRight = this.lastSmashedPillar.x + (this.lastSmashedPillar.width || 52);
+        }
+        const aheadNow = this.pillars.pillars
+          .filter(p2 => !p2.isDestroyed && p2.x > this.rocket.x + 4)
+          .sort((a, b) => a.x - b.x)[0];
+        const behindRight = this.smashBehindRight || this.rocket.x;
+        const aheadLeft = aheadNow ? aheadNow.x : behindRight + 320;
+        const midX = (behindRight + aheadLeft) / 2;
+
+        const clearedAll = this.smashPillarsLeft <= 0;
+        if ((clearedAll && this.rocket.x >= midX) || this.smashTime >= this.smashMaxDuration) {
           this._endSmash();
         }
       } else {
@@ -789,7 +880,7 @@ export class Game {
         this.particles.emitThrust(this.rocket.x, this.rocket.y, this.rocket.rotation);
 
         if (this.hasQuantumDrift && this.quantumCooldownTimer <= 0) {
-          this.quantumTimer = 1.8;
+          this.quantumTimer = 1.2;
           this.quantumCooldownTimer = this.quantumMaxCooldown;
           this.rocket.isQuantum = true;
           this.audio.playMedal();
@@ -803,9 +894,10 @@ export class Game {
       } else {
         this.rocket.update(dt, false, this.totalTime);
       }
-      this.pillars.update(dt, this.rocket, this._onScore, this._onNearMiss, this.score, this.difficulty);
-      this.energyCells.update(dt, this.pillars.speed, this.rocket, this.hasDrunkMagnet, this._onCollectCell);
-      if (this.ghosts) this.ghosts.update(dt, this.pillars.speed);
+      this.pillars.update(dt, this.rocket, this._onScore, this._onNearMiss, this.gatesPassed, this.difficulty, this.isSmashActive);
+      const worldSpeed = this.pillars.speed * (this.pillars.speedMul || 1);
+      this.energyCells.update(dt, worldSpeed, this.rocket, this.hasDrunkMagnet, this._onCollectCell, this.magnetBonus || 0);
+      if (this.ghosts) this.ghosts.update(dt, worldSpeed);
 
       // Proximity Laser Hum & Electric Crackle ("xáº¹t xáº¹t" gets louder as rocket approaches beam)
       if (!this.isSmashActive && this.quantumTimer <= 0) {
@@ -902,14 +994,62 @@ export class Game {
     }
   }
 
+  /** Camera livestream: zoom nháº¹ + Ä‘áº©y theo diá»u báº±ng CSS transform (khÃ´ng váº½ láº¡i). */
+  _applyStreamCam() {
+    const cv = this.canvas;
+    if (!cv || !cv.style) return;
+    if (!this.streamCam || this.state !== 'PLAYING') {
+      if (this._camApplied) {
+        cv.style.transform = '';
+        cv.style.transformOrigin = '';
+        this._camApplied = false;
+      }
+      return;
+    }
+    const zoom = 1.05;
+    const cx = this.width / 2, cy = this.height / 2;
+    const nx = Math.max(-1, Math.min(1, (this.rocket.x - cx) / cx));
+    const ny = Math.max(-1, Math.min(1, (this.rocket.y - cy) / cy));
+    const sx = -nx * (zoom - 1) * 40;
+    const sy = -ny * (zoom - 1) * 40;
+    cv.style.transformOrigin = '50% 50%';
+    cv.style.transform = 'scale(' + zoom + ') translate(' + sx.toFixed(1) + 'px,' + sy.toFixed(1) + 'px)';
+    this._camApplied = true;
+  }
+
   render() {
     this.ctx.save();
 
+    // Äá»™ rung Ä‘Æ°á»£c gá»™p tháº³ng vÃ o transform ná»n (Ã¡p cho cáº£ cáº£nh láº«n HUD)
     const shake = this.hud.getShakeOffset();
-    this.ctx.translate(shake.x, shake.y);
+    const bx0 = this.baseSX || 1;
+    const by0 = this.baseSY || 1;
+    this.ctx.setTransform(bx0, 0, 0, by0, shake.x * bx0, shake.y * by0);
 
     this.starfield.draw(this.ctx);
-    if (this.scenic) this.scenic.draw(this.ctx);
+    // Scenic váº½ trong há»‡ PIXEL BACKING (nÃ©t tuyá»‡t Ä‘á»‘i), rá»“i tráº£ láº¡i há»‡ 400x700.
+    if (this.scenic) {
+      const out = this.ctx;
+      const sh = this.hud.getShakeOffset();
+      const bx = this.baseSX || 1;
+      const by = this.baseSY || 1;
+      // Cáº£nh á»Ÿ há»‡ PIXEL BACKING, cÃ¹ng Ä‘á»™ rung vá»›i pháº§n cÃ²n láº¡i
+      out.setTransform(1, 0, 0, 1, sh.x * bx, sh.y * by);
+      this.scenic.draw(out);
+
+      // Sáº¯c thÃ¡i riÃªng cá»§a tá»«ng vÃ²ng (cÃ¹ng Ä‘á»‹a danh, khÃ¡c Ã¡nh sÃ¡ng)
+      const mood = LAP_MOODS[Math.min(LAP_MOODS.length - 1, (this.lapNumber || 1) - 1)];
+      if (mood) {
+        out.save();
+        out.globalCompositeOperation = mood.mode;
+        out.globalAlpha = mood.alpha;
+        out.fillStyle = mood.color;
+        out.fillRect(-30, -30, out.canvas.width + 60, out.canvas.height + 60);
+        out.restore();
+      }
+
+      out.setTransform(bx, 0, 0, by, sh.x * bx, sh.y * by);
+    }
     // Thá»i tiáº¿t: lá»›p mÃ u trá»i + mÃ¢y + sao + náº¯ng (náº±m trÃªn tranh, dÆ°á»›i nhÃ¢n váº­t)
     if (this.weather) this.weather.drawSky(this.ctx);
 
@@ -918,7 +1058,7 @@ export class Game {
 
     for (const p of this.pillars.pillars) {
       if (!p.isDestroyed) {
-        EntityRenderer.drawLaserPillar(this.ctx, p, this.height, this.currentTheme);
+        EntityRenderer.drawLaserPillar(this.ctx, p, this.height, this.currentTheme, this.lapNumber);
       }
     }
 
@@ -956,14 +1096,15 @@ export class Game {
 
     // Draw Rocket with funny comical styling
     // VÃ²ng náº¡p khi ngÆ°á»i chÆ¡i GIá»® Ä‘á»ƒ Lá»™ng GiÃ³ (pháº£n há»“i trá»±c quan)
-    if (this.state === 'PLAYING' && this.holdProgress > 0 && this.drunkMeter >= 100) {
+    if (this.state === 'PLAYING' && this.holdProgress > 0.45 && this.drunkMeter >= 100) {
+      const visualP = (this.holdProgress - 0.45) / 0.55;
       const ctx = this.ctx;
       ctx.save();
       ctx.strokeStyle = 'rgba(255, 215, 106, 0.9)';
       ctx.lineWidth = 3;
       ctx.lineCap = 'round';
       ctx.beginPath();
-      ctx.arc(this.rocket.x, this.rocket.y, 22, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * this.holdProgress);
+      ctx.arc(this.rocket.x, this.rocket.y, 22, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * visualP);
       ctx.stroke();
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
       ctx.lineWidth = 1;
@@ -971,6 +1112,15 @@ export class Game {
       ctx.arc(this.rocket.x, this.rocket.y, 25, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
+    }
+
+    // Vá»‡t nÃ³n sÃ¡ng Lá»™ng GiÃ³ (pháº£i váº½ á»Ÿ render, khÃ´ng pháº£i update)
+    if (this.isSmashActive && this.state === 'PLAYING') this._drawSmashLance();
+
+    // DÃ¢y diá»u: tá»« Ä‘uÃ´i diá»u kÃ©o vá» ngÆ°á»i tháº£ á»Ÿ gÃ³c dÆ°á»›i-trÃ¡i
+    if (this.state === 'PLAYING' || this.state === 'READY') {
+      drawKiteString(this.ctx, this.rocket, this.totalTime || 0, this.isSmashActive,
+        this.width, this.height);
     }
 
     EntityRenderer.drawRocket(this.ctx, this.rocket, {
@@ -1086,6 +1236,8 @@ export class Game {
         lapNumber: this.lapNumber,
         chapterNumber: this.chapterNumber,
         kiteStage: this.kiteStage,
+        gatesInChapter: this.gatesPassed % POINTS_PER_CHAPTER,
+        gatesPerChapter: POINTS_PER_CHAPTER,
         colorStage: this.colorStage,
         theme: this.currentTheme
       }
@@ -1099,7 +1251,23 @@ export class Game {
     }
 
     this.ctx.restore();
-  }
+  
+    // ---- Ná»n má» phÃ­a sau: phá»§ kÃ­n mÃ n hÃ¬nh (cover) ----
+    if (this.bgCtx && this.bgCanvas) {
+      this._bgFrame = (this._bgFrame + 1) % 2;
+      if (this._bgFrame === 0) {
+        const bw = this.bgCanvas.width;
+        const bh = this.bgCanvas.height;
+        const sc = Math.max(bw / this.width, bh / this.height);
+        const dw = this.width * sc;
+        const dh = this.height * sc;
+        this.bgCtx.clearRect(0, 0, bw, bh);
+        this.bgCtx.drawImage(this.canvas, (bw - dw) / 2, (bh - dh) / 2, dw, dh);
+      }
+    }
+
+    this._applyStreamCam();
+}
 
   _bindToolbarButtons() {
     const btnTop = document.getElementById('btn-open-leaderboard');
@@ -1180,10 +1348,35 @@ export class Game {
   }
 
   loop(timestamp) {
+
     if (!this.isRunning) return;
 
     const dt = Math.min((timestamp - this.lastTime) / 1000, 0.1);
     this.lastTime = timestamp;
+
+    // ---- Tá»± Ä‘iá»u chá»‰nh cháº¥t lÆ°á»£ng theo FPS thá»±c ----
+    if (this.state === 'PLAYING' && !this.paused && dt > 0 && dt < 0.25) {
+      this.perfEma = this.perfEma * 0.9 + (dt * 1000) * 0.1;
+      this.perfFrames++;
+      if (this.perfFrames >= 90) {
+        this.perfFrames = 0;
+        let changed = false;
+        if (this.perfEma > 19 && this.perfLevel < 2) {
+          this.perfLevel++;
+          changed = true;
+        } else if (this.perfEma < 15 && this.perfLevel > 0) {
+          this.perfLevel--;
+          changed = true;
+        }
+        if (changed) {
+          // Chá»‰ Ä‘á»•i cá» nháº¹ ngay; resize() (dá»±ng láº¡i cáº£nh) Ä‘á»ƒ lÃºc vá» READY/GAMEOVER
+          if (this.weather) this.weather.forceLowEnd = this.perfLevel >= 1;
+          if (this.hud) this.hud.noShadow = this.perfLevel >= 2;
+          if (this.particles) this.particles.throttle = this.perfLevel >= 2;
+          this._pendingPerfResize = true;
+        }
+      }
+    }
 
     // Má»™t lá»—i báº¥t ngá» trong update/render KHÃ”NG Ä‘Æ°á»£c phÃ©p lÃ m cháº¿t vÃ²ng láº·p
     // (trÆ°á»›c Ä‘Ã¢y requestAnimationFrame náº±m sau update/render nÃªn chá»‰ 1 exception
@@ -1544,6 +1737,7 @@ export function totalLandmarks() {
  * Manages drafting cards, pillar-based durations, resetting durations, and continuous random availability.
  */
 import { t, getLang } from '../i18n.js';
+import { loadMeta, isPerkUnlocked } from './meta.js';
 
 export const PERK_CATALOG = [
   {
@@ -1677,8 +1871,8 @@ export class PerkDraftManager {
     this.draftCards = [];
     this.draftTimer = 0;
     this.draftMaxDuration = 2.4;
-    this.lastMilestoneScore = -6; // má»‘c Ä‘áº§u á»Ÿ 6 Cá»”NG, sau Ä‘Ã³ 18, 30... (lá»‡ch pha vá»›i chÆ°Æ¡ng)
-    this.milestoneInterval = 12;
+    this.lastMilestoneScore = -5; // má»‘c Ä‘áº§u á»Ÿ 5 cá»•ng (lá»‡ch pha vá»›i Ä‘á»•i chÆ°Æ¡ng 10,20,30), sau Ä‘Ã³ 18, 30... (lá»‡ch pha vá»›i chÆ°Æ¡ng)
+    this.milestoneInterval = 10;
   }
 
   reset() {
@@ -1766,6 +1960,7 @@ export class PerkDraftManager {
     if (this.game && this.game.input) {
       this.game.input.consumeTap();
       this.game.input.consumeDoubleTap();
+      if (this.game.input.resetHold) this.game.input.resetHold();
       this.game.perkDraftCooldown = 0.5;
     }
     if (this.game && this.game.audio) {
@@ -1826,6 +2021,11 @@ export class PerkDraftManager {
         this.isPostDraft = false;
         this.selectedCard = null;
         this.draftCards = [];
+        // Má»i lÃ¡ bÃ¹a: 0.8s báº¥t tá»­ + reset giá»¯ tay khi tháº£ bay láº¡i
+        if (this.game) {
+          this.game.invincibleTimer = Math.max(this.game.invincibleTimer, 0.8);
+          if (this.game.input && this.game.input.resetHold) this.game.input.resetHold();
+        }
       }
     }
   }
@@ -1975,7 +2175,7 @@ export class InputManager {
     this.doubleTapThreshold = 280;
 
     // Lá»™ng GiÃ³ báº±ng NHáº¤N GIá»®: giá»¯ >= HOLD_MS thÃ¬ kÃ­ch hoáº¡t (tap thÆ°á»ng ~50-110ms)
-    this.HOLD_MS = 200;
+    this.HOLD_MS = 235;
     this.holdStart = 0;
     this.holdProgress = 0;          // 0..1 Ä‘á»ƒ váº½ vÃ²ng náº¡p quanh diá»u
     this.smashRequested = false;
@@ -1996,6 +2196,14 @@ export class InputManager {
     this.targetElement.addEventListener('pointerdown', this._onPointerDown, { passive: false });
     window.addEventListener('pointerup', this._onPointerUp, { passive: false });
     window.addEventListener('pointercancel', this._onPointerUp, { passive: false });
+  }
+
+  /** Ngáº¯t tráº¡ng thÃ¡i giá»¯ (dÃ¹ng khi chá»n tháº» bÃ¹a / báº¥m quáº£ cáº§u). */
+  resetHold() {
+    this.isPressed = false;
+    this._holdArmed = false;
+    this.holdProgress = 0;
+    this.smashRequested = false;
   }
 
   consumeSmash() {
@@ -2034,6 +2242,13 @@ export class InputManager {
   }
 
   _onKeyDown(e) {
+    // PhÃ­m táº¯t Lá»™ng GiÃ³ trÃªn PC
+    if (e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyE') {
+      e.preventDefault();
+      if (!e.repeat) this.smashRequested = true;
+      return;
+    }
+
     if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
       e.preventDefault();
       // NgÄƒn keydown auto-repeat cá»§a há»‡ Ä‘iá»u hÃ nh lÃ m spam phÃ­m, nhÆ°ng cho phÃ©p nháº¥p nháº£ nhanh
@@ -2290,7 +2505,7 @@ export class LaserPillarManager {
     this.lastPillarGapY = 350;
   }
 
-  update(dt, rocket, onScore, onNearMiss, score = 0, difficulty = null) {
+  update(dt, rocket, onScore, onNearMiss, score = 0, difficulty = null, isSmashActive = false) {
     this.currentScore = score;
     // Graceful slight horizontal speed scaling: +3 px/s every 5 points, capped at +24 px/s
     this.speed = this.baseSpeed + Math.min(Math.floor(score / 5) * 3, 24);
@@ -2302,7 +2517,7 @@ export class LaserPillarManager {
       if (typeof difficulty.breatherPause === 'number') this.breatherPause = difficulty.breatherPause;
     }
 
-    this.spawnTimer -= dt;
+    this.spawnTimer -= dt * (this.speedMul || 1);
     if (this.spawnTimer <= 0) {
       this.spawn(score);
       this.spawnedCount++;
@@ -2318,14 +2533,16 @@ export class LaserPillarManager {
       const p = this.pillars[i];
       p.update(dt, moveSpeed);
 
-      // Near-Miss check
-      if (!p.nearMissChecked && p.checkNearMiss(rocket)) {
-        if (onNearMiss) onNearMiss(p);
+      // Near-Miss: chá»‰ Gáº®N Cá»œ khi lÆ°á»›t sÃ¡t; thÆ°á»Ÿng sau khi Ä‘Ã£ vÆ°á»£t cá»•ng an toÃ n
+      if (!isSmashActive && !p.hadNearMiss && !p.nearMissChecked && p.checkNearMiss(rocket)) {
+        p.hadNearMiss = true;
       }
 
-      // STRICT SCORING: Rocket must clear COMPLETELY past the column including its tail
-      if (!p.passed && p.hasPassedCompletely(rocket)) {
+      // STRICT SCORING: pháº£i vÆ°á»£t háº³n Ä‘uÃ´i cá»™t
+      if (!p.passed && !p.isDestroyed && p.hasPassedCompletely(rocket)) {
         p.passed = true;
+        // Near-miss TRÆ¯á»šC onScore: Ä‘á»ƒ bÃ¹a Máº¯t Diá»u Tinh ká»‹p nhÃ¢n Ä‘iá»ƒm á»Ÿ cá»•ng hiá»‡u lá»±c cuá»‘i
+        if (p.hadNearMiss && onNearMiss) onNearMiss(p);
         if (onScore) onScore(p);
       }
 
@@ -2345,8 +2562,10 @@ export class LaserPillarManager {
    * 2. Progressive Movement Tiers
    */
   spawn(score = 0) {
-    const tier = getTierFromScore(score);
+    const baseTier = getTierFromScore(score);
     const theme = getThemeForScore(score);
+    // VÃ²ng 2+ váº«n cÃ³ cá»™t Ä‘á»™ng: cá»™ng tierBoost TRÆ¯á»šC khi chá»n nhÃ¡nh Ä‘á»™ khÃ³
+    const tier = Math.min(9, (baseTier || 1) + (this.tierBoost || 0));
 
     // Calculate maximum allowable vertical shift from previous column
     let maxDeltaY = 90;
@@ -2397,8 +2616,6 @@ export class LaserPillarManager {
       oscAmp = 28 + Math.random() * 14;
       oscFreq = 1.3 + Math.random() * 0.5;
     }
-
-    const effectiveTier = Math.min(9, (tier || 1) + (this.tierBoost || 0));
     const pillar = new LaserPillar(this.gameWidth + 30, gapY, gapH, 52, {
       oscAmp,
       oscFreq,
@@ -2406,7 +2623,7 @@ export class LaserPillarManager {
       angleAmp,
       angleFreq,
       theme,
-      tier: effectiveTier
+      tier
     });
 
     this.pillars.push(pillar);
@@ -2448,7 +2665,7 @@ export class LaserPillarManager {
       }
 
       const effectiveTier = Math.min(9, (tier || 1) + (this.tierBoost || 0));
-      const newPillar = new LaserPillar(nextX, nextGapY, this.gapHeight, 52, { theme, tier: effectiveTier });
+      const newPillar = new LaserPillar(nextX, nextGapY, this.gapHeight, 52, { theme, tier });
       this.pillars.push(newPillar);
       candidates.push(newPillar);
       candidates.sort((a, b) => a.x - b.x);
@@ -2489,16 +2706,16 @@ export class EnergyCell {
     this.isMagnetized = false;
   }
 
-  update(dt, speed, rocket, hasMagnet = false) {
+  update(dt, speed, rocket, hasMagnet = false, magnetBonus = 0) {
     this.pulsePhase += dt * this.floatSpeed;
 
     if (hasMagnet && !this.isCollected) {
       const dx = rocket.x - this.x;
       const dy = rocket.y - this.y;
       const dist = Math.hypot(dx, dy);
-      const magnetRange = 220; // Broad magnet suction range
+      const magnetRange = 260 + (magnetBonus || 0); // khá»›p VÃ³ HÃºt GiÃ³ + nÃ¢ng cáº¥p HÅ© GiÃ³
 
-      if (dist < magnetRange) {
+      if (dist > 0.001 && dist < magnetRange) {
         this.isMagnetized = true;
         const pullForce = 950 * (1 - dist / magnetRange) + 420;
         this.vx += (dx / dist) * pullForce * dt;
@@ -2557,10 +2774,10 @@ export class EnergyCellManager {
     }
   }
 
-  update(dt, speed, rocket, hasMagnet, onCollect) {
+  update(dt, speed, rocket, hasMagnet, onCollect, magnetBonus = 0) {
     for (let i = this.cells.length - 1; i >= 0; i--) {
       const cell = this.cells[i];
-      cell.update(dt, speed, rocket, hasMagnet);
+      cell.update(dt, speed, rocket, hasMagnet, magnetBonus);
 
       if (!cell.isCollected && cell.checkCollision(rocket)) {
         cell.isCollected = true;

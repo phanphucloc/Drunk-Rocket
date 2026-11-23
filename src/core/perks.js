@@ -137,7 +137,7 @@ export class PerkDraftManager {
     this.draftCards = [];
     this.draftTimer = 0;
     this.draftMaxDuration = 2.4;
-    this.lastMilestoneScore = -5; // mốc đầu ở 5 cổng (lệch pha với đổi chương 10,20,30), sau đó 18, 30... (lệch pha với chương)
+    this.lastMilestoneScore = -6; // mốc đầu ở 6 cổng, rồi 18, 30...
     this.milestoneInterval = 12;
   }
 

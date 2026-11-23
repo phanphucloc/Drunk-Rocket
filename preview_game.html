@@ -44,7 +44,7 @@
     const forceWeather = new URLSearchParams(location.search).get('weather');
     // Mặc định: mỗi chương 6 điểm -> chọn điểm để đúng địa danh tier
     const scoreParam = new URLSearchParams(location.search).get('score');
-    const score = scoreParam !== null ? Number(scoreParam) : (tier - 1) * 10 + 2;
+    const score = scoreParam !== null ? Number(scoreParam) : (tier - 1) * 12 + 2;
 
     try {
       const canvas = document.getElementById('game-canvas');
