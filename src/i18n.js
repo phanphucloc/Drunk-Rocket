@@ -22,6 +22,10 @@ const DICT = {
     'ready.best': 'KỶ LỤC CỦA BẠN',
     'ready.kite': 'DIỀU',
 
+    'tutorial.title': '🪁 CÁCH CHƠI',
+        'tutorial.line1': '👆 Chạm để bay',
+        'tutorial.line2': '🌪 Giữ để Lộng Gió khi Gió đầy',
+        'tutorial.line3': '🎴 Chọn bùa bằng 1 / 2 / 3',
     'hud.lap': 'VÒNG',
     'hud.chapter': 'CHƯƠNG',
     'hud.overdrive': 'ĐỘ LỘNG GIÓ',
@@ -155,6 +159,10 @@ const DICT = {
     'ready.best': 'YOUR BEST',
     'ready.kite': 'KITE',
 
+    'tutorial.title': '🪁 HOW TO PLAY',
+        'tutorial.line1': '👆 Tap to fly',
+        'tutorial.line2': '🌪 Hold for Wind Burst when full',
+        'tutorial.line3': '🎴 Pick a charm with 1 / 2 / 3',
     'hud.lap': 'LAP',
     'hud.chapter': 'CH.',
     'hud.overdrive': 'WIND POWER',
