@@ -461,6 +461,30 @@ export class HUD {
 
     ctx.restore();
 
+    // ---- Chuyển chương: hiệu ứng điện ảnh nhẹ (KHÔNG rung) ----
+    if (this.chapterFade > 0 || this.chapterBand > 0) {
+      const a = Math.min(1, this.chapterFade / 0.9);
+      const g = ctx.createLinearGradient(0, 0, 0, this.height);
+      g.addColorStop(0, 'rgba(8, 20, 16, ' + (0.42 * a).toFixed(3) + ')');
+      g.addColorStop(0.55, 'rgba(8, 20, 16, ' + (0.12 * a).toFixed(3) + ')');
+      g.addColorStop(1, 'rgba(8, 20, 16, ' + (0.50 * a).toFixed(3) + ')');
+      ctx.save();
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, this.width, this.height);
+
+      if (this.chapterBand > 0) {
+        const p = 1 - this.chapterBand;
+        const y = -40 + p * (this.height + 80);
+        const band = ctx.createLinearGradient(0, y - 60, 0, y + 60);
+        band.addColorStop(0, 'rgba(232, 184, 75, 0)');
+        band.addColorStop(0.5, 'rgba(232, 184, 75, ' + (0.16 * this.chapterBand).toFixed(3) + ')');
+        band.addColorStop(1, 'rgba(232, 184, 75, 0)');
+        ctx.fillStyle = band;
+        ctx.fillRect(0, y - 60, this.width, 120);
+      }
+      ctx.restore();
+    }
+
     // Toast: nhận tem bưu thiếp mới
     if (this.stampToast && this.stampToast.t > 0) {
       const alpha = Math.min(1, this.stampToast.t / 0.4);
