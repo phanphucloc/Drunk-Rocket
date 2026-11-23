@@ -136,7 +136,8 @@ export class PerkDraftManager {
     this.hoveredIndex = -1;
     this.draftCards = [];
     this.draftTimer = 0;
-    this.draftMaxDuration = 2.4;
+    this.draftMaxDuration = Infinity;   // V1: không giới hạn (setLap sẽ đổi)
+    this.lapNumber = 1;
     this.lastMilestoneScore = -6; // mốc đầu ở 6 cổng, rồi 18, 30...
     this.milestoneInterval = 12;
   }
@@ -172,6 +173,20 @@ export class PerkDraftManager {
         this.game.audio.playMedal();
       }
     }
+  }
+
+  /**
+   * Thời gian chọn bùa theo vòng: V1 không giới hạn, V2 6s, V3 4.5s, V4 3.5s, V5+ 2.5s.
+   * Người mới có trọn thời gian hiểu thẻ ở vòng đầu, càng lên cao càng phải quyết nhanh.
+   */
+  setLap(lap = 1) {
+    this.lapNumber = Math.max(1, Math.min(9, Math.round(lap)));
+    const table = [Infinity, 6.0, 4.5, 3.5, 2.5];
+    this.draftMaxDuration = table[Math.min(table.length - 1, this.lapNumber - 1)];
+  }
+
+  get hasDraftTimer() {
+    return Number.isFinite(this.draftMaxDuration);
   }
 
   triggerDraft() {
@@ -276,9 +291,9 @@ export class PerkDraftManager {
 
     // 2. Card Drafting
     if (this.isDrafting) {
-      this.draftTimer -= dt;
-      if (this.draftTimer <= 0) {
-        this.selectCard(0);
+      if (this.hasDraftTimer) {
+        this.draftTimer -= dt;
+        if (this.draftTimer <= 0) this.selectCard(0);
       }
       return;
     }

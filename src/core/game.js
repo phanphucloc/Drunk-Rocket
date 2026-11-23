@@ -400,6 +400,7 @@ export class Game {
     this.chapterNumber = prog.chapterNumber;
     this._chapterGlobal = prog.globalChapter;
     this.difficulty = difficultyFor(prog.lapIndex);
+    if (this.perks && this.perks.setLap) this.perks.setLap(prog.lapNumber);
     if (this.pillars) this.pillars.tierBoost = prog.lapIndex * 2;
 
     const chapterChanged = force || !prev || prog.globalChapter !== prev.globalChapter;
