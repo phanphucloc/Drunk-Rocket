@@ -1266,3 +1266,28 @@ Nay quầng lấy **`lapStyle.glow`** theo bảng vòng, còn chữ **Near-Miss*
 ALL REGRESSION CHECKS PASSED   (cột sinh ra · smash · chain · near-miss · bùa · restart)
 ```
 Ảnh: `docs/screenshots/chip-banner.png` (ô địa danh mới), `docs/screenshots/gate-lap3.png` (cổng tím + dải vàng).
+
+---
+
+## 46. Dây diều + 10 điểm/chương + caption địa danh kiểu phim
+
+### A. Dây diều (kite string)
+`drawKiteString(ctx, rocket, time, isSmash, w, h)` trong `renderer.js`:
+- Neo ở **góc dưới-trái ngoài màn hình** (người thả đứng dưới đất), nối vào **đuôi diều**.
+- Vẽ **bezier 2 lớp**: bóng tối (dễ thấy trên nền sáng) + sợi sáng mảnh.
+- **Võng 96px** khi bay thường (trọng lực), **34px + rung** khi Lộng Gió (dây căng).
+- Thêm **đoạn nối vàng** ở đuôi + nút buộc nhỏ → cảm giác dây thật, không "lơ lửng".
+- Vẽ **trước** diều (sau cảnh/cột/hạt) nên luôn nằm dưới diều, trên nền.
+
+### B. 10 điểm/chương
+`POINTS_PER_CHAPTER = 10` (number 10 in HUD `x/10`, chip bỏ thanh tiến trình).
+
+### C. Ô địa danh: caption phim, không nền
+- Bỏ nền/border/shadow/backdrop — chỉ còn **vạch nhấn dọc** (vàng→ngọc) + 3 dòng chữ.
+- Tên tỉnh `rgba(243,234,214,.92)`, phụ danh vàng `.82`, câu thơ nghiêng `.6`, có `text-shadow`
+  nhẹ để đọc được trên nền sáng/tối; vẫn **bấm để mở popup**.
+- Vẫn ở **góc dưới-phải**, tự mờ khi diều bay vào góc.
+
+### D. Kiểm chứng
+- Ảnh: `docs/screenshots/kite-string.png`, `docs/screenshots/caption-chip.png`.
+- `ALL REGRESSION CHECKS PASSED` (cột · smash · chain · near-miss · bùa · restart).
