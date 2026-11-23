@@ -115,6 +115,8 @@ const DICT = {
     'perk.timer': 'Thời gian',
 
     'settings.title': '⚙ CÀI ĐẶT',
+    'settings.streamCam': 'Stream camera (zoom nhẹ theo diều)',
+
     'settings.music': 'Nhạc nền',
     'settings.sfx': 'Hiệu ứng',
     'settings.note': 'Âm lượng được lưu lại cho lần chơi sau.',
@@ -231,6 +233,8 @@ const DICT = {
     'perk.timer': 'Time',
 
     'settings.title': '⚙ SETTINGS',
+    'settings.streamCam': 'Stream camera (slight zoom)',
+
     'settings.music': 'Music',
     'settings.sfx': 'Effects',
     'settings.note': 'Volume is saved for your next visit.',

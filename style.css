@@ -824,3 +824,12 @@ html, body {
   #top-toolbar .btn-label { display: none; }
   #top-toolbar .arcade-btn { padding: 6px 8px; }
 }
+
+/* Công tắc bật/tắt trong Cài đặt */
+.toggle-row { align-items: center; }
+.toggle-row input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--gold, #e8b84b);
+  cursor: pointer;
+}
