@@ -24,10 +24,10 @@ import { CONFIG } from '../config.js';
 /** Sắc thái từng vòng: cùng địa danh nhưng khác ánh sáng -> livestream không bị lặp. */
 const LAP_MOODS = [
   null,                                                  // V1: nguyên bản
-  { color: 'rgba(255, 168, 84, 0.20)', blend: 'soft-light' },  // V2: hoàng hôn ấm
-  { color: 'rgba(58, 92, 160, 0.26)', blend: 'soft-light' },   // V3: đêm xanh
-  { color: 'rgba(120, 200, 178, 0.18)', blend: 'soft-light' }, // V4: sương ngọc
-  { color: 'rgba(196, 66, 52, 0.22)', blend: 'soft-light' }    // V5: giông rồng
+  { color: 'rgba(255, 168, 84, 0.26)', blend: 'soft-light' },  // V2: hoàng hôn ấm
+  { color: 'rgba(58, 92, 160, 0.34)', blend: 'soft-light' },   // V3: đêm xanh
+  { color: 'rgba(120, 200, 178, 0.24)', blend: 'soft-light' }, // V4: sương ngọc
+  { color: 'rgba(196, 66, 52, 0.30)', blend: 'soft-light' }    // V5: giông rồng
 ];
 
 export class Game {
