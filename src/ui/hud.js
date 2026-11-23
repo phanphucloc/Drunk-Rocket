@@ -61,6 +61,8 @@ export class HUD {
   }
 
   update(dt) {
+    if (this.chapterFade > 0) this.chapterFade = Math.max(0, this.chapterFade - dt);
+    if (this.chapterBand > 0) this.chapterBand = Math.max(0, this.chapterBand - dt * 1.6);
     if (this.shakeDuration > 0) {
       this.shakeDuration -= dt;
       if (this.shakeDuration <= 0) {

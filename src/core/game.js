@@ -409,7 +409,7 @@ export class Game {
       this.gatesPassed % POINTS_PER_CHAPTER, POINTS_PER_CHAPTER);
 
     // Mốc mở TÚI BÙA tính theo ĐIỂM
-    if (this.perks) this.perks.checkMilestone(this.score);
+    if (this.perks) this.perks.checkMilestone(this.gatesPassed);
 
     // Regular pillar gives +10% Overdrive (10 pillars cleared = 100% Smash ready)
     this.drunkMeter = Math.min(100, this.drunkMeter + 10);
@@ -569,7 +569,7 @@ export class Game {
     this.smashChainCount = 1;
     this.smashCooldown = 0.35;          // không cho kích hoạt lại ngay
     if (this.input) this.input.smashRequested = false;
-    if (this.perks) this.perks.checkMilestone(this.score);
+    if (this.perks) this.perks.checkMilestone(this.gatesPassed);
   }
 
   /** Tạm dừng toàn bộ gameplay (dùng khi mở popup/bảng điểm/cài đặt). */
