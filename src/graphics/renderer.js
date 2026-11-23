@@ -95,16 +95,18 @@ export function drawRocket(ctx, x, y, options = {}) {
 
   // Đỏ Rồng: quầng ấm phía sau, nhịp chậm (không nhấp nháy)
   if (premium) {
+    // Quầng gradient mềm: đỏ son ở lõi → vàng thếp → trong suốt
     const pulse = 0.5 + 0.5 * Math.sin(dizzyTime * 1.8);
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    ctx.fillStyle = 'rgba(255, 96, 64, ' + (0.10 + pulse * 0.07).toFixed(3) + ')';
+    const glow = ctx.createRadialGradient(-2, 0, 4, -2, 0, 30);
+    glow.addColorStop(0, 'rgba(255, 138, 96, ' + (0.22 + pulse * 0.08).toFixed(3) + ')');
+    glow.addColorStop(0.45, 'rgba(255, 96, 64, ' + (0.12 + pulse * 0.05).toFixed(3) + ')');
+    glow.addColorStop(0.75, 'rgba(255, 208, 120, ' + (0.06 + pulse * 0.03).toFixed(3) + ')');
+    glow.addColorStop(1, 'rgba(255, 208, 120, 0)');
+    ctx.fillStyle = glow;
     ctx.beginPath();
-    ctx.ellipse(-2, 0, 27, 21, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = 'rgba(255, 214, 120, ' + (0.07 + pulse * 0.05).toFixed(3) + ')';
-    ctx.beginPath();
-    ctx.ellipse(-2, 0, 19, 14.5, 0, 0, Math.PI * 2);
+    ctx.ellipse(-2, 0, 30, 23, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
