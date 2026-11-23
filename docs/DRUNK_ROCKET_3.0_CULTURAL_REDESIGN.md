@@ -1156,3 +1156,47 @@ ALL REGRESSION CHECKS PASSED
 ### D. Ghi chú còn lại
 - `POINTS_PER_CHAPTER` hiện 10 (theo lựa chọn của bạn). Nếu muốn nhịp thời tiết dài hơn (~22–25s/tỉnh),
   nâng lên 12 và chuyển sang đếm cổng như mục B.
+
+---
+
+## 43. Chốt 4 điểm cuối + chống nhàm khi livestream
+
+### A. 4 điểm cuối của audit (đã vá)
+| # | Vấn đề | Sửa |
+|---|---|---|
+| 1 | `gatesPassed` cộng mà không dùng | `_syncProgression()` gọi `getProgression(this.gatesPassed)`; chip dùng `gatesPassed % POINTS_PER_CHAPTER`; `pillars.update(..., gatesPassed, ...)`; `checkMilestone(gatesPassed)`; **`POINTS_PER_CHAPTER = 12`** |
+| 2 | Bùa Mắt Diều Tinh hụt cổng thứ 3 | Trong `hasPassedCompletely`: **`onNearMiss` chạy TRƯỚC `onScore`** (vẫn chỉ thưởng sau khi vượt cột) |
+| 3 | Cộng đúp `tierBoost` | Bỏ dòng `effectiveTier` thứ hai ở cuối `spawn()`; dùng `tier` đã cộng boost |
+| 4 | Ba lỗi biên | Lưu `bestScore` khi húc vỡ bằng Smash; `resetHold()` trong `selectCard()`; `LaserPillarManager.reset()` xoá `tierBoost` |
+
+### B. Chống nhàm khi livestream (3 thứ bạn nêu)
+1. **Cùng địa danh nhưng khác ánh sáng theo vòng** — `LAP_MOODS` phủ lên tranh ngay sau khi vẽ cảnh:
+   | Vòng | Sắc thái | Cách phủ |
+   |---|---|---|
+   | 1 | nguyên bản | — |
+   | 2 | hoàng hôn ấm | `multiply #ffb45c @0.34` |
+   | 3 | đêm xanh | `multiply #3b4f9e @0.55` |
+   | 4 | sương ngọc | `screen #7fd8c4 @0.16` |
+   | 5 | giông rồng | `multiply #a83226 @0.46` |
+2. **Cổng tre đổi sắc theo vòng** — `LAP_GATE_ACCENTS` (đỏ son → cam nghệ → tím → vàng kim → đỏ rồng)
+   áp cho đèn lồng + quả cầu trên cổng, nên khán giả nhìn là biết đang ở vòng mấy.
+3. **Chuyển chương nhẹ như phim, không rung** — `hud.triggerChapterTransition()`:
+   tối viền mờ dần 0.9s + **dải vàng quét** từ trên xuống, **không** dùng shake/flash của va chạm
+   (trước đây `triggerSmashEffects()` làm người chơi tưởng chết).
+
+### C. Kiểm chứng
+```
+tools/regress-probe.html
+PASS chạm trần 3 lần -> chết · restart sạch · bay bình thường
+PASS smash: +1 điểm · hit-stop 45ms · dừng sau cột
+PASS chain: 2 cột · +2 điểm
+PASS near-miss: chưa vượt -> chưa cộng điểm
+PASS bùa: hết post-draft -> bất tử 0.8s
+ALL REGRESSION CHECKS PASSED
+```
+Ảnh: `docs/screenshots/lap1.png` (V1 sáng), `lap2.png` (V2 hoàng hôn), `lap3.png` (V3 đêm xanh).
+
+### D. Gợi ý thêm để livestream lâu dài (chưa làm)
+- Mỗi vòng gán **weather preset ưu tiên** (V2 mưa, V3 sao, V5 giông) để cảnh đổi mạnh hơn nữa.
+- Thêm **banner chương kiểu phim** (tên tỉnh + câu thơ) chỉ hiện 2s ở góc, không che đường bay.
+- Chế độ "stream camera": zoom nhẹ theo diều + viền mờ (tùy chọn trong ⚙).
