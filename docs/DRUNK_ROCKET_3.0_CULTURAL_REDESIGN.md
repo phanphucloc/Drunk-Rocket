@@ -1291,3 +1291,42 @@ ALL REGRESSION CHECKS PASSED   (cột sinh ra · smash · chain · near-miss · 
 ### D. Kiểm chứng
 - Ảnh: `docs/screenshots/kite-string.png`, `docs/screenshots/caption-chip.png`.
 - `ALL REGRESSION CHECKS PASSED` (cột · smash · chain · near-miss · bùa · restart).
+
+---
+
+## 47. Cột/gió đổi mạnh theo vòng · near-miss đổi theo địa danh · đêm hết nhấp nháy · đuôi diều dài dần
+
+### A. Cột tre: đổi hẳn CHẤT LIỆU theo vòng (không chỉ đổi đèn)
+| Vòng | Chất liệu cột | Lá | Đèn | Tua | Dải vàng |
+|---|---|---|---|---|---|
+| 1 | tre xanh | xanh | đỏ son | 1 | — |
+| 2 | tre mật (vàng nâu) | vàng | cam nghệ | 2 | — |
+| 3 | trúc tím | tím | tím | 2 | ✓ |
+| 4 | trúc kim (vàng kim) | vàng kim | vàng kim | 3 | ✓ |
+| 5 | trúc rồng (đỏ nâu) | đỏ | đỏ rồng | 4 | ✓ |
+
+### B. Gió giữa cột: đổi tông + mật độ mạnh hơn
+| Vòng | Màu gió | Độ đậm | Số vệt |
+|---|---|---|---|
+| 1 | trắng ngọc `#d6fff6` | 0.055 | 3 |
+| 2 | mật ong `#ffe6b0` | 0.085 | 4 |
+| 3 | tím `#e2c6ff` | 0.105 | 5 |
+| 4 | kim quang `#ffeeb0` | 0.125 | 6 |
+| 5 | gió lửa `#ffb49a` | 0.150 | 8 |
+
+### C. Near-miss đổi màu theo ĐỊA DANH
+`hud.showNearMiss(bonus, color)`; game truyền `theme.nearMissColor || theme.laserColor`.
+Mỗi tỉnh có tông cảnh báo riêng nhưng vẫn đậm, đọc rõ.
+
+### D. Ban đêm hết "giật" ánh sáng
+Nguyên nhân: bloom chỉ **composite ở frame chẵn** (frame lẻ bỏ) ⇒ quầng sáng bật/tắt 30Hz, rõ nhất khi trời tối.
+Sửa: vẫn chụp khung mỗi 2 frame nhưng **giữ bản đã chụp và composite MỌI frame** (`_glowReady`)
+⇒ sáng đều, không nhấp nháy, vẫn tiết kiệm ~50% chi phí readback.
+
+### E. Đuôi diều dài & đẹp dần theo vòng
+- Chiều dài gốc: 30 → 46 → 62 → 78 → 96 px; số dải tăng tới 6.
+- Từ vòng 2: thêm **hạt cườm** trên đuôi; từ vòng 3: thêm **ruy băng dài** phía sau (2 dải từ vòng 4).
+- Biên độ lượn tăng theo vòng ⇒ nhìn "bay" hơn, đúng cảm giác diều lớn dần.
+
+### F. Kiểm chứng
+`ALL REGRESSION CHECKS PASSED`. Ảnh: `docs/screenshots/lap1-gate.png`, `docs/screenshots/lap4-gate.png`.
