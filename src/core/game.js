@@ -23,11 +23,11 @@ import { CONFIG } from '../config.js';
 
 /** Sắc thái từng vòng: cùng địa danh nhưng khác ánh sáng -> livestream không bị lặp. */
 const LAP_MOODS = [
-  null,                                                  // V1: nguyên bản
-  { color: 'rgba(255, 168, 84, 0.26)', blend: 'soft-light' },  // V2: hoàng hôn ấm
-  { color: 'rgba(58, 92, 160, 0.34)', blend: 'soft-light' },   // V3: đêm xanh
-  { color: 'rgba(120, 200, 178, 0.24)', blend: 'soft-light' }, // V4: sương ngọc
-  { color: 'rgba(196, 66, 52, 0.30)', blend: 'soft-light' }    // V5: giông rồng
+  null,                                                        // V1: nguyên bản
+  { mode: 'multiply', color: '#ffb45c', alpha: 0.34 },         // V2: hoàng hôn ấm
+  { mode: 'multiply', color: '#3b4f9e', alpha: 0.55 },         // V3: đêm xanh
+  { mode: 'screen',   color: '#7fd8c4', alpha: 0.16 },         // V4: sương ngọc
+  { mode: 'multiply', color: '#a83226', alpha: 0.46 }          // V5: giông rồng
 ];
 
 export class Game {
@@ -1005,10 +1005,12 @@ export class Game {
       // Sắc thái riêng của từng vòng (cùng địa danh, khác ánh sáng)
       const mood = LAP_MOODS[Math.min(LAP_MOODS.length - 1, (this.lapNumber || 1) - 1)];
       if (mood) {
-        out.globalCompositeOperation = mood.blend;
+        out.save();
+        out.globalCompositeOperation = mood.mode;
+        out.globalAlpha = mood.alpha;
         out.fillStyle = mood.color;
         out.fillRect(0, 0, out.canvas.width, out.canvas.height);
-        out.globalCompositeOperation = 'source-over';
+        out.restore();
       }
 
       out.setTransform(bx, 0, 0, by, sh.x * bx, sh.y * by);
