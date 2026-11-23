@@ -1231,3 +1231,38 @@ PASS banner chương có dữ liệu — name=SA PA
 ALL REGRESSION CHECKS PASSED
 ```
 Ảnh: `docs/screenshots/chapter-banner.png`, `docs/screenshots/stream-camera.png`.
+
+---
+
+## 45. Gộp thông tin địa danh về một chỗ + cổng đổi theo vòng
+
+### A. Chỉ còn MỘT ô thông tin địa danh (góc dưới-phải)
+- Bỏ **banner canvas** ở góc trên-trái (và trigger trong `_syncProgression`).
+- Ô `#landmark-chip` được **thiết kế lại theo kiểu banner**: vạch vàng-ngọc bên trái,
+  dòng 1 = **tên tỉnh** (14px, đậm), dòng 2 = **phụ danh** (9px, vàng), dòng 3 = **câu thơ** (9px nghiêng, cắt `…`).
+- Vẫn **bấm vào để mở popup** chi tiết địa danh như trước (handler cũ giữ nguyên), vẫn có
+  hiệu ứng `is-new` và tự mờ khi diều bay vào góc.
+
+### B. Số cổng trong chương → cạnh điểm
+- Bỏ khỏi ô địa danh; HUD vẽ **`x/12` nhỏ** ngay bên phải điểm số (11px, vàng).
+- Dữ liệu do game truyền qua `options.gatesInChapter` / `gatesPerChapter`.
+
+### C. Cổng tre đổi theo vòng (không còn giống hệt nhau)
+| Vòng | Lồng đèn | Tua | Dải vàng | Quầng sáng |
+|---|---|---|---|---|
+| 1 | đỏ son | 1 | — | đỏ |
+| 2 | cam nghệ | 2 | — | cam |
+| 3 | tím | 2 | ✓ | tím |
+| 4 | vàng kim | 3 | ✓ | vàng |
+| 5 | đỏ rồng | 4 | ✓ | đỏ |
+
+### D. "Near limit" không còn đổi màu theo địa danh
+Trước đây quầng sáng cổng lấy `theme.laserGlow` (mỗi tỉnh một màu) ⇒ tín hiệu nguy hiểm bị nhiễu.
+Nay quầng lấy **`lapStyle.glow`** theo bảng vòng, còn chữ **Near-Miss** giữ màu ngọc cố định
+`#2fb894` — tín hiệu cảnh báo luôn nhất quán.
+
+### E. Kiểm chứng
+```
+ALL REGRESSION CHECKS PASSED   (cột sinh ra · smash · chain · near-miss · bùa · restart)
+```
+Ảnh: `docs/screenshots/chip-banner.png` (ô địa danh mới), `docs/screenshots/gate-lap3.png` (cổng tím + dải vàng).
