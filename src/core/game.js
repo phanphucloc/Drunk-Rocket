@@ -218,11 +218,11 @@ export class Game {
         }
       }
     });
-  }
-
 
     // Áp nâng cấp Hũ Gió ngay ván đầu (sau khi mọi field đã khởi tạo)
     this._applyMetaUpgrades();
+  }
+
   resize() {
     // Đo VISUAL VIEWPORT: đúng cả khi thanh địa chỉ mobile co giãn / desktop zoom.
     const vv = window.visualViewport;
