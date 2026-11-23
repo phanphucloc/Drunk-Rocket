@@ -138,7 +138,7 @@ export class PerkDraftManager {
     this.draftTimer = 0;
     this.draftMaxDuration = Infinity;   // V1: không giới hạn (setLap sẽ đổi)
     this.lapNumber = 1;
-    this.lastMilestoneScore = -7; // moc 7, 19, 31... (khong trung boi 10)
+    this.lastMilestoneScore = -7; // last+12 => moc 5, 17, 29... (khong trung boi 10)
     this.milestoneInterval = 12;
   }
 
@@ -152,7 +152,7 @@ export class PerkDraftManager {
     this.hoveredIndex = -1;
     this.draftCards = [];
     this.draftTimer = 0;
-    this.lastMilestoneScore = -7; // moc 7, 19, 31... (khong trung boi 10)
+    this.lastMilestoneScore = -7; // last+12 => moc 5, 17, 29... (khong trung boi 10)
   }
 
   checkMilestone(currentScore) {
