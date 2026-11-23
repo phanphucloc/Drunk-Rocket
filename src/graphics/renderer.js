@@ -4,6 +4,19 @@
  */
 import { getKiteStyle } from '../core/progression.js';
 
+/** Bảng màu cổng tre theo VÒNG — mỗi vòng một sắc thái riêng để không bị lặp. */
+const LAP_GATE_ACCENTS = [
+  { accent: '#e63946', light: '#ffd13b', pennant: 3 }, // V1 đỏ son
+  { accent: '#e8802a', light: '#ffe08a', pennant: 4 }, // V2 cam nghệ
+  { accent: '#7b3fd4', light: '#c9a2ff', pennant: 3 }, // V3 tím
+  { accent: '#c9902a', light: '#ffe8a8', pennant: 5 }, // V4 vàng kim
+  { accent: '#b3172a', light: '#ffb347', pennant: 6 }  // V5 đỏ rồng
+];
+
+export function lapGateStyle(lap = 1) {
+  return LAP_GATE_ACCENTS[(Math.max(1, lap) - 1) % LAP_GATE_ACCENTS.length];
+}
+
 export const PALETTE = {
   VOID: '#0b0e14',
   NAVY: '#1a1f36',
