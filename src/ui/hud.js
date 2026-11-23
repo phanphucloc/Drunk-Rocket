@@ -243,6 +243,15 @@ export class HUD {
       ctx.fillStyle = '#ffffff';
       ctx.fillText(`${score}`, cx, 52);
 
+      // Số cổng đã vượt trong chương (nhỏ, cạnh điểm)
+      const gatesIn = (options && options.gatesInChapter) || 0;
+      const gatesMax = (options && options.gatesPerChapter) || 12;
+      ctx.font = '800 11px "Be Vietnam Pro", ui-monospace, monospace';
+      ctx.fillStyle = 'rgba(232, 184, 75, 0.95)';
+      ctx.textAlign = 'left';
+      ctx.fillText(`${gatesIn}/${gatesMax}`, cx + 36, 47);
+      ctx.textAlign = 'center';
+
       // 3. Chapter Badge: VÒNG · ĐỊA DANH (có "viên thuốc" tối để luôn đọc rõ)
       if (currentTheme) {
         const lapNo = (options && options.lapNumber) || 1;
@@ -475,45 +484,6 @@ export class HUD {
     }
 
     ctx.restore();
-
-    // ---- Banner chương (2s, góc trên-trái) ----
-    if (this.chapterBanner && this.chapterBanner.t > 0) {
-      const b = this.chapterBanner;
-      const a = Math.min(1, b.t / 0.35, (b.max - b.t) / 0.25);
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, Math.min(1, a));
-      const x = 12;
-      const y = 10;
-      ctx.fillStyle = 'rgba(11, 21, 18, 0.72)';
-      const w = Math.min(198, this.width - 24);
-      ctx.fillRect(x, y, w, 52);
-      ctx.fillStyle = 'rgba(232, 184, 75, 0.9)';
-      ctx.fillRect(x, y, 3, 52);
-
-      ctx.fillStyle = '#f3ead6';
-      ctx.font = '800 13px "Be Vietnam Pro", sans-serif';
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'top';
-      ctx.fillText(b.name, x + 10, y + 8);
-
-      ctx.fillStyle = 'rgba(232, 184, 75, 0.95)';
-      ctx.font = '700 9px "Be Vietnam Pro", sans-serif';
-      ctx.fillText(b.sub, x + 10, y + 24);
-
-      if (b.poem) {
-        ctx.fillStyle = 'rgba(243, 234, 214, 0.78)';
-        ctx.font = 'italic 9px "Be Vietnam Pro", serif';
-        // cắt gọn cho vừa khung, không tràn chữ
-        let poem = b.poem.length > 34 ? b.poem.slice(0, 33) + '\u2026' : b.poem;
-        const maxW = w - 18;
-        while (poem.length > 6 && ctx.measureText(poem).width > maxW) {
-          poem = poem.slice(0, -2);
-        }
-        if (poem !== b.poem) poem = poem.trim() + '…';
-        ctx.fillText(poem, x + 10, y + 37);
-      }
-      ctx.restore();
-    }
 
     // ---- Chuyển chương: hiệu ứng điện ảnh nhẹ (KHÔNG rung) ----
     if (this.chapterFade > 0 || this.chapterBand > 0) {
