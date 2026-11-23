@@ -12,7 +12,7 @@ export class InputManager {
     this.doubleTapThreshold = 280;
 
     // Lộng Gió bằng NHẤN GIỮ: giữ >= HOLD_MS thì kích hoạt (tap thường ~50-110ms)
-    this.HOLD_MS = 200;
+    this.HOLD_MS = 235;
     this.holdStart = 0;
     this.holdProgress = 0;          // 0..1 để vẽ vòng nạp quanh diều
     this.smashRequested = false;
@@ -33,6 +33,14 @@ export class InputManager {
     this.targetElement.addEventListener('pointerdown', this._onPointerDown, { passive: false });
     window.addEventListener('pointerup', this._onPointerUp, { passive: false });
     window.addEventListener('pointercancel', this._onPointerUp, { passive: false });
+  }
+
+  /** Ngắt trạng thái giữ (dùng khi chọn thẻ bùa / bấm quả cầu). */
+  resetHold() {
+    this.isPressed = false;
+    this._holdArmed = false;
+    this.holdProgress = 0;
+    this.smashRequested = false;
   }
 
   consumeSmash() {
@@ -71,6 +79,13 @@ export class InputManager {
   }
 
   _onKeyDown(e) {
+    // Phím tắt Lộng Gió trên PC
+    if (e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyE') {
+      e.preventDefault();
+      if (!e.repeat) this.smashRequested = true;
+      return;
+    }
+
     if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
       e.preventDefault();
       // Ngăn keydown auto-repeat của hệ điều hành làm spam phím, nhưng cho phép nhấp nhả nhanh

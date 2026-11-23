@@ -25,9 +25,9 @@ export class EnergyCell {
       const dx = rocket.x - this.x;
       const dy = rocket.y - this.y;
       const dist = Math.hypot(dx, dy);
-      const magnetRange = 220; // Broad magnet suction range
+      const magnetRange = 260; // khớp mô tả Vó Hút Gió
 
-      if (dist < magnetRange) {
+      if (dist > 0.001 && dist < magnetRange) {
         this.isMagnetized = true;
         const pullForce = 950 * (1 - dist / magnetRange) + 420;
         this.vx += (dx / dist) * pullForce * dt;

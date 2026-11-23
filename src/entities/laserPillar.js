@@ -183,7 +183,7 @@ export class LaserPillarManager {
     this.lastPillarGapY = 350;
   }
 
-  update(dt, rocket, onScore, onNearMiss, score = 0, difficulty = null) {
+  update(dt, rocket, onScore, onNearMiss, score = 0, difficulty = null, isSmashActive = false) {
     this.currentScore = score;
     // Graceful slight horizontal speed scaling: +3 px/s every 5 points, capped at +24 px/s
     this.speed = this.baseSpeed + Math.min(Math.floor(score / 5) * 3, 24);
@@ -195,7 +195,7 @@ export class LaserPillarManager {
       if (typeof difficulty.breatherPause === 'number') this.breatherPause = difficulty.breatherPause;
     }
 
-    this.spawnTimer -= dt;
+    this.spawnTimer -= dt * (this.speedMul || 1);
     if (this.spawnTimer <= 0) {
       this.spawn(score);
       this.spawnedCount++;
@@ -211,15 +211,16 @@ export class LaserPillarManager {
       const p = this.pillars[i];
       p.update(dt, moveSpeed);
 
-      // Near-Miss check
-      if (!p.nearMissChecked && p.checkNearMiss(rocket)) {
-        if (onNearMiss) onNearMiss(p);
+      // Near-Miss: chỉ GẮN CỜ khi lướt sát; thưởng sau khi đã vượt cổng an toàn
+      if (!isSmashActive && !p.hadNearMiss && !p.nearMissChecked && p.checkNearMiss(rocket)) {
+        p.hadNearMiss = true;
       }
 
-      // STRICT SCORING: Rocket must clear COMPLETELY past the column including its tail
-      if (!p.passed && p.hasPassedCompletely(rocket)) {
+      // STRICT SCORING: phải vượt hẳn đuôi cột
+      if (!p.passed && !p.isDestroyed && p.hasPassedCompletely(rocket)) {
         p.passed = true;
         if (onScore) onScore(p);
+        if (p.hadNearMiss && onNearMiss) onNearMiss(p);
       }
 
       // Cleanup offscreen
@@ -238,8 +239,10 @@ export class LaserPillarManager {
    * 2. Progressive Movement Tiers
    */
   spawn(score = 0) {
-    const tier = getTierFromScore(score);
+    const baseTier = getTierFromScore(score);
     const theme = getThemeForScore(score);
+    // Vòng 2+ vẫn có cột động: cộng tierBoost TRƯỚC khi chọn nhánh độ khó
+    const tier = Math.min(9, (baseTier || 1) + (this.tierBoost || 0));
 
     // Calculate maximum allowable vertical shift from previous column
     let maxDeltaY = 90;
