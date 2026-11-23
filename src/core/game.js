@@ -21,6 +21,15 @@ import { toggleLang, t } from '../i18n.js';
 import { recordStamp } from './stamps.js';
 import { CONFIG } from '../config.js';
 
+/** Sắc thái từng vòng: cùng địa danh nhưng khác ánh sáng -> livestream không bị lặp. */
+const LAP_MOODS = [
+  null,                                                  // V1: nguyên bản
+  { color: 'rgba(255, 168, 84, 0.20)', blend: 'soft-light' },  // V2: hoàng hôn ấm
+  { color: 'rgba(58, 92, 160, 0.26)', blend: 'soft-light' },   // V3: đêm xanh
+  { color: 'rgba(120, 200, 178, 0.18)', blend: 'soft-light' }, // V4: sương ngọc
+  { color: 'rgba(196, 66, 52, 0.22)', blend: 'soft-light' }    // V5: giông rồng
+];
+
 export class Game {
   constructor(canvas) {
     this.canvas = canvas;
@@ -992,6 +1001,16 @@ export class Game {
       // Cảnh ở hệ PIXEL BACKING, cùng độ rung với phần còn lại
       out.setTransform(1, 0, 0, 1, sh.x * bx, sh.y * by);
       this.scenic.draw(out);
+
+      // Sắc thái riêng của từng vòng (cùng địa danh, khác ánh sáng)
+      const mood = LAP_MOODS[Math.min(LAP_MOODS.length - 1, (this.lapNumber || 1) - 1)];
+      if (mood) {
+        out.globalCompositeOperation = mood.blend;
+        out.fillStyle = mood.color;
+        out.fillRect(0, 0, out.canvas.width, out.canvas.height);
+        out.globalCompositeOperation = 'source-over';
+      }
+
       out.setTransform(bx, 0, 0, by, sh.x * bx, sh.y * by);
     }
     // Thời tiết: lớp màu trời + mây + sao + nắng (nằm trên tranh, dưới nhân vật)
@@ -1002,7 +1021,7 @@ export class Game {
 
     for (const p of this.pillars.pillars) {
       if (!p.isDestroyed) {
-        EntityRenderer.drawLaserPillar(this.ctx, p, this.height, this.currentTheme);
+        EntityRenderer.drawLaserPillar(this.ctx, p, this.height, this.currentTheme, this.lapNumber);
       }
     }
 

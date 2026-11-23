@@ -857,7 +857,7 @@ export class EntityRenderer {
     });
   }
 
-  static drawLaserPillar(ctx, pillar, gameHeight = 700, currentTheme = null) {
-    drawLaserHazard(ctx, pillar, gameHeight, 0, currentTheme);
+  static drawLaserPillar(ctx, pillar, gameHeight = 700, currentTheme = null, lap = 1) {
+    drawLaserHazard(ctx, pillar, gameHeight, 0, currentTheme, lapGateStyle(lap));
   }
 }
