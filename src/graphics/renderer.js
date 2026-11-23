@@ -603,7 +603,7 @@ export function drawRocket(ctx, x, y, options = {}) {
  * Hai ống tre giữ nguyên toạ độ va chạm; dây pháo đỏ + lồng đèn đánh dấu vùng nguy hiểm;
  * khoảng trống ở giữa là LUỒNG GIÓ lành (thay cho tia laser).
  */
-export function drawLaserHazard(ctx, pillar, gameHeight = 700, totalTime = 0, currentTheme = null) {
+export function drawLaserHazard(ctx, pillar, gameHeight = 700, totalTime = 0, currentTheme = null, lapStyle = null) {
   const x = Math.floor(pillar.x);
   const w = pillar.width || 52;
   const topY = Math.floor(pillar.topY !== undefined ? pillar.topY : (pillar.gapY - (pillar.gapHeight || 140) / 2));
@@ -615,9 +615,9 @@ export function drawLaserHazard(ctx, pillar, gameHeight = 700, totalTime = 0, cu
 
   // Màu nhấn theo từng vùng miền (giữ bản sắc mỗi chương)
   const theme = pillar.theme || currentTheme || null;
-  const accent = (theme && theme.laserColor) || '#e63946';
+  const accent = (lapStyle && lapStyle.accent) || (theme && theme.laserColor) || '#e63946';
   const accentGlow = (theme && theme.laserGlow) || 'rgba(230, 57, 70, 0.45)';
-  const lanternLight = (theme && theme.emitterCore) || '#ffd13b';
+  const lanternLight = (lapStyle && lapStyle.light) || (theme && theme.emitterCore) || '#ffd13b';
   const t = pulsePhase;
 
   ctx.save();
