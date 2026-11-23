@@ -37,6 +37,7 @@ export class Game {
 
     this._dbg = !!(window.__DR_DEBUG || /[?&]debug=1/.test(location.search));
     // Chất lượng tự điều chỉnh: 0 = cao, 1 = vừa, 2 = thấp (máy yếu)
+    this.streamCam = false;
     this.perfLevel = 0;
     this.perfEma = 16.7;
     this.perfFrames = 0;
@@ -393,6 +394,11 @@ export class Game {
       if (this.weather) this.weather.setTheme(this.currentTheme);
       if (this.scenic) this.scenic.setTier(this.currentTheme.tier);
       if (this.audio && this.audio.setMusicTheme) this.audio.setMusicTheme(this.currentTheme.music);
+      // Banner chương kiểu phim (2s, góc trên-trái, không che đường bay)
+      if (this.state === 'PLAYING' && this.hud && this.hud.showChapterBanner) {
+        this.hud.showChapterBanner(this.currentTheme, prog.lapNumber, prog.chapterNumber);
+      }
+
       // Chuyển chương: hiệu ứng ĐIỆN ẢNH nhẹ (không rung như va chạm)
       if (this.hud.triggerChapterTransition) this.hud.triggerChapterTransition();
       else this.hud.triggerSmashEffects();
@@ -982,6 +988,29 @@ export class Game {
     }
   }
 
+  /** Camera livestream: zoom nhẹ + đẩy theo diều bằng CSS transform (không vẽ lại). */
+  _applyStreamCam() {
+    const cv = this.canvas;
+    if (!cv || !cv.style) return;
+    if (!this.streamCam || this.state !== 'PLAYING') {
+      if (this._camApplied) {
+        cv.style.transform = '';
+        cv.style.transformOrigin = '';
+        this._camApplied = false;
+      }
+      return;
+    }
+    const zoom = 1.08;
+    const cx = this.width / 2, cy = this.height / 2;
+    const nx = Math.max(-1, Math.min(1, (this.rocket.x - cx) / cx));
+    const ny = Math.max(-1, Math.min(1, (this.rocket.y - cy) / cy));
+    const sx = -nx * (zoom - 1) * 60;
+    const sy = -ny * (zoom - 1) * 60;
+    cv.style.transformOrigin = '50% 50%';
+    cv.style.transform = 'scale(' + zoom + ') translate(' + sx.toFixed(1) + 'px,' + sy.toFixed(1) + 'px)';
+    this._camApplied = true;
+  }
+
   render() {
     this.ctx.save();
 
@@ -1222,6 +1251,8 @@ export class Game {
         this.bgCtx.drawImage(this.canvas, (bw - dw) / 2, (bh - dh) / 2, dw, dh);
       }
     }
+
+    this._applyStreamCam();
 }
 
   _bindToolbarButtons() {

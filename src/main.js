@@ -170,6 +170,21 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // ---- Stream camera: zoom nhẹ theo diều (tuỳ chọn trong ⚙) ----
+  {
+    const KEY = 'dieu_stream_cam';
+    const box = document.getElementById('setting-stream-cam');
+    const apply = (on) => {
+      if (game) game.streamCam = !!on;
+      try { localStorage.setItem(KEY, on ? '1' : '0'); } catch (e) {}
+    };
+    if (box) {
+      box.checked = localStorage.getItem(KEY) === '1';
+      apply(box.checked);
+      box.addEventListener('change', () => apply(box.checked));
+    }
+  }
+
   initStampBook();
   // ---- Canh UI theo MÉP CANVAS (không theo mép cửa sổ) ----
   const layoutOverlay = () => {

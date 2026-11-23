@@ -36,6 +36,20 @@ export class HUD {
     this.flashColor = 'rgba(255, 244, 214, 0.42)';
   }
 
+  /** Banner chương kiểu phim: tên tỉnh + câu thơ, 2 giây, góc trên-trái. */
+  showChapterBanner(theme, lap = 1, chapter = 1) {
+    if (!theme) return;
+    const en = getLang() === 'en';
+    const poem = en ? (theme.storyEn || theme.descEn || '') : (theme.editorialDesc || '');
+    this.chapterBanner = {
+      t: 2.0,
+      max: 2.0,
+      name: theme.name || '',
+      sub: theme.subName || '',
+      poem: String(poem || '').replace(/^[^—]*—\s*/, '').trim().slice(0, 64)
+    };
+  }
+
   /** Chuyển chương: mờ dần + đường vàng quét nhẹ, KHÔNG rung (khác hẳn va chạm). */
   triggerChapterTransition() {
     this.chapterFade = 0.9;          // giây
@@ -61,6 +75,7 @@ export class HUD {
   }
 
   update(dt) {
+    if (this.chapterBanner && this.chapterBanner.t > 0) this.chapterBanner.t -= dt;
     if (this.chapterFade > 0) this.chapterFade = Math.max(0, this.chapterFade - dt);
     if (this.chapterBand > 0) this.chapterBand = Math.max(0, this.chapterBand - dt * 1.6);
     if (this.shakeDuration > 0) {
@@ -460,6 +475,38 @@ export class HUD {
     }
 
     ctx.restore();
+
+    // ---- Banner chương (2s, góc trên-trái) ----
+    if (this.chapterBanner && this.chapterBanner.t > 0) {
+      const b = this.chapterBanner;
+      const a = Math.min(1, b.t / 0.35, (b.max - b.t) / 0.25);
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, a));
+      const x = 12;
+      const y = 86;
+      ctx.fillStyle = 'rgba(11, 21, 18, 0.72)';
+      const w = Math.min(240, this.width - 24);
+      ctx.fillRect(x, y, w, 52);
+      ctx.fillStyle = 'rgba(232, 184, 75, 0.9)';
+      ctx.fillRect(x, y, 3, 52);
+
+      ctx.fillStyle = '#f3ead6';
+      ctx.font = '800 13px "Be Vietnam Pro", sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText(b.name, x + 10, y + 8);
+
+      ctx.fillStyle = 'rgba(232, 184, 75, 0.95)';
+      ctx.font = '700 9px "Be Vietnam Pro", sans-serif';
+      ctx.fillText(b.sub, x + 10, y + 24);
+
+      if (b.poem) {
+        ctx.fillStyle = 'rgba(243, 234, 214, 0.78)';
+        ctx.font = 'italic 9px "Be Vietnam Pro", serif';
+        ctx.fillText(b.poem, x + 10, y + 37);
+      }
+      ctx.restore();
+    }
 
     // ---- Chuyển chương: hiệu ứng điện ảnh nhẹ (KHÔNG rung) ----
     if (this.chapterFade > 0 || this.chapterBand > 0) {
