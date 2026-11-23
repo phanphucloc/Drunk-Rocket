@@ -881,7 +881,7 @@ export function drawKiteString(ctx, rocket, time = 0, isSmash = false, width = 4
   const by = rocket.y + 6;
 
   // điểm võng: trọng lực kéo dây xuống, Lộng Gió làm dây căng + rung
-  const sag = isSmash ? 26 : 74;
+  const sag = isSmash ? 34 : 96;
   const wob = Math.sin(time * 2.2) * (isSmash ? 10 : 4);
   const cx1 = ax + (bx - ax) * 0.34;
   const cy1 = ay + (by - ay) * 0.34 + sag + wob;
@@ -899,7 +899,7 @@ export function drawKiteString(ctx, rocket, time = 0, isSmash = false, width = 4
   ctx.stroke();
 
   // sợi chỉ sáng
-  ctx.strokeStyle = isSmash ? 'rgba(255, 232, 170, 1)' : 'rgba(250, 245, 230, 0.95)';
+  ctx.strokeStyle = isSmash ? 'rgba(255, 232, 170, 0.95)' : 'rgba(248, 242, 226, 0.8)';
   ctx.lineWidth = isSmash ? 2 : 1.7;
   ctx.beginPath();
   ctx.moveTo(ax, ay);
