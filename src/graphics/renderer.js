@@ -6,15 +6,16 @@ import { getKiteStyle } from '../core/progression.js';
 
 /** Bảng màu cổng tre theo VÒNG — mỗi vòng một sắc thái riêng để không bị lặp. */
 const LAP_GATE_ACCENTS = [
-  { accent: '#e63946', light: '#ffd13b', pennant: 3 }, // V1 đỏ son
-  { accent: '#e8802a', light: '#ffe08a', pennant: 4 }, // V2 cam nghệ
-  { accent: '#7b3fd4', light: '#c9a2ff', pennant: 3 }, // V3 tím
-  { accent: '#c9902a', light: '#ffe8a8', pennant: 5 }, // V4 vàng kim
-  { accent: '#b3172a', light: '#ffb347', pennant: 6 }  // V5 đỏ rồng
+  { accent: '#e63946', light: '#ffd13b', lantern: '#d62828', glow: 'rgba(230, 57, 70, 0.45)', pennant: 4, band: false }, // V1 đỏ son
+  { accent: '#e8802a', light: '#ffe08a', lantern: '#e07b1f', glow: 'rgba(232, 128, 42, 0.45)', pennant: 5, band: false }, // V2 cam nghệ
+  { accent: '#7b3fd4', light: '#c9a2ff', lantern: '#6d34c9', glow: 'rgba(123, 63, 212, 0.45)', pennant: 5, band: true },  // V3 tím
+  { accent: '#c9902a', light: '#ffe8a8', lantern: '#c9852a', glow: 'rgba(201, 144, 42, 0.45)', pennant: 6, band: true },  // V4 vàng kim
+  { accent: '#b3172a', light: '#ffb347', lantern: '#a8101f', glow: 'rgba(200, 40, 50, 0.50)', pennant: 7, band: true }    // V5 đỏ rồng
 ];
 
 export function lapGateStyle(lap = 1) {
-  return LAP_GATE_ACCENTS[(Math.max(1, lap) - 1) % LAP_GATE_ACCENTS.length];
+  const i = (Math.max(1, lap) - 1) % LAP_GATE_ACCENTS.length;
+  return Object.assign({ lap: i + 1 }, LAP_GATE_ACCENTS[i]);
 }
 
 export const PALETTE = {
@@ -616,7 +617,7 @@ export function drawLaserHazard(ctx, pillar, gameHeight = 700, totalTime = 0, cu
   // Màu nhấn theo từng vùng miền (giữ bản sắc mỗi chương)
   const theme = pillar.theme || currentTheme || null;
   const accent = (lapStyle && lapStyle.accent) || (theme && theme.laserColor) || '#e63946';
-  const accentGlow = (theme && theme.laserGlow) || 'rgba(230, 57, 70, 0.45)';
+  const accentGlow = (lapStyle && lapStyle.glow) || 'rgba(230, 57, 70, 0.45)';
   const lanternLight = (lapStyle && lapStyle.light) || (theme && theme.emitterCore) || '#ffd13b';
   const t = pulsePhase;
 
@@ -712,8 +713,8 @@ export function drawLaserHazard(ctx, pillar, gameHeight = 700, totalTime = 0, cu
     ctx.globalAlpha = 1;
     ctx.restore();
 
-    // Thân lồng đèn (luôn đỏ - vàng cho đúng văn hoá)
-    ctx.fillStyle = '#d62828';
+    // Thân lồng đèn: đổi sắc theo vòng (đỏ → cam → tím → vàng → đỏ rồng)
+    ctx.fillStyle = (lapStyle && lapStyle.lantern) || '#d62828';
     ctx.beginPath();
     ctx.ellipse(lx, hy, w * 0.42, 9.5, 0, 0, Math.PI * 2);
     ctx.fill();
@@ -724,13 +725,27 @@ export function drawLaserHazard(ctx, pillar, gameHeight = 700, totalTime = 0, cu
       ctx.ellipse(lx + i * (w * 0.14), hy, w * 0.09, 9, 0, 0, Math.PI * 2);
       ctx.stroke();
     }
-    // Tua rua vàng
+    // Tua rua vàng (nhiều tua hơn ở các vòng sau để khác hình thái)
     ctx.strokeStyle = lanternLight;
     ctx.lineWidth = 1.3;
-    ctx.beginPath();
-    ctx.moveTo(lx, hy + 9);
-    ctx.lineTo(lx, hy + 15);
-    ctx.stroke();
+    const tassels = (lapStyle && lapStyle.pennant) ? Math.min(5, Math.max(1, lapStyle.pennant - 3)) : 1;
+    for (let ti = 0; ti < tassels; ti++) {
+      const off = (ti - (tassels - 1) / 2) * (w * 0.14);
+      ctx.beginPath();
+      ctx.moveTo(lx + off, hy + 9);
+      ctx.lineTo(lx + off, hy + 15 + (ti % 2) * 2);
+      ctx.stroke();
+    }
+
+    // Vòng dải vàng quanh mấu tre (từ vòng 3 trở đi)
+    if (lapStyle && lapStyle.band) {
+      ctx.strokeStyle = 'rgba(232, 184, 75, 0.85)';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(x - 5, hy - 8);
+      ctx.lineTo(x + w + 5, hy - 8);
+      ctx.stroke();
+    }
   };
 
   head(topY - emitterH + 5);
