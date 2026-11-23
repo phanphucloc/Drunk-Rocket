@@ -2,6 +2,7 @@ import { Game } from './core/game.js';
 import { applyDomI18n, t, setLang, getLang } from './i18n.js';
 import { infoPanels } from './ui/infoPanels.js';
 import { initStampBook } from './ui/stampBook.js';
+import { initWindJar } from './ui/windJar.js';
 
 window.addEventListener('DOMContentLoaded', () => {
   const canvas = document.getElementById('game-canvas');
@@ -190,6 +191,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  initWindJar(game);
   initStampBook();
   // ---- Canh UI theo MÉP CANVAS (không theo mép cửa sổ) ----
   const layoutOverlay = () => {

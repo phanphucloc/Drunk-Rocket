@@ -98,7 +98,7 @@ export class Game {
     this.paused = false;
     // Bất tử ngắn mỗi lần đổi chương (tránh chết oan khi cảnh vừa đổi, người chơi đang nhìn)
     this.invincibleTimer = 0;
-    if (infoPanels) infoPanels.setLandmark(this.currentTheme, 1, 1);
+    if (infoPanels) infoPanels.setLandmark(this.currentTheme, 1, 1, false, 0, POINTS_PER_CHAPTER);
 
     // Active Perk Modifiers
     this.shieldActive = false;
@@ -562,7 +562,7 @@ export class Game {
 
     this.audio.playSmash(isChain);
     this.hud.triggerRamImpact();
-    this.invincibleTimer = Math.max(this.invincibleTimer, this.smashMaxDuration + 0.2);
+    // Không cộng trước bất tử: isSmashActive đã chặn va chạm; _endSmash() cấp 0.7s chuẩn
   }
 
   /** Kết thúc cú Lộng Gió: hạ tốc, trôi về làn bay, bất tử ngắn + cooldown chống smash liên tiếp. */
@@ -879,7 +879,7 @@ export class Game {
         this.particles.emitThrust(this.rocket.x, this.rocket.y, this.rocket.rotation);
 
         if (this.hasQuantumDrift && this.quantumCooldownTimer <= 0) {
-          this.quantumTimer = 1.8;
+          this.quantumTimer = 1.2;
           this.quantumCooldownTimer = this.quantumMaxCooldown;
           this.rocket.isQuantum = true;
           this.audio.playMedal();
@@ -1005,12 +1005,12 @@ export class Game {
       }
       return;
     }
-    const zoom = 1.08;
+    const zoom = 1.05;
     const cx = this.width / 2, cy = this.height / 2;
     const nx = Math.max(-1, Math.min(1, (this.rocket.x - cx) / cx));
     const ny = Math.max(-1, Math.min(1, (this.rocket.y - cy) / cy));
-    const sx = -nx * (zoom - 1) * 60;
-    const sy = -ny * (zoom - 1) * 60;
+    const sx = -nx * (zoom - 1) * 40;
+    const sy = -ny * (zoom - 1) * 40;
     cv.style.transformOrigin = '50% 50%';
     cv.style.transform = 'scale(' + zoom + ') translate(' + sx.toFixed(1) + 'px,' + sy.toFixed(1) + 'px)';
     this._camApplied = true;
@@ -1043,7 +1043,7 @@ export class Game {
         out.globalCompositeOperation = mood.mode;
         out.globalAlpha = mood.alpha;
         out.fillStyle = mood.color;
-        out.fillRect(0, 0, out.canvas.width, out.canvas.height);
+        out.fillRect(-30, -30, out.canvas.width + 60, out.canvas.height + 60);
         out.restore();
       }
 

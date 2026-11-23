@@ -10,7 +10,7 @@ const LAP_GATE_ACCENTS = [
   { accent: '#e63946', light: '#ffd13b', lantern: '#d62828', glow: 'rgba(230, 57, 70, 0.45)', pennant: 4, band: false,
     pole: ['#96c46a', '#6fa44c', '#4f7a38'], leaf: '#5f9a3e' },                                    // V1 tre xanh
   { accent: '#e8802a', light: '#ffe08a', lantern: '#e07b1f', glow: 'rgba(232, 128, 42, 0.45)', pennant: 5, band: false,
-    pole: ['#e8c06a', '#c99a3e', '#96702a'], leaf: '#d8a94a' },                                    // V2 tre mật
+    pole: ['#8fe0c8', '#4fa891', '#2f6f5e'], leaf: '#6fc9ae' },                                    // V2 trúc ngọc lam
   { accent: '#7b3fd4', light: '#c9a2ff', lantern: '#6d34c9', glow: 'rgba(123, 63, 212, 0.45)', pennant: 5, band: true,
     pole: ['#9a86c9', '#6f5aa0', '#4a3a70'], leaf: '#7f6ab8' },                                    // V3 trúc tím
   { accent: '#c9902a', light: '#ffe8a8', lantern: '#c9852a', glow: 'rgba(201, 144, 42, 0.45)', pennant: 6, band: true,
