@@ -45,6 +45,11 @@ export class Game {
     this.fps = 0;
     this._fpsFrames = 0;
     this._fpsLastT = 0;
+    this._profFrames = [];
+    this._profWorst = 0;
+    this._profWorstFrame = 0;
+    this._profSlow = 0;
+    this._profAudioMs = 0;
     this.width = 400;
     this.height = 700;
     this.scale = 1;
@@ -228,7 +233,7 @@ export class Game {
   }
 
 
-  getPerfStats() { return { fps: this.fps || 0, ms: this.perfEma || 0, level: this.perfLevel || 0, dpr: this.dpr || 1, backingW: (this.canvas && this.canvas.width) || 0, backingH: (this.canvas && this.canvas.height) || 0, lowEnd: !!this.lowEnd, lap: this.lapNumber || 1, chapter: this.chapterNumber || 1, themeName: (this.currentTheme && this.currentTheme.name) || '', weather: (this.weather && this.weather.current) || '', pillars: (this.pillars && this.pillars.pillars) ? this.pillars.pillars.length : 0 }; }
+  getPerfStats() { return { fps: this.fps || 0, ms: this.perfEma || 0, level: this.perfLevel || 0, dpr: this.dpr || 1, backingW: (this.canvas && this.canvas.width) || 0, backingH: (this.canvas && this.canvas.height) || 0, lowEnd: !!this.lowEnd, lap: this.lapNumber || 1, chapter: this.chapterNumber || 1, themeName: (this.currentTheme && this.currentTheme.name) || '', weather: (this.weather && this.weather.current) || '', pillars: (this.pillars && this.pillars.pillars) ? this.pillars.pillars.length : 0, profWorst: this._profWorst || 0, profWorstFrame: this._profWorstFrame || 0, profSlow: this._profSlow || 0, profAudioMs: this._profAudioMs || 0, profFirst10: (this._profFrames || []).slice(0, 10) }; }
 
   resize() {
     // Đo VISUAL VIEWPORT: đúng cả khi thanh địa chỉ mobile co giãn / desktop zoom.
@@ -789,13 +794,20 @@ export class Game {
         // P0-c: tap đầu tiên vừa tắt tutorial vừa bắt đầu ván — không bắt tap 2 lần.
         if (this.showTutorial) this._dismissTutorial();
         this.state = 'PLAYING';
+        this._profFrames = [];
+        this._profWorst = 0;
+        this._profWorstFrame = 0;
+        this._profSlow = 0;
+        this._profAudioMs = 0;
         this.runStartTime = performance.now();
         this.invincibleTimer = Math.max(this.invincibleTimer, 1.0);
         this.rocket.thrust();
+        const _a0 = performance.now();
         this.audio.playThrust();
         if (this.audio.setAmbientTheme && this.weather) {
           this.audio.setAmbientTheme(this.weather.ambient || 'birds');
         }
+        this._profAudioMs = performance.now() - _a0;
         this.particles.emitThrust(this.rocket.x, this.rocket.y, this.rocket.rotation);
       }
     } else if (this.state === 'PLAYING') {
@@ -1375,11 +1387,18 @@ export class Game {
 
     if (!this.isRunning) return;
 
+    const rawDtMs = timestamp - this.lastTime;
     const dt = Math.min((timestamp - this.lastTime) / 1000, 0.1);
     this.lastTime = timestamp;
     this._fpsFrames++;
     if (!this._fpsLastT) this._fpsLastT = timestamp;
     if (timestamp - this._fpsLastT >= 500) { this.fps = Math.round((this._fpsFrames * 1000) / (timestamp - this._fpsLastT)); this._fpsFrames = 0; this._fpsLastT = timestamp; }
+    if (this.state === 'PLAYING' && this._profFrames.length < 180) {
+      const idx = this._profFrames.length;
+      this._profFrames.push(rawDtMs);
+      if (rawDtMs > this._profWorst) { this._profWorst = rawDtMs; this._profWorstFrame = idx + 1; }
+      if (rawDtMs > 25) this._profSlow++;
+    }
 
     // ---- Tự điều chỉnh chất lượng theo FPS thực ----
     if (this.state === 'PLAYING' && !this.paused && dt > 0 && dt < 0.25) {
