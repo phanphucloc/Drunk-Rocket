@@ -53,7 +53,7 @@ export class Game {
     this._profWorst = 0;
     this._profWorstFrame = 0;
     this._profSlow = 0;
-    this._profAudioMs = 0;
+    this._profAudioMs = 0; this._secSum = {}; this._secFrames = 0;
     // Baked scene + relight offscreen canvases (created lazily in render()).
     this._sceneCanvas = null;
     this._sceneCtx = null;
@@ -244,7 +244,10 @@ export class Game {
   }
 
 
-  getPerfStats() { return { fps: this.fps || 0, ms: this.perfEma || 0, level: this.perfLevel || 0, dpr: this.dpr || 1, backingW: (this.canvas && this.canvas.width) || 0, backingH: (this.canvas && this.canvas.height) || 0, lowEnd: !!this.lowEnd, lap: this.lapNumber || 1, chapter: this.chapterNumber || 1, themeName: (this.currentTheme && this.currentTheme.name) || '', weather: (this.weather && this.weather.current) || '', pillars: (this.pillars && this.pillars.pillars) ? this.pillars.pillars.length : 0, profWorst: this._profWorst || 0, profWorstFrame: this._profWorstFrame || 0, profSlow: this._profSlow || 0, profAudioMs: this._profAudioMs || 0, profFirst10: (this._profFrames || []).slice(0, 10) }; }
+  getPerfStats() { 
+    const _n = Math.max(1, this._secFrames || 0);
+    const _r = (k) => Math.round((((this._secSum || {})[k] || 0) / _n) * 10) / 10;
+    return { fps: this.fps || 0, ms: this.perfEma || 0, level: this.perfLevel || 0, dpr: this.dpr || 1, backingW: (this.canvas && this.canvas.width) || 0, backingH: (this.canvas && this.canvas.height) || 0, lowEnd: !!this.lowEnd, lap: this.lapNumber || 1, chapter: this.chapterNumber || 1, themeName: (this.currentTheme && this.currentTheme.name) || '', weather: (this.weather && this.weather.current) || '', pillars: (this.pillars && this.pillars.pillars) ? this.pillars.pillars.length : 0, profWorst: this._profWorst || 0, profWorstFrame: this._profWorstFrame || 0, profSlow: this._profSlow || 0, profAudioMs: this._profAudioMs || 0, profFirst10: (this._profFrames || []).slice(0, 10), sec: { canh: _r('canh'), nhuom: _r('nhuom'), troi: _r('troi'), vat: _r('vat'), hud: _r('hud'), nen: _r('nen') } }; }
 
   resize() {
     // Đo VISUAL VIEWPORT: đúng cả khi thanh địa chỉ mobile co giãn / desktop zoom.
@@ -811,7 +814,7 @@ export class Game {
         this._profWorst = 0;
         this._profWorstFrame = 0;
         this._profSlow = 0;
-        this._profAudioMs = 0;
+        this._profAudioMs = 0; this._secSum = {}; this._secFrames = 0;
       this.perfEma = 16.7;
       this.perfFrames = 0;
         this.runStartTime = performance.now();
@@ -1094,7 +1097,9 @@ export class Game {
     return tier + ':' + (this.lapNumber || 1) + ':' + (this.weather ? this.weather.current : '') + ':' + alphaStep + ':' + horizon + ':' + this.canvas.width + 'x' + this.canvas.height;
   }
 
+  _sec(name, t0) { if (this.state !== 'PLAYING') return; this._secSum[name] = (this._secSum[name] || 0) + (performance.now() - t0); } 
   render() {
+    if (this.state === 'PLAYING') this._secFrames++;
     this.ctx.save();
 
     // Độ rung được gộp thẳng vào transform nền (áp cho cả cảnh lẫn HUD)
@@ -1113,6 +1118,7 @@ export class Game {
     this._ensureBakeCanvases();
     // Scenic vẽ trong hệ PIXEL BACKING (nét tuyệt đối), rồi trả lại hệ 400x700.
     if (this.scenic) {
+      let _sCanh = performance.now();
       const out = this._sceneCtx;
       const sh = this.hud.getShakeOffset();
       const bx = this.baseSX || 1;
@@ -1127,7 +1133,7 @@ export class Game {
       // Sắc thái riêng của từng vòng (cùng địa danh, khác ánh sáng)
       const mood = LAP_MOODS[Math.min(LAP_MOODS.length - 1, (this.lapNumber || 1) - 1)];
       if (mood) {
-        out.save();        
+        out.save();
           out.globalCompositeOperation = mood.mode;
         out.globalAlpha = mood.alpha;
         out.fillStyle = mood.color;
@@ -1137,6 +1143,8 @@ export class Game {
 
       // Re-bake the relight when its inputs change, or every RELIGHT_BAKE_EVERY frames
       // so animated scenery and the chapter fade keep moving.
+      this._sec('canh', _sCanh);
+      let _sNhuom = performance.now();
       this._relitFrame = (this._relitFrame || 0) + 1;
       const bakeKey = this._relightBakeKey();
       if (bakeKey !== this._relitKey || this._relitFrame % RELIGHT_BAKE_EVERY === 0) {
@@ -1160,11 +1168,13 @@ export class Game {
       this.ctx.drawImage(this._relitCanvas, 0, 0);
       // Restore the logical-coordinate transform (with shake) for the rest of render().
       this.ctx.setTransform(bx, 0, 0, by, sh.x * bx, sh.y * by);
+      this._sec('nhuom', _sNhuom);
     }
     // Thời tiết: lớp màu trời + mây + sao + nắng (nằm trên tranh, dưới nhân vật)
-    if (this.weather) this.weather.drawSky(this.ctx);
+    let _sTroi1 = performance.now(); if (this.weather) this.weather.drawSky(this.ctx); this._sec('troi', _sTroi1);
 
     // Đèn cửa sổ / đèn thuyền / đèn cầu sáng lên khi trời tối
+    let _sVat = performance.now();
     drawNightLights(this.ctx, this.currentTheme, this.nightLevel || 0, this.totalTime || 0);
 
     for (const p of this.pillars.pillars) {
@@ -1325,9 +1335,11 @@ export class Game {
     }
 
     // Mưa / tuyết / sét vẽ trước nhân vật và HUD (tạo cảm giác thời tiết ở sát ống kính)
-    if (this.weather) this.weather.drawForeground(this.ctx);
+    this._sec('vat', _sVat);
+    let _sTroi2 = performance.now(); if (this.weather) this.weather.drawForeground(this.ctx); this._sec('troi', _sTroi2);
 
     // Thẻ cốt truyện chương / màn kết Diều Rồng
+    let _sHud = performance.now();
     if (this.story) this.story.draw(this.ctx);
 
     if (this.perks) this.perks.draw(this.ctx, this.width, this.height);
@@ -1355,9 +1367,10 @@ export class Game {
       }
     );
 
+    this._sec('hud', _sHud);
     // Hiệu ứng ánh sáng điện ảnh (chớp sét toàn khung & vignette theo thời tiết)
     if (this.weather && this.weather.drawOverlay) {
-      this.weather.drawOverlay(this.ctx);
+      let _sTroi3 = performance.now(); this.weather.drawOverlay(this.ctx); this._sec('troi', _sTroi3);
     } else if (this.starfield && this.starfield.drawOverlay) {
       this.starfield.drawOverlay(this.ctx);
     }
@@ -1365,6 +1378,7 @@ export class Game {
     this.ctx.restore();
   
     // ---- Nền mờ phía sau: phủ kín màn hình (cover) ----
+    let _sNen = performance.now();
     if (this.bgCtx && this.bgCanvas) {
       this._bgFrame = (this._bgFrame + 1) % 2;
       if (this._bgFrame === 0) {
@@ -1378,6 +1392,7 @@ export class Game {
       }
     }
 
+    this._sec('nen', _sNen);
     this._applyStreamCam();
 }
 
