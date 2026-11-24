@@ -812,6 +812,8 @@ export class Game {
         this._profWorstFrame = 0;
         this._profSlow = 0;
         this._profAudioMs = 0;
+      this.perfEma = 16.7;
+      this.perfFrames = 0;
         this.runStartTime = performance.now();
         this.invincibleTimer = Math.max(this.invincibleTimer, 1.0);
         this.rocket.thrust();
