@@ -215,9 +215,14 @@ window.addEventListener('DOMContentLoaded', () => {
       if (s.level > 0) cause = `Mờ: DPR ${s.dpr} (LV${s.level})`;
       else if (s.ms > 19) cause = `Lag: frame ${s.ms.toFixed(1)}ms > 16.7ms`;
       else if (s.lowEnd) cause = 'DPR 1.5 (máy lowEnd)';
+      let prof = '';
+      if (s.profWorst > 0) {
+        prof = `\nMax ${s.profWorst.toFixed(0)}ms @#${s.profWorstFrame} · >25ms: ${s.profSlow} · Audio ${s.profAudioMs.toFixed(0)}ms` +
+          `\nĐầu: ${s.profFirst10.map(v => v.toFixed(0)).join(',')}ms`;
+      } 
       hud.textContent = `FPS ${s.fps} · ${s.ms.toFixed(1)}ms · LV${s.level}\n` +
         `DPR ${s.dpr} · ${s.backingW}×${s.backingH} · V${s.lap}C${s.chapter} ${s.themeName} · ${s.weather} · Cột ${s.pillars}\n` +
-        cause;
+        cause + prof;
     }, 250);
   }
   initWindJar(game);
