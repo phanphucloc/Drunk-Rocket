@@ -42,6 +42,9 @@ export class Game {
     this.perfLevel = 0;
     this.perfEma = 16.7;
     this.perfFrames = 0;
+    this.fps = 0;
+    this._fpsFrames = 0;
+    this._fpsLastT = 0;
     this.width = 400;
     this.height = 700;
     this.scale = 1;
@@ -223,6 +226,9 @@ export class Game {
     // Áp nâng cấp Hũ Gió ngay ván đầu (sau khi mọi field đã khởi tạo)
     this._applyMetaUpgrades();
   }
+
+
+  getPerfStats() { return { fps: this.fps || 0, ms: this.perfEma || 0, level: this.perfLevel || 0, dpr: this.dpr || 1, backingW: (this.canvas && this.canvas.width) || 0, backingH: (this.canvas && this.canvas.height) || 0, lowEnd: !!this.lowEnd, lap: this.lapNumber || 1, chapter: this.chapterNumber || 1, themeName: (this.currentTheme && this.currentTheme.name) || '', weather: (this.weather && this.weather.current) || '', pillars: (this.pillars && this.pillars.pillars) ? this.pillars.pillars.length : 0 }; }
 
   resize() {
     // Đo VISUAL VIEWPORT: đúng cả khi thanh địa chỉ mobile co giãn / desktop zoom.
@@ -1371,6 +1377,9 @@ export class Game {
 
     const dt = Math.min((timestamp - this.lastTime) / 1000, 0.1);
     this.lastTime = timestamp;
+    this._fpsFrames++;
+    if (!this._fpsLastT) this._fpsLastT = timestamp;
+    if (timestamp - this._fpsLastT >= 500) { this.fps = Math.round((this._fpsFrames * 1000) / (timestamp - this._fpsLastT)); this._fpsFrames = 0; this._fpsLastT = timestamp; }
 
     // ---- Tự điều chỉnh chất lượng theo FPS thực ----
     if (this.state === 'PLAYING' && !this.paused && dt > 0 && dt < 0.25) {
