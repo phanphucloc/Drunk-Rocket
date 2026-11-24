@@ -732,6 +732,16 @@ export class WeatherSystem {
   // ------------------------------------------
   // VẼ
   // ------------------------------------------
+  // Relight only, baked by Game render() onto an offscreen canvas.
+  // Sky effects (sun/clouds/stars/birds/fog) and bloom stay in drawSky()
+  // and still draw directly on the main canvas every frame.
+  drawRelightTo(ctx) {
+    if (this.alpha <= 0.02) return;
+    const preset = PRESETS[this.current];
+    if (!preset) return;
+    this._relightSky(ctx, preset, this.alpha);
+  }
+
   drawSky(ctx) {
     if (this.alpha <= 0.02) return;
     const preset = PRESETS[this.current];
@@ -763,8 +773,7 @@ export class WeatherSystem {
     }
     hasGlow = !!(bloom > 0.02 && ctx.canvas && !lowEnd && this._glowReady);
 
-    ctx.save();
-    this._relightSky(ctx, preset, this.alpha);
+        ctx.save();
 
     for (const name of this.effects) {
       const fx = EFFECTS[name];
