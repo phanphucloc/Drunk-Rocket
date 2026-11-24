@@ -23,6 +23,10 @@ import { recordStamp } from './stamps.js';
 import { CONFIG } from '../config.js';
 
 /** Sắc thái từng vòng: cùng địa danh nhưng khác ánh sáng -> livestream không bị lặp. */
+// Relight bake cadence: re-bake the relight every N frames (30Hz) so animated
+// scenery and the chapter fade keep moving while the 5 relight passes run half as often.
+const RELIGHT_BAKE_EVERY = 2;
+
 const LAP_MOODS = [
   null,                                                        // V1: nguyên bản
   { mode: 'multiply', color: '#ffb45c', alpha: 0.34 },         // V2: hoàng hôn ấm
@@ -50,6 +54,13 @@ export class Game {
     this._profWorstFrame = 0;
     this._profSlow = 0;
     this._profAudioMs = 0;
+    // Baked scene + relight offscreen canvases (created lazily in render()).
+    this._sceneCanvas = null;
+    this._sceneCtx = null;
+    this._relitCanvas = null;
+    this._relitCtx = null;
+    this._relitKey = null;
+    this._relitFrame = 0;
     this.width = 400;
     this.height = 700;
     this.scale = 1;
@@ -270,6 +281,8 @@ export class Game {
 
     if (this._dbg) console.log('DLG vv=' + (window.visualViewport ? window.visualViewport.width + 'x' + window.visualViewport.height : '-') + ' inner=' + window.innerWidth + 'x' + window.innerHeight + ' css=' + cssW + 'x' + cssH + ' scale=' + sc.toFixed(3) + ' rect=' + Math.round(this.canvas.getBoundingClientRect().width) + 'x' + Math.round(this.canvas.getBoundingClientRect().height));
     if (this.scenic) this.scenic.resize(this.canvas.width, this.canvas.height);
+    // Backing size changed: drop the baked relight so it is re-baked.
+    this._relitKey = null;
     if (this.weather) {
       this.weather.resize(this.width, this.height);
       this.weather.forceLowEnd = this.perfLevel >= 1;
@@ -1052,6 +1065,33 @@ export class Game {
     this._camApplied = true;
   }
 
+  // Offscreen canvases for the baked scene + relight (perf).
+  _ensureBakeCanvases() {
+    const bw = this.canvas.width;
+    const bh = this.canvas.height;
+    if (this._sceneCanvas && this._sceneCanvas.width === bw && this._sceneCanvas.height === bh &&
+        this._relitCanvas && this._relitCanvas.width === bw && this._relitCanvas.height === bh) return;
+    this._sceneCanvas = document.createElement('canvas');
+    this._sceneCanvas.width = bw;
+    this._sceneCanvas.height = bh;
+    this._sceneCtx = this._sceneCanvas.getContext('2d');
+    this._relitCanvas = document.createElement('canvas');
+    this._relitCanvas.width = bw;
+    this._relitCanvas.height = bh;
+    this._relitCtx = this._relitCanvas.getContext('2d');
+    this._relitKey = null;
+  }
+
+  // Bake key: everything _relightSky depends on (tier, lap mood, weather
+  // preset and fade, horizon, backing size). Scenery animation and the
+  // chapter fade are covered by the every-N-frames re-bake in render().
+  _relightBakeKey() {
+    const tier = (this.currentTheme && this.currentTheme.tier) || (this.scenic && this.scenic.currentTier) || 1;
+    const horizon = (this.weather && this.weather.stage && this.weather.stage.horizon) || '';
+    const alphaStep = this.weather ? Math.round(this.weather.alpha / 0.05) : 0;
+    return tier + ':' + (this.lapNumber || 1) + ':' + (this.weather ? this.weather.current : '') + ':' + alphaStep + ':' + horizon + ':' + this.canvas.width + 'x' + this.canvas.height;
+  }
+
   render() {
     this.ctx.save();
 
@@ -1062,12 +1102,19 @@ export class Game {
     this.ctx.setTransform(bx0, 0, 0, by0, shake.x * bx0, shake.y * by0);
 
     this.starfield.draw(this.ctx);
+    // Baked scene + relight: the scene is redrawn into _sceneCanvas every frame,
+    // then relit into _relitCanvas only when the bake key changes or every
+    // RELIGHT_BAKE_EVERY frames; the main canvas draws that baked image once.
+    this._ensureBakeCanvases();
     // Scenic vẽ trong hệ PIXEL BACKING (nét tuyệt đối), rồi trả lại hệ 400x700.
     if (this.scenic) {
-      const out = this.ctx;
+      const out = this._sceneCtx;
       const sh = this.hud.getShakeOffset();
       const bx = this.baseSX || 1;
       const by = this.baseSY || 1;
+      // Bake: clear the offscreen scene canvas (identity transform) before drawing into it.
+      out.setTransform(1, 0, 0, 1, 0, 0);
+      out.clearRect(0, 0, this._sceneCanvas.width, this._sceneCanvas.height);
       // Cảnh ở hệ PIXEL BACKING, cùng độ rung với phần còn lại
       out.setTransform(1, 0, 0, 1, sh.x * bx, sh.y * by);
       this.scenic.draw(out);
@@ -1083,7 +1130,26 @@ export class Game {
         out.restore();
       }
 
-      out.setTransform(bx, 0, 0, by, sh.x * bx, sh.y * by);
+      // Re-bake the relight when its inputs change, or every RELIGHT_BAKE_EVERY frames
+      // so animated scenery and the chapter fade keep moving.
+      this._relitFrame = (this._relitFrame || 0) + 1;
+      const bakeKey = this._relightBakeKey();
+      if (bakeKey !== this._relitKey || this._relitFrame % RELIGHT_BAKE_EVERY === 0) {
+        this._relitKey = bakeKey;
+        const rctx = this._relitCtx;
+        rctx.setTransform(1, 0, 0, 1, 0, 0);
+        rctx.clearRect(0, 0, this._relitCanvas.width, this._relitCanvas.height);
+        rctx.drawImage(this._sceneCanvas, 0, 0);
+        if (this.weather) {
+          // _relightSky works in logical coordinates, so scale the relight context.
+          rctx.setTransform(bx, 0, 0, by, 0, 0);
+          this.weather.drawRelightTo(rctx);
+          rctx.setTransform(1, 0, 0, 1, 0, 0);
+        }
+      }
+      // Main canvas: one drawImage of the baked, relit scene.
+      this.ctx.setTransform(bx, 0, 0, by, sh.x * bx, sh.y * by);
+      this.ctx.drawImage(this._relitCanvas, 0, 0, this.width, this.height);
     }
     // Thời tiết: lớp màu trời + mây + sao + nắng (nằm trên tranh, dưới nhân vật)
     if (this.weather) this.weather.drawSky(this.ctx);
