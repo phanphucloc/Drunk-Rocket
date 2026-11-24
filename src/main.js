@@ -189,8 +189,37 @@ window.addEventListener('DOMContentLoaded', () => {
       apply(box.checked);
       box.addEventListener('change', () => apply(box.checked));
     }
+
   }
 
+  // ---- Perf HUD: thông số hiệu năng live (tuỳ chọn trong ⚙) ----
+  {
+    const KEY = 'dieu_perf_hud';
+    const box = document.getElementById('setting-perf-hud');
+    const hud = document.getElementById('perf-hud');
+    const apply = (on) => {
+      if (hud) hud.classList.toggle('hidden', !on);
+      try { localStorage.setItem(KEY, on ? '1' : '0'); } catch (e) {}
+    };
+    let enabled = false;
+    try { enabled = localStorage.getItem(KEY) === '1' || /[?&]perf=1/.test(location.search); } catch (e) {}
+    if (box) {
+      box.checked = enabled;
+      box.addEventListener('change', () => apply(box.checked));
+    }
+    apply(enabled);
+    setInterval(() => {
+      if (!hud || hud.classList.contains('hidden') || !game || !game.getPerfStats) return;
+      const s = game.getPerfStats();
+      let cause = 'Ổn định';
+      if (s.level > 0) cause = `Mờ: DPR ${s.dpr} (LV${s.level})`;
+      else if (s.ms > 19) cause = `Lag: frame ${s.ms.toFixed(1)}ms > 16.7ms`;
+      else if (s.lowEnd) cause = 'DPR 1.5 (máy lowEnd)';
+      hud.textContent = `FPS ${s.fps} · ${s.ms.toFixed(1)}ms · LV${s.level}\n` +
+        `DPR ${s.dpr} · ${s.backingW}×${s.backingH} · V${s.lap}C${s.chapter} ${s.themeName} · ${s.weather} · Cột ${s.pillars}\n` +
+        cause;
+    }, 250);
+  }
   initWindJar(game);
   // ?windjar=1 : mở sẵn Hũ Gió (kiểm thử)
   if (/[?&]windjar=1/.test(location.search)) {
