@@ -1127,9 +1127,8 @@ export class Game {
       // Sắc thái riêng của từng vòng (cùng địa danh, khác ánh sáng)
       const mood = LAP_MOODS[Math.min(LAP_MOODS.length - 1, (this.lapNumber || 1) - 1)];
       if (mood) {
-        out.save()
-          // ;
-        out.globalCompositeOperation = mood.mode;
+        out.save();        
+          out.globalCompositeOperation = mood.mode;
         out.globalAlpha = mood.alpha;
         out.fillStyle = mood.color;
         out.fillRect(-30, -30, out.canvas.width + 60, out.canvas.height + 60);
