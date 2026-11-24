@@ -33,6 +33,11 @@ export class ScenicLandmarksManager {
     this.fadeProgress = 1.0;
     this._hueScene = null;
 
+    // Cached scrim gradient (depends only on tier and height; see draw()).
+    this._scrimGradient = null;
+    this._scrimTier = 0;
+    this._scrimHeight = 0;
+
     // Animation Timers
     this.animTimer = 0;
     this.cableCarPhase = 0;
@@ -153,7 +158,6 @@ export class ScenicLandmarksManager {
     this._ctxBaseMap = this._ctxBaseMap || new WeakMap();
     return this._ctxBaseMap.get(ctx) || { a: 1, d: 1 };
   }
-
   _setCtxBase(ctx) {
     this._ctxBaseMap = this._ctxBaseMap || new WeakMap();
     const m = (ctx.getTransform && ctx.getTransform()) || { a: 1, d: 1 };
@@ -175,9 +179,10 @@ export class ScenicLandmarksManager {
   setTier(tier) {
     if (tier !== this.currentTier) {
       this.prevTier = this.currentTier;
-      this.currentTier = tier;
-      this.fadeProgress = 0.0;
-    }
+          this.currentTier = tier;
+          this.fadeProgress = 0.0;
+      this._scrimGradient = null;
+  }
   }
 
   update(dt, tier = 1) {
@@ -215,6 +220,28 @@ export class ScenicLandmarksManager {
     }
   }
 
+  // Cached scrim gradient: it depends only on the tier (daylight/cool) and
+  // the height, so rebuilding it every frame is wasted work.
+  _getScrimGradient(ctx) {
+    if (this._scrimGradient && this._scrimTier === this.currentTier && this._scrimHeight === this.height) return this._scrimGradient;
+    const daylight = this.currentTier === 1 || this.currentTier === 2;
+    const scrim = ctx.createLinearGradient(0, 0, 0, this.height);
+    if (daylight) {
+      const cool = this.currentTier === 1;
+      scrim.addColorStop(0, cool ? 'rgba(20, 34, 52, 0.08)' : 'rgba(24, 42, 34, 0.05)');
+      scrim.addColorStop(0.5, cool ? 'rgba(20, 34, 52, 0.04)' : 'rgba(24, 42, 34, 0.02)');
+      scrim.addColorStop(1, cool ? 'rgba(16, 30, 46, 0.16)' : 'rgba(16, 34, 28, 0.12)');
+    } else {
+      scrim.addColorStop(0, 'rgba(10, 14, 24, 0.12)');
+      scrim.addColorStop(0.5, 'rgba(10, 14, 24, 0.06)');
+      scrim.addColorStop(1, 'rgba(10, 14, 24, 0.25)');
+    }
+    this._scrimGradient = scrim;
+    this._scrimTier = this.currentTier;
+    this._scrimHeight = this.height;
+    return scrim;
+  }
+
   draw(ctx) {
     ctx.save();
 
@@ -249,18 +276,7 @@ export class ScenicLandmarksManager {
     // Atmospheric depth scrim (keeps background subtle so foreground obstacles pop out crystal clear)
     // Tier 1 (Sa Pa) và Tier 2 (Ninh Bình) là cảnh ban ngày nên chỉ phủ một lớp mỏng,
     // giữ nguyên độ trong và sắc màu của tranh.
-    const daylight = this.currentTier === 1 || this.currentTier === 2;
-    const scrim = ctx.createLinearGradient(0, 0, 0, this.height);
-    if (daylight) {
-      const cool = this.currentTier === 1;
-      scrim.addColorStop(0, cool ? 'rgba(20, 34, 52, 0.08)' : 'rgba(24, 42, 34, 0.05)');
-      scrim.addColorStop(0.5, cool ? 'rgba(20, 34, 52, 0.04)' : 'rgba(24, 42, 34, 0.02)');
-      scrim.addColorStop(1, cool ? 'rgba(16, 30, 46, 0.16)' : 'rgba(16, 34, 28, 0.12)');
-    } else {
-      scrim.addColorStop(0, 'rgba(10, 14, 24, 0.12)');
-      scrim.addColorStop(0.5, 'rgba(10, 14, 24, 0.06)');
-      scrim.addColorStop(1, 'rgba(10, 14, 24, 0.25)');
-    }
+    const scrim = this._getScrimGradient(ctx);
     ctx.fillStyle = scrim;
     ctx.fillRect(0, 0, this.width, this.height);
 
