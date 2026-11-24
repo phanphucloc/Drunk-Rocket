@@ -38,6 +38,7 @@
   </div>
 
 <canvas id="game-canvas"></canvas>
+  <div id="perf-hud" class="hidden" aria-hidden="true"></div>
 
     <!-- Top Floating Toolbar -->
     <div id="top-toolbar">
@@ -189,7 +190,11 @@
         </div>
         <div class="vol-row toggle-row">
           <label for="setting-stream-cam" data-i18n="settings.streamCam">Stream camera (zoom nhẹ theo diều)</label>
-          <input id="setting-stream-cam" type="checkbox">
+         <input id="setting-stream-cam" type="checkbox">
+        </div>
+        <div class="vol-row toggle-row">
+          <label for="setting-perf-hud"><span data-i18n="settings.perfHud">Hiển thị thông số hiệu năng (FPS/DPR)</span></label>
+          <input id="setting-perf-hud" type="checkbox">
         </div>
         <p class="modal-intro" data-i18n="settings.note"></p>
       </div>
