@@ -134,7 +134,6 @@ export class ScenicLandmarksManager {
         }
         const tier = tiers[i++];
         try {
-          sthis._resetView(ctx);
           sctx.clearRect(0, 0, this.width, this.height);
           this._drawLandmarkByTier(sctx, tier);
         } catch (e) { /* bỏ qua lỗi dựng thử */ }
