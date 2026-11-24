@@ -210,7 +210,8 @@ window.addEventListener('DOMContentLoaded', () => {
     apply(enabled);
     setInterval(() => {
       if (!hud || hud.classList.contains('hidden') || !game || !game.getPerfStats) return;
-      const s = game.getPerfStats();
+      const s = game.getPerfStats(); 
+      const sec = s.sec;
       let cause = 'Ổn định';
       if (s.level > 0) cause = `Mờ: DPR ${s.dpr} (LV${s.level})`;
       else if (s.ms > 19) cause = `Lag: frame ${s.ms.toFixed(1)}ms > 16.7ms`;
@@ -220,6 +221,7 @@ window.addEventListener('DOMContentLoaded', () => {
         prof = `\nMax ${s.profWorst.toFixed(0)}ms @#${s.profWorstFrame} · >25ms: ${s.profSlow} · Audio ${s.profAudioMs.toFixed(0)}ms` +
           `\nĐầu: ${s.profFirst10.map(v => v.toFixed(0)).join(',')}ms`;
       } 
+      if (sec) prof += `\nCảnh ${sec.canh} · Nhuộm ${sec.nhuom} · Trời ${sec.troi} · Vật ${sec.vat} · HUD ${sec.hud} · Nền ${sec.nen}`; 
       hud.textContent = `FPS ${s.fps} · ${s.ms.toFixed(1)}ms · LV${s.level}\n` +
         `DPR ${s.dpr} · ${s.backingW}×${s.backingH} · V${s.lap}C${s.chapter} ${s.themeName} · ${s.weather} · Cột ${s.pillars}\n` +
         cause + prof;
