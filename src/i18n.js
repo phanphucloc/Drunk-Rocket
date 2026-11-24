@@ -121,6 +121,7 @@ const DICT = {
 
     'settings.title': '⚙ CÀI ĐẶT',
     'settings.streamCam': 'Stream camera (zoom nhẹ theo diều)',
+    'settings.perfHud': 'Hiển thị thông số hiệu năng (FPS/DPR)',
     'meta.title': 'HŨ GIÓ',
     'meta.wind': 'Gió tích luỹ',
     'meta.upgrades': 'Nâng cấp vĩnh viễn',
@@ -258,6 +259,7 @@ const DICT = {
 
     'settings.title': '⚙ SETTINGS',
     'settings.streamCam': 'Stream camera (slight zoom)',
+    'settings.perfHud': 'Show performance stats (FPS/DPR)',
     'meta.title': 'WIND JAR',
     'meta.wind': 'Stored wind',
     'meta.upgrades': 'Permanent upgrades',
