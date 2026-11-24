@@ -1101,7 +1101,10 @@ export class Game {
     const by0 = this.baseSY || 1;
     this.ctx.setTransform(bx0, 0, 0, by0, shake.x * bx0, shake.y * by0);
 
-    this.starfield.draw(this.ctx);
+    // The landmark scene covers the whole screen when the weather system draws
+    // the sky (externalWeather), so the starfield sky gradient underneath is
+    // never visible; skip it. drawOverlay below is untouched.
+    if (this.starfield.externalWeather !== true) this.starfield.draw(this.ctx);
     // Baked scene + relight: the scene is redrawn into _sceneCanvas every frame,
     // then relit into _relitCanvas only when the bake key changes or every
     // RELIGHT_BAKE_EVERY frames; the main canvas draws that baked image once.
