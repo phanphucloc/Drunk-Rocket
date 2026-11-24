@@ -1127,7 +1127,8 @@ export class Game {
       // Sắc thái riêng của từng vòng (cùng địa danh, khác ánh sáng)
       const mood = LAP_MOODS[Math.min(LAP_MOODS.length - 1, (this.lapNumber || 1) - 1)];
       if (mood) {
-        out.save();
+        out.save()
+          // ;
         out.globalCompositeOperation = mood.mode;
         out.globalAlpha = mood.alpha;
         out.fillStyle = mood.color;
@@ -1153,8 +1154,13 @@ export class Game {
         }
       }
       // Main canvas: one drawImage of the baked, relit scene.
+      // Identity transform: a true 1:1 pixel copy. Drawing it under the 1.8x
+      // scale transform makes the browser filter (soften) the whole background.
+      // (Shake is already baked into _relitCanvas; it is NOT applied twice.)
+      this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+      this.ctx.drawImage(this._relitCanvas, 0, 0);
+      // Restore the logical-coordinate transform (with shake) for the rest of render().
       this.ctx.setTransform(bx, 0, 0, by, sh.x * bx, sh.y * by);
-      this.ctx.drawImage(this._relitCanvas, 0, 0, this.width, this.height);
     }
     // Thời tiết: lớp màu trời + mây + sao + nắng (nằm trên tranh, dưới nhân vật)
     if (this.weather) this.weather.drawSky(this.ctx);
